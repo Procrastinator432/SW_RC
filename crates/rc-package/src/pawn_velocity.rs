@@ -88,6 +88,9 @@ pub struct WalkingDiagnosticOptions {
 }
 #[derive(Debug, Serialize)]
 pub struct WalkingDiagnosticFrame {
+    /// Computed velocity before own body collision projection; internal dispatch snapshot.
+    #[serde(skip)]
+    pub planned_velocity: [f64; 3],
     pub motion: BodyFrame,
     pub walking_applied: bool,
     pub acceleration_factor: Option<f64>,
@@ -154,6 +157,7 @@ impl StaticBodyWorld {
             (None, None)
         };
         Ok(WalkingDiagnosticFrame {
+            planned_velocity: body.velocity,
             motion: self.body_tick(&body, dt, physics)?,
             walking_applied: supported,
             acceleration_factor,

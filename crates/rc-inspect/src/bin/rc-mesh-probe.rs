@@ -11,6 +11,8 @@ use rc_package::{
 use std::{collections::HashMap, env, fs, path::Path, sync::Arc};
 #[path = "../defaults.rs"]
 mod defaults;
+#[path = "../pawn_probes.rs"]
+mod pawn_probes;
 #[path = "../volumes.rs"]
 mod volumes_load;
 
@@ -19,9 +21,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let walking_mode = args
         .get(4)
         .is_some_and(|v| v.to_str() == Some("--walking-diagnostic"));
-    if args.len() != 4 && !(args.len() == 5 && walking_mode) {
+    let falling_mode = args
+        .get(4)
+        .is_some_and(|v| v.to_str() == Some("--falling-diagnostic"));
+    let pawn_mode = args
+        .get(4)
+        .is_some_and(|v| v.to_str() == Some("--pawn-diagnostic"));
+    let script_mode = args
+        .get(4)
+        .is_some_and(|v| v.to_str() == Some("--script-diagnostic"));
+    let crouch_mode = args
+        .get(4)
+        .is_some_and(|v| v.to_str() == Some("--crouch-diagnostic"));
+    let crouch_motion_mode = args
+        .get(4)
+        .is_some_and(|v| v.to_str() == Some("--crouch-motion-diagnostic"));
+    let ai_duck_target_mode = args
+        .get(4)
+        .is_some_and(|v| v.to_str() == Some("--ai-duck-target-diagnostic"));
+    let ai_contact_mode = ai_duck_target_mode
+        || args
+            .get(4)
+            .is_some_and(|v| v.to_str() == Some("--ai-contact-diagnostic"));
+    if args.len() != 4
+        && !(args.len() == 5
+            && (walking_mode
+                || falling_mode
+                || pawn_mode
+                || script_mode
+                || crouch_mode
+                || crouch_motion_mode
+                || ai_contact_mode))
+    {
         return Err(
-            "Usage: rc-mesh-probe <GameData> <map.ctm> <report.json> [--walking-diagnostic]".into(),
+            "Usage: rc-mesh-probe <GameData> <map.ctm> <report.json> [--walking-diagnostic|--falling-diagnostic|--pawn-diagnostic|--script-diagnostic|--crouch-diagnostic|--crouch-motion-diagnostic|--ai-contact-diagnostic|--ai-duck-target-diagnostic]".into(),
         );
     }
     let game = Path::new(&args[1]);
@@ -81,6 +114,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let extent = [radius, radius, size("CollisionHeight")?];
     let mut subclass_count = 0;
     let mut actors = Vec::new();
+    let mut wall_classes = std::collections::BTreeMap::new();
     let mut unclassified = Vec::new();
     let (mut skipped, mut supported, mut unsupported, mut blocked, mut clear) = (0, 0, 0, 0, 0);
     for (i, export) in pkg.exports.iter().enumerate() {
@@ -96,6 +130,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if !is_actor {
             continue;
         }
+        wall_classes.insert(actor.clone(), class.clone());
         let props = properties::read(&pkg, &bytes, export)?;
         let mesh_value = catalog.instance(&class, &props, "StaticMesh", 0, &source);
         if matches!(&mesh_value, Ok(v) if matches!(v.value, Value::Object {index:0,..})) {
@@ -516,6 +551,122 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             walking_probes.push(serde_json::json!({"start":start.actor,"requested_ticks":300,"frames":frames,"error":error,"final_state":state}));
         }
     }
+    let mut falling_probes = Vec::new();
+    if falling_mode {
+        let mut falling_starts: Vec<_> = starts.iter().take(1).collect();
+        for start in &starts {
+            let selected = loaded_volumes.world.select(start.location)?;
+            if selected.complete
+                && selected.settings.gravity != loaded_volumes.world.default.gravity
+                && !falling_starts.iter().any(|s| s.actor == start.actor)
+            {
+                falling_starts.push(start);
+                break;
+            }
+        }
+        for start in falling_starts {
+            let mut state = rc_package::physics::BodyState {
+                position: start.location.map(f64::from),
+                velocity: [0.0, 0.0, controller_options.jump_speed],
+                grounded: false,
+            };
+            let selected = loaded_volumes.world.select(start.location)?;
+            let budget = if selected.settings.gravity[2] > loaded_volumes.world.default.gravity[2] {
+                720
+            } else {
+                300
+            };
+            let mut frames = Vec::new();
+            let mut error = None;
+            for tick in 0..budget {
+                let volume = loaded_volumes
+                    .world
+                    .select(state.position.map(|v| v as f32))?;
+                if !volume.complete {
+                    error = Some("incomplete falling volume selection".to_string());
+                    break;
+                }
+                let physics = match volume.settings.apply(movement_profile.physics) {
+                    Ok(p) => p,
+                    Err(reason) => {
+                        error = Some(reason);
+                        break;
+                    }
+                };
+                let view = rc_package::controller::ViewInput {
+                    forward: if (10..40).contains(&tick) { 1.0 } else { 0.0 },
+                    strafe: if (10..40).contains(&tick) { 1.0 } else { 0.0 },
+                    yaw: start.rotation[1],
+                    walking: false,
+                    jump: false,
+                };
+                let direction = view
+                    .world_input(rc_package::controller::MovementRatios {
+                        walk: 1.0,
+                        back: 1.0,
+                        side: 1.0,
+                    })?
+                    .direction;
+                let acceleration = direction.map(|v| v * controller_options.acceleration);
+                let options = rc_package::falling::FreeFallOptions {
+                    acceleration_rate: controller_options.acceleration,
+                    air_control: controller_options.air_control,
+                    ground_speed: controller_options.speed,
+                    terminal_speed: physics.terminal_speed,
+                    gravity: [0.0, 0.0, -physics.gravity],
+                    zone_velocity: [0.0; 3],
+                };
+                match body_world.falling_diagnostic_tick(
+                    &state,
+                    acceleration,
+                    1.0 / 60.0,
+                    options,
+                    physics.into(),
+                ) {
+                    Ok(frame) => {
+                        state = frame.motion.body;
+                        frames.push(serde_json::json!({"volume":volume,"view_input":view,"acceleration":acceleration,"options":options,"result":frame}));
+                        if state.grounded {
+                            break;
+                        }
+                    }
+                    Err(reason) => {
+                        error = Some(reason);
+                        break;
+                    }
+                }
+            }
+            if error.is_none() && !state.grounded {
+                error = Some("falling trajectory did not land within the diagnostic budget".into());
+            }
+            movement_errors += usize::from(error.is_some());
+            falling_probes.push(serde_json::json!({"start":start.actor,"initial_vertical_velocity":controller_options.jump_speed,"requested_tick_budget":budget,"frames":frames,"error":error,"landed":state.grounded,"final_state":state}));
+        }
+    }
+    let pawn_report = if script_mode || crouch_mode || crouch_motion_mode || ai_contact_mode {
+        pawn_probes::run_script(
+            &catalog,
+            &starts,
+            &loaded_volumes.world,
+            &body_world,
+            &movement_profile,
+        )?
+    } else if pawn_mode {
+        pawn_probes::run(
+            &catalog,
+            &starts,
+            &loaded_volumes.world,
+            &body_world,
+            &movement_profile,
+        )?
+    } else {
+        pawn_probes::PawnProbes {
+            probes: vec![],
+            properties: vec![],
+            errors: 0,
+        }
+    };
+    movement_errors += pawn_report.errors;
     for start in starts.iter().take(4) {
         let mut body = rc_package::physics::BodyState {
             position: start.location.map(f64::from),
@@ -608,12 +759,62 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(parent) = Path::new(&args[3]).parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(
-        &args[3],
-        serde_json::to_vec_pretty(
-            &serde_json::json!({"map":source,"world_binding":binding,"starts":starts.len(),"actors":actors,"supported_actors":supported,"skipped_actors":skipped,"unsupported_actors":unsupported,"blocked_actor_probes":blocked,"clear_actor_probes":clear,"included_other_mesh_actor_classes":subclass_count,"unclassified_exports":unclassified,"incomplete_world_probes":incomplete_probes,"world_probes":world_probes,"body_probes":body_probes,"body_extent":extent,"incomplete_body_probes":incomplete_body_probes,"volume_actors":loaded_volumes.actors,"unidentified_volume_classes":loaded_volumes.unidentified,"volume_import_errors":loaded_volumes.errors,"movement_profile":movement_profile,"input_modes":input_modes,"controller_probes":controller_probes,"walking_diagnostic_probes":walking_probes,"walking_diagnostic_properties":walking_properties,"walking_diagnostic_scope":"Opt-in static PC bridge: first start, 300 ticks at 1/60; 120 passive fall/idle, 30 diagonal acceleration, 60 idle, 30 walking forward, 60 idle. Selected volume gravity/terminal/friction; SpeedFactor applied to acceleration limit and new velocity cap. Caller sets MaximumDesiredSpeed=GroundSpeed and weapon modifier1, healthy/uncrouched. Input acceleration mapping, inverse yaw matrix and body integration are diagnostic policies; no native Walking/Falling/SSE parity, ModifyVelocity, jump or Android integration. Airborne acceleration explicitly rejected.","controller_options":controller_options,"controller_scope":"Own PC yaw-relative directional policy with original class default properties; static PhysicsVolume selection recomputed at every tick start; crossing substeps/callbacks absent; first two starts plus up to two with different selected gravity, 300 ticks (720 for initially weaker gravity) at 1/60: 120 fall/idle, 30 diagonal command, 30 brake, 90 held jump, remaining 30 or 450 ticks released idle. Original GroundSpeed/AccelRate/DecelRate/AirControl/JumpZ/ratios/dimensions/Gravity/TerminalVelocity applied; MAXSTEPHEIGHT35/MINFLOORZ0.7 from Actor source; skin/support/iterations own policy. No native formula parity or Android integration.","step_probes":step_probes,"step_probe_scope":"Independent 0.05-second stress ticks from exact floor positions, horizontal displacements 128/512 in four directions; not normal gameplay speeds or continuous trajectories. Step height 24 is caller-selected.","physics_probes":physics_probes,"physics_options":physics_options,"physics_scope":"PC integration policy; first four starts per map, 180 fixed ticks at 1/60, 120 falling/30 horizontal command/30 idle. Gravity 980 and terminal speed 4000 are caller-selected diagnostic parameters, not decoded defaults; step height 24 is also a diagnostic parameter; conservative up/forward/down step attempts enabled; no native physics parity, friction, volumes or Android integration.","placement_probes":placement_probes,"grounded_probes":grounded_probes,"movement_probes":movement_probes,"movement_scope":"PC conservative displacement solver: skin 0.5, 8 iterations; touching starts allowed, penetrating starts refused; placement candidates lifted by 0/16/84/128 only diagnosed, not auto-selected; exact floor contact plus 128-unit horizontal movement tested; static AABB clipping/sliding and 10-unit downward support probes with minimum normal Z 0.7. No native Pawn physics, gravity, steps, spawn placement or Android integration. Result Err supplies no candidate position.","scope":"Level-referenced world Model plus Actor-derived objects with non-null StaticMesh at serialized pose; Boolean lines and mathematical player-sized AABB sweeps at stored Actor poses. Query completeness applies to classified mesh actors and the Level-referenced Model only; unclassified exports reported separately. No skeletal/cylinder actors, brush/mover simulation, native hit records/tolerances/backoff or movement. Complex/cylinder/unsupported Models rejected"}),
-        )?,
-    )?;
+    let mut report = serde_json::json!({"map":source,"world_binding":binding,"starts":starts.len(),"actors":actors,"supported_actors":supported,"skipped_actors":skipped,"unsupported_actors":unsupported,"blocked_actor_probes":blocked,"clear_actor_probes":clear,"included_other_mesh_actor_classes":subclass_count,"unclassified_exports":unclassified,"incomplete_world_probes":incomplete_probes,"world_probes":world_probes,"body_probes":body_probes,"body_extent":extent,"incomplete_body_probes":incomplete_body_probes,"volume_actors":loaded_volumes.actors,"unidentified_volume_classes":loaded_volumes.unidentified,"volume_import_errors":loaded_volumes.errors,"movement_profile":movement_profile,"input_modes":input_modes,"controller_probes":controller_probes,"falling_diagnostic_probes":falling_probes,"falling_diagnostic_scope":"Opt-in static AABB bridge, per-tick selected volume, seeded vertical velocity JumpZ475 (not triggered jump); 30 diagonal acceleration ticks10..40, otherwise passive, stop on first diagnostic floor support. First start plus one differing gravity start, budgets300 or720 at1/60. Native free-flight arithmetic with real own body lookahead and combined slide; own contact projection/support snap. No native cylinder/trace-filter parity, callbacks/time refund/landing or automatic Walking integration, mid-tick volume crossing, multi-substep collision, SSE-f32 parity or Android integration.","walking_diagnostic_probes":walking_probes,"walking_diagnostic_properties":walking_properties,"walking_diagnostic_scope":"Opt-in static PC bridge: first start, 300 ticks at 1/60; 120 passive fall/idle, 30 diagonal acceleration, 60 idle, 30 walking forward, 60 idle. Selected volume gravity/terminal/friction; SpeedFactor applied to acceleration limit and new velocity cap. Caller sets MaximumDesiredSpeed=GroundSpeed and weapon modifier1, healthy/uncrouched. Input acceleration mapping, inverse yaw matrix and body integration are diagnostic policies; no native Walking/Falling/SSE parity, ModifyVelocity, jump or Android integration. Airborne acceleration explicitly rejected.","controller_options":controller_options,"controller_scope":"Own PC yaw-relative directional policy with original class default properties; static PhysicsVolume selection recomputed at every tick start; crossing substeps/callbacks absent; first two starts plus up to two with different selected gravity, 300 ticks (720 for initially weaker gravity) at 1/60: 120 fall/idle, 30 diagonal command, 30 brake, 90 held jump, remaining 30 or 450 ticks released idle. Original GroundSpeed/AccelRate/DecelRate/AirControl/JumpZ/ratios/dimensions/Gravity/TerminalVelocity applied; MAXSTEPHEIGHT35/MINFLOORZ0.7 from Actor source; skin/support/iterations own policy. No native formula parity or Android integration.","step_probes":step_probes,"step_probe_scope":"Independent 0.05-second stress ticks from exact floor positions, horizontal displacements 128/512 in four directions; not normal gameplay speeds or continuous trajectories. Step height 24 is caller-selected.","physics_probes":physics_probes,"physics_options":physics_options,"physics_scope":"PC integration policy; first four starts per map, 180 fixed ticks at 1/60, 120 falling/30 horizontal command/30 idle. Gravity 980 and terminal speed 4000 are caller-selected diagnostic parameters, not decoded defaults; step height 24 is also a diagnostic parameter; conservative up/forward/down step attempts enabled; no native physics parity, friction, volumes or Android integration.","placement_probes":placement_probes,"grounded_probes":grounded_probes,"movement_probes":movement_probes,"movement_scope":"PC conservative displacement solver: skin 0.5, 8 iterations; touching starts allowed, penetrating starts refused; placement candidates lifted by 0/16/84/128 only diagnosed, not auto-selected; exact floor contact plus 128-unit horizontal movement tested; static AABB clipping/sliding and 10-unit downward support probes with minimum normal Z 0.7. No native Pawn physics, gravity, steps, spawn placement or Android integration. Result Err supplies no candidate position.","scope":"Level-referenced world Model plus Actor-derived objects with non-null StaticMesh at serialized pose; Boolean lines and mathematical player-sized AABB sweeps at stored Actor poses. Query completeness applies to classified mesh actors and the Level-referenced Model only; unclassified exports reported separately. No skeletal/cylinder actors, brush/mover simulation, native hit records/tolerances/backoff or movement. Complex/cylinder/unsupported Models rejected"});
+    let pawn_extra = serde_json::json!({"pawn_diagnostic_probes":&pawn_report.probes,"pawn_diagnostic_properties":&pawn_report.properties,"pawn_diagnostic_scope":"Own routing using real start-of-tick floor support: reconstructed Walking and Falling arithmetic with static AABB collision, per-tick volume. Own jump edge/latch, next-tick state handoff, extracted Engine.Pawn.DoJump Walking conditions/velocity; no Script VM/events/time refund/intra-tick volume transitions. Diagnostic input cycle settle/move/brake/two jumps with held landing and release, end after30 stable ticks; budgets600/1800. Caller runtime MaximumDesiredSpeed=GroundSpeed, weapon1, healthy/standing, wantsToCrouch=false, currentJumpZ=resolved default, base=None. No native state-machine/SSE parity or Android integration."});
+    if let serde_json::Value::Object(fields) = pawn_extra {
+        report
+            .as_object_mut()
+            .ok_or("report must be an object")?
+            .extend(fields);
+    }
+    if script_mode || crouch_mode || crouch_motion_mode || ai_contact_mode {
+        report["pawn_diagnostic_scope"] = serde_json::json!("Reviewed PlayerWalking authority jump/crouch phase feeding shared static PC Walking/Falling adapter. Script event OR pending flag; no held-key mapping, VM/callbacks/network/body-size crouch. Geometric mode/velocity/collision policy remains diagnostic. Same settle/move/brake/two jumps/rest cycle; jump_event only on first_jump and second_jump. cannotJumpNow=false from base script; bCanCrouch resolved from class defaults; runtime healthy/standing, base=None. Pending crouch transition rejected atomically. No Android integration.");
+        report["pawn_diagnostic_input_policy"] = serde_json::json!("script_event");
+    }
+    if crouch_mode {
+        let crouch_profile = rc_package::crouch::CrouchProfile::read(&catalog)?;
+        let probes = pawn_probes::crouch_round_trips(&body_world, &pawn_report, &crouch_profile)?;
+        report["crouch_profile"] = serde_json::to_value(crouch_profile)?;
+        report["crouch_probes"] = serde_json::to_value(probes)?;
+        report["crouch_scope"] = serde_json::json!("Ten isolated crouch/stand shape cycles per completed script-motion endpoint; original class dimensions and native height compensation, own complete static AABB placement/touch policy. No crouched locomotion/script tick timing/native FarMove/encroachment/callback/runtime parity.");
+    }
+    if crouch_motion_mode {
+        let shape = rc_package::crouch::CrouchProfile::read(&catalog)?;
+        let probes = pawn_probes::crouch_motion_cycles(
+            &catalog,
+            &pawn_report,
+            &body_world,
+            &loaded_volumes.world,
+            &movement_profile,
+            &shape,
+        )?;
+        report["crouch_motion_profile"] = serde_json::to_value(shape)?;
+        report["crouch_motion_probes"] = serde_json::to_value(probes)?;
+        report["crouch_motion_scope"]=serde_json::json!("Reviewed normal performPhysics crouch-before/uncrouch-after order around own static Walking/Falling solver. Original dimensions/ratios, inactive UncrouchTime snapshot0; no automatic timer arming, callbacks/FarMove/cylinder/native tick parity. From prior script endpoints:30forward duck ticks,yaw0,brake until stopped,release1,stand idle30;1200budget. Per-tick volume; shape transition candidates atomic. No Android integration.");
+    }
+    if ai_contact_mode {
+        let shape = rc_package::crouch::CrouchProfile::read(&catalog)?;
+        let probes = pawn_probes::ai_contact_cycles(
+            &catalog,
+            &pawn_report,
+            &body_world,
+            &loaded_volumes.world,
+            &movement_profile,
+            &shape,
+            pawn_probes::AiProbePolicy {
+                prefer_duck_targets: ai_duck_target_mode,
+                wall_classes: &wall_classes,
+            },
+        )?;
+        movement_errors += probes.iter().filter(|p| !p["error"].is_null()).count();
+        report["ai_contact_profile"] = serde_json::to_value(shape)?;
+        report["ai_contact_probes"] = serde_json::to_value(probes)?;
+        report["ai_contact_scope"]=serde_json::json!("Own post-step static contact dispatch, original player dimensions/ratios used for a diagnostic nonhuman snapshot. From prior script endpoints, eight 600-unit yaw probes choose nearest approaching nonfloor contact; advance<=120ticks then90idle, dt1/60. Explicit supplied controller=true/human=false/direct=false/MinHitWall0/NotifyHandled=false. Static actor exclusion derived from original class ancestry to Engine.Pawn; World.BSP false as explicit static world policy. No native event execution, AI steering/within-step timing/dynamic callbacks/Android parity. Missing target or contact reported, not successful coverage.");
+        if ai_duck_target_mode {
+            report["ai_contact_scope"]=serde_json::json!("Own post-step static AI diagnostic with original player dimensions.32directions/1500units; first approaching nonfloor hit per direction, predict CanCrouchWalk at skin-backed estimated impact and prefer Armed predictions, otherwise nearest blocked target. Prediction is separate from actual movement;<=300advance+90idle dt1/60. Synthetic controller=true/human=false/direct=false/MinHitWall0/NotifyHandled=false; static actor exclusion derived from original class ancestry to Engine.Pawn, World.BSP false explicit static policy. No navigation/native AI callbacks or timing parity; errors/no contact explicit.");
+        }
+    }
+    fs::write(&args[3], serde_json::to_vec_pretty(&report)?)?;
     println!("{supported} supported actors; {skipped} nonblocking; {unsupported} unsupported; {blocked} blocked/{clear} clear per-actor probes");
     if unsupported > 0
         || incomplete_probes > 0

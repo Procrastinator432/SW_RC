@@ -1,10 +1,18 @@
 //! Read-only Republic Commando package tables. No engine or bytecode execution.
 use serde::Serialize;
+pub mod ai_contact;
+pub mod auto_crouch;
 pub mod classes;
 pub mod collision;
 pub mod controller;
+pub mod crouch;
+pub mod crouch_motion;
 pub mod defaults;
+pub mod event_lookup;
+pub mod falling;
+pub mod falling_collision;
 pub mod geometry;
+pub mod hit_wall;
 pub mod hull;
 pub mod level;
 pub mod mesh;
@@ -12,11 +20,17 @@ pub mod mesh_collision;
 pub mod mesh_query;
 pub mod movement;
 pub mod movement_profile;
+pub mod notify_wall;
+pub mod pawn_jump;
+pub mod pawn_motion;
 pub mod pawn_velocity;
 pub mod physics;
 pub mod properties;
+pub mod script;
+pub mod script_motion;
 pub mod texture;
 pub mod volumes;
+pub mod walking_input;
 pub mod world_collision;
 type Result<T> = std::result::Result<T, String>;
 
