@@ -1,0 +1,15 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'org.rcport.diagnostic'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+    defaultConfig {
+        applicationId 'org.rcport.diagnostic'
+        minSdk 26
+        targetSdk 35
+        versionCode 7
+        versionName '0.7.0-bsp-probe'
+        ndk { abiFilters.addAll((project.findProperty('rcAbis') ?: 'arm64-v8a').split(',')) }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}

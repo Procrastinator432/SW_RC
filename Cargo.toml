@@ -1,0 +1,7 @@
+[workspace]
+members = ["crates/rc-package", "crates/rc-inspect", "crates/rc-native", "crates/rc-render"]
+resolver = "2"
+
+[workspace.dependencies]
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.149"

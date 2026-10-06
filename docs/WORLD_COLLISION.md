@@ -1,0 +1,71 @@
+# Gemeinsame Welt- und Mesh-Linienabfrage
+
+Stand 6. Oktober 2026. `rc-package::world_collision::StaticWorld` kombiniert den originalen Welt-BSP Model1 mit einfachen BSP-Kollisionsformen von Mesh-Actors. Es ist eine PC-Diagnose für Linien ohne Ausdehnung. Android bleibt bei der geprüften APK 0.7; Bewegung und Spielerphysik verwenden diese Abfrage noch nicht.
+
+## Ergebnisse und Fehler
+
+`line(start, end)` prüft den Welt-BSP und jede gelieferte Actor-Form. Der Aufruf bricht bei einem Treffer nicht ab: Fehlende Formen bleiben sichtbar. Das Ergebnis enthält sämtliche bekannten Blockierer und Fehler mit Objektname und Grund.
+
+| Zustand | Bedeutung |
+|---|---|
+| Clear | Alle gelieferten Formen wurden geprüft und geben die Linie frei. |
+| Blocked | Mindestens eine geprüfte Form blockiert. |
+| Indeterminate | Kein bekannter Blockierer, aber mindestens eine fehlende oder nicht prüfbare Form. |
+
+`complete` ist nur wahr, wenn Welt-BSP und alle gelieferten Actor-Formen ohne Fehler geprüft wurden. Auch ein Blocked-Ergebnis kann unvollständig sein. Vollständigkeit gilt ausschließlich innerhalb dieser Sammlung; sie ist kein Beleg für sämtliche Kollisionsarten der ursprünglichen Engine. Ungültige Endpunkte werden vor der Abfrage abgewiesen. Es gibt keine Sortierung nach Trefferentfernung, keine FCheckResult-Hitdaten oder Bewegungslösung.
+
+## Actor-Import
+
+Der erweiterte `rc-mesh-probe` folgt katalogisierten Klassen-Eltern bis Engine.Actor und übernimmt Objekte mit einer nicht leeren StaticMesh-Referenz. Damit werden neben genauen StaticMeshActor-Exports auch Props, KarmaProps, Marker und Inventarobjekte erfasst. Formen werden an der gespeicherten Actor-Position geprüft; Animation und Physik dieser Objekte laufen nicht.
+
+Der Importer löst Eigenschaften über System/Properties/Instanzdeltas auf, filtert mit bCollideActors und bBlockPlayers und übernimmt die bereits belegte Mesh-Formauswahl. Die einfache Form wird über inverse Actor-Transformationen geprüft und pro Asset gemeinsam genutzt. Geerbte positive Objektreferenzen stammen aus ihrem definierten Paket und werden nicht als Map-Export interpretiert. Zylinder, komplexe Bäume und nicht lesbare ausgewählte Models werden als Fehler aufgenommen.
+
+Exports, deren Klasse im Katalog fehlt, stehen im Bericht unter `unclassified_exports`. Dazu gehören native Datenobjekte wie Model, Polys, Level und StaticMeshInstance. Sie werden nicht anhand ihres Namens als Actor behandelt. Diese Liste begrenzt ausdrücklich den Importumfang. Skeletal-Actors, Brush/Mover-Simulation, Spieler-Ausdehnung, dynamische Zustände und Spiel-Traceflags bleiben außerhalb der Abfrage.
+
+## Originalkarten-Prüfung
+
+Für jeden aufgelösten Startpunkt werden Linien entlang aller drei Achsen in beide Richtungen mit 20, 100, 500 und 10.000 Unreal-Units geprüft. Jede Linie wird zusätzlich umgekehrt, insgesamt 48 Proben pro Startpunkt.
+
+`geo_01a` enthält 383 klassifizierte Mesh-Actors: 334 genaue StaticMeshActors und 49 weitere Actors mit Mesh-Referenz. Davon sind 284 prüfbar und 99 wegen deaktivierter Spieler-Blockierflags übersprungen; keine ausgewählte Form verursacht einen Fehler. Die 48 gemeinsamen Proben ergeben vier Blocked- und 44 Clear-Ergebnisse, alle innerhalb der gelieferten Sammlung vollständig. Die lange Linie nach −Y wird von sieben Mesh-Actors blockiert, während Model1 allein sie freigibt; die lange Linie nach −Z blockiert Model1. Die Rückrichtungen bestätigen dieselben Blockierer. Die bisherigen sechs unabhängigen Actor-Proben ergeben jetzt 7 blockiert und 1.697 frei.
+
+- [geo_01a-world-probes.json](../analysis/collision/geo_01a-world-probes.json): jede Actor-Probe, gemeinsame Linie, Blockierer und nicht klassifizierte Exports.
+- [entry-world-probes.json](../analysis/collision/entry-world-probes.json): zusätzlicher reiner Welt-BSP-Fall ohne Mesh-Actors, mit dem über Defaults aufgelösten Startpunkt; 28 blockierte und 20 freie Linien, keine unvollständigen Proben.
+
+45 Rust-Tests und Clippy über alle Targets bestehen. Neue Tests prüfen insbesondere einen Welt-Treffer mit gleichzeitig fehlendem Actor, unbestimmte Ergebnisse statt falscher Freigabe, fehlenden Welt-BSP, ungültige Endpunkte, zusätzliche transformierte Mesh-Blockierer bei freiem Welt-BSP sowie Klassenvererbung mit unbekannten Eltern und Zyklen.
+
+## Reproduzieren
+
+```powershell
+cargo run -p rc-inspect --bin rc-mesh-probe -- 'D:\SteamLibrary\steamapps\common\Star Wars Republic Commando\GameData' 'D:\SteamLibrary\steamapps\common\Star Wars Republic Commando\GameData\Maps\geo_01a.ctm' analysis/collision/geo_01a-world-probes.json
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+```
+
+Nächste Umsetzung: Hitdaten/Extent-Prüfungen aus den nativen Model-/Mesh-Pfaden rekonstruieren und mit den aufgelösten Pawn-Maßen verbinden. Erst damit lässt sich Spielerbewegung sinnvoll begrenzen. [Mesh-Format und native Dispatch-Belege](MESH_COLLISION.md) und [Welt-BSP](BSP_SOLID.md) dokumentieren die Grundlagen.
+
+
+BSP-Kollisionshüllen und mathematische AABB-Sweeps umgesetzt: iCollisionBound und Hull-Wörter erhalten, 0x40000000-Ebenenflip, Sentinel/64-Ebenen-Limit/Bounds geprüft, feste Blätter anhand des nativen CSG-Extent-Pfads ausgewählt. 9.123 Models in 79 Karten ergeben 26.840 feste Hüllen ohne Lesefehler; ein festes Blatt ohne Hülle in ras_02a (korrigierte Auswertung). PlayerCommando-Radius40/Halbhöhe84 aufgelöst; 1.512 Körperprüfungen von 252 Startpunkten in 34 Model1-Karten: 1.019 blockiert, 493 frei, keine Query-Fehler. 503 weitere Startpunkte nicht geprüft: Weltmodell-Referenz im Level muss noch rekonstruiert werden, Model1 bleibt Namensauswahl. geo_01a-Bodenkontakt mit Körper 84 Units vor Mittelpunkt. 49 Tests/Clippy bestanden. f64-Diagnose mit Kantenebenen, keine volle native Toleranz-/Backoff-/Hitdaten-Parität, keine Mesh-Körperprüfung/Spielerbewegung/Android-Integration. APK unverändert0.7, kein neuer Emulatorlauf. Details: D:\Rust Projects\RepublicCommandoAndroid\docs\HULL_SWEEPS.md.
+
+
+Level-Weltmodell-Referenz aus ULevelBase/FURL/ULevel rekonstruiert: alle 79 Karten korrekt gebunden, 45 Weltmodelle heißen nicht Model1. PC-Importer, Renderer und BSP-/Hüllen-Audits nutzen jetzt die referenzierten Models. Alle 755 Startpunkte erreichen die 4.530 Körperproben: 2.700 blockiert, 1.824 frei, 6 unvollständig in ras_02a wegen eines festen Blatts ohne Hülle. Korrektur: der alte Hüllenbericht enthielt bereits dieses eine Blatt; die zuvor dokumentierte Anzahl0 war falsch. Gemeinsame AABB-Prüfung gegen Welt und actor-transformierte Mesh-Hüllen mit Box-Dispatch, invers-transponierten Ebenen, orientierten Bounds und sortierten Kontakten. geo_01a48Proben (8blockiert/40frei), entry48anfängliche Überlappungen, ctf_hangar1920Proben (908blockiert/1012frei); keine unvollständigen kombinierten Proben. 53Tests/Clippy bestanden. Keine Spawn-Platzierung, native Grenzfallparität oder Bewegung. Android-Prüfung auf ausdrücklichen Nutzerwunsch bis zur abschließenden Integration verschoben; APK bleibt0.7. Details: D:\Rust Projects\RepublicCommandoAndroid\docs\LEVEL_BINDING_AND_BODY.md.
+
+
+2026-10-06: Konservative PC-Bewegungsdiagnose implementiert: Körper-Verschiebung mit Kontaktbegrenzung, Sicherheitsabstand, Gleiten, wiederholten Kontaktbedingungen und Iterationslimit; separate Bodenabfrage. 56 Workspace-Tests/Clippy bestanden. Originalkarten: geo_01a3 Proben (2Finished/1Stopped), entry3 InitialContact ohne Bewegung, ctf_hangar120 (33Finished/87Stopped), keine Query- oder Bodenabfragefehler. Keine native Pawn-Physik, Schwerkraft, Stufen, Spawn-Platzierung oder Behandlung berührender Ausgangspositionen. Android-Prüfung weiterhin auf Nutzerwunsch zum Schluss; APK unverändert. Details: D:\Rust Projects\RepublicCommandoAndroid\docs\MOVEMENT.md.
+
+
+2026-10-06: Platzierung und Kontaktgrenzen erweitert. body_placement unterscheidet Free/Touching/Penetrating, sweep_motion erlaubt tangentiale und auswärts gerichtete Bewegung bei Berührung; ursprüngliche geschlossene sweeps unverändert. 59 Tests/Clippy bestanden. 168 Positionsvorschläge und 42 exakte Bodenpositionen in geo_01a/entry/ctf_hangar geprüft; 41 horizontale Bewegungen Finished, eine Stopped, keine Query-Fehler. Korrektur: entry-Start berührt Geometrie, dringt aber nicht ein; früheres start_overlapping schloss Berührung ein. Keine automatische Spawn-Auswahl, Freistellung, Schwerkraft, Stufen oder Android-Integration. Android-Prüfung weiterhin zum Schluss. Details: D:\Rust Projects\RepublicCommandoAndroid\docs\MOVEMENT.md.
+
+
+2026-10-06: PC-Schwerkraft/Bodenbindung als explizite eigene Integrationsregel ergänzt. body_tick prüft horizontale Bewegung, Unterstützung, vertikale Bewegung und sichere Bodenbindung; Kantenabgang fällt sofort, Decken begrenzen Aufwärtsgeschwindigkeit. Eingabezustand bleibt unverändert; Query-Fehler/Iterationslimit erzeugen keinen Kandidaten. 62 Tests/Clippy bestanden. Sechs Startpunkte aus geo_01a/entry/ctf_hangar (dort erste4von40) über insgesamt1080 feste Schritte geprüft; alle enden grounded mit Geschwindigkeit0 und Höhendrift0 in der Ruhephase, keine Query-Fehler. Diagnoseparameter g980/Terminal4000/dt1/60 sind selbst gewählt, nicht nachgewiesene native Defaults. Native Walking/Falling-Parität, Volumes, Reibung, Sprünge, Stufen, Spawn-Auswahl und Android-Integration offen. Android-Prüfung weiterhin zum Schluss; APK unverändert. Details: D:\Rust Projects\RepublicCommandoAndroid\docs\PHYSICS.md.
+
+
+2026-10-06: Konservatives PC-Stufensteigen ergänzt: nur bei bestätigter Bodenunterstützung und horizontalem Hindernis; vollständige Aufwärts-/Vorwärts-/Abwärtsprüfungen, bessere Richtungsfortschritte, begehbare Landefläche, Höhenlimit zwischen den Boden-Kontaktlagen statt Körpermitten. Schritt0 deaktiviert. Eigene minimale Aufstiegstoleranz1e-4; Query-Fehler geben keinen Zustand zurück, geometrisch abgelehnte Alternativen fallen auf reguläre Bewegung zurück. 64Tests/Clippy bestanden; synthetisch wiederholbare Stufen, Abschaltung, hohe Hindernisse, niedrige Decken, fehlende Landeflächen und Körper ohne Unterstützung geprüft. Originalkarten336 unabhängige Belastungsproben: geo_01a8,entry8,ctf_hangar320; vier angenommene Aufstiegskandidaten in ctf_hangar, keine Query-Fehler. Schritt24 und Verschiebungen128/512 pro0,05s sind eigene Diagnoseparameter/Stressproben; keine native Parität. Die bisherigen1080 kontinuierlichen Schritte erneut stabil geprüft, ohne Aufstiegsereignisse auf diesen kurzen Wegen. Android-Prüfung weiterhin zum Schluss; APK unverändert. Details: D:\Rust Projects\RepublicCommandoAndroid\docs\STEP_UP.md.
+
+
+2026-10-06: Eigene PC-Bewegungssteuerung ergänzt: normierte Welt-XY-Eingabe mit analoger Stärke, begrenzte Zielgeschwindigkeitsannäherung, Bodenbremsen, Luftsteuerung/Trägheit und Sprungflanke nur bei bestätigter Unterstützung. Gehaltene Taste löst nach Landung keinen weiteren Sprung aus. Fehler lassen den Eingabezustand unverändert. 67Tests/Clippy bestanden. Vier Startpunkte in geo_01a/entry/ctf_hangar (dort erste2von40) mit je300Schritten=1200 geprüft, je genau1Sprung, maximal180Horizontalgeschwindigkeit, abschließend grounded/Geschwindigkeit0/Höhendrift0, keine Query-Fehler. Zusätzlich12 originale Bewegungswerte mit Herkunft aufgelöst: GroundSpeed450, AccelRate1024, DecelRate600, AirControl~0,35, JumpZ475, MaxFallSpeed1200, Walk0,5/Back~0,8/Side~0,95, PhysicsVolume.Gravity[0,0,-1100], TerminalVelocity12000, GroundFriction8. Actor-Quelltextkonstanten MAXSTEPHEIGHT35/MINFLOORZ0,7 identifiziert. Originalwerte separat auditiert, noch nicht auf die Diagnoseparameter angewendet; aktive Volumes/native Formeln/Zustände/camera-relative Steuerung offen. Android-Prüfung weiterhin zum Schluss; APK unverändert. Details: D:\Rust Projects\RepublicCommandoAndroid\docs\CONTROLLER.md.
+
+
+2026-10-06: PC-Originalprofil und Yaw-relative Steuerung integriert. MovementProfile liest14Eigenschaften mit Herkunft; verwendet GroundSpeed450/Accel1024/Decel600/Air~0,35/Jump475, Walk0,5/Back~0,8/Side~0,95, Radius40/Halbhöhe84, Basis-PhysicsVolume-Gravity[0,0,-1100]/Terminal12000. MaxFallSpeed1200/GroundFriction8 nur auditiert. Actor-Quelltextkonstanten Schritt35/MINFLOORZ0,7 angewendet, eigene Skin0,5/Support2/Iterations8. Aktive Volumes/Runtimeänderungen/native Formeln nicht rekonstruiert. ViewInput normiert lokal, wendet Richtungs-/Gehfaktoren an, dreht nach quantisiertem Yaw; eigenef64-Formel, kein Originalparitätsnachweis. 70Tests/Clippy bestanden. Vier Originalstartpunkte über1200Controller-Schritte: je1Sprung, danachgrounded/Geschwindigkeit0/Höhendrift0, keine Query-Fehler; maxdiag~438,894<450. ZielwerteForward450/Back~360/Side~427,5/Walk225 beiYaw0/16384 geprüft. Ältere direkte Physics-/Stressproben in den Berichten behalten Diagnoseparameter; Controller-Proben nutzen das neueProfil. Android-Prüfung weiterhin zum Schluss; APK unverändert. Details: D:\Rust Projects\RepublicCommandoAndroid\docs\MOVEMENT_PROFILE.md.
+
+
+2026-10-06: PhysicsVolume-Auswahl aus vier nativen Funktionen rekonstruiert (GetPhysicsVolume1043e6e0/Encompasses1048df90/exec104ed620/GetDefault1043e5c0). StandardklasseEngine.DefaultPhysicsVolume, Runtimepriorität-1000000; höherePriorität ersetzt, Gleichstand behält ersteRuntimeauswahl. StatischeActor-Mittelpunkte über Brush/zeroExtentPointCheck mit Back-Seite beiEbenengleichheit, VertexCount/Runtimeflagmask berücksichtigt. VolumeWorld.select und PC-control_tickAdapter ergänzen Gravity/Terminal, blockieren unvollständigeAuswahl/Wasser/Aufwärts-/seitlicheGravity/ZoneVelocity. 73Tests/Clippy bestanden. Audit79Karten/421Volumes/755Startmittelpunkte ohneBrush-/Einstellungslesefehler:729Standard,24eindeutigeSpezialauswahlen,2Prioritätsgleichstände (ras_02e.PlayerStart1,yyy_35a.PlayerStart0) mit unbekannterRuntime-Reihenfolge, erwarteterAuditExit1. Sechs dm_hangar-Starts inPhysicsVolume5 mitGravityZ-110; alle753vollständigenAuswahlen PCParameter anwendbar. VierWasservolumes+dreiAufwärtsschwerkraftbereiche derzeitnicht unterstützt. Originalkorpus prüftAuswahl/Parameter, keine kombiniertenGameplaytrajektorien; Adapter synthetisch geprüft. BewegteVolumes/Callbacks/CrossingSubsteps/Skeletalbases/nativeFloatparität/JNI/Android offen. Android-PrüfungweiterhinzumSchluss;APK unverändert. Details: D:\Rust Projects\RepublicCommandoAndroid\docs\PHYSICS_VOLUMES.md.
