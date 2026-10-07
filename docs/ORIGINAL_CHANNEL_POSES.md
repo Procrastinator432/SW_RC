@@ -56,6 +56,10 @@ Winkelbegrenzung mit Vorzeichenwechsel, übergroßem Dotprodukt, identischen
 Rotationen und NaN-Fortschritt. Insgesamt 271 Workspace-Tests bestanden;
 Clippy mit `-D warnings` und Formatprüfung ebenfalls.
 
-Offen bleiben natürliche Vorpose-/Scratch-Vorbereitung, aktive Kanalfolge,
+Die aktive Kanalfolge und gemeinsame Pose-Übernahme sind anschließend in
+[SKELETAL_CHANNEL_STACK.md](SKELETAL_CHANNEL_STACK.md) ergänzt und mit
+aufeinanderfolgenden Originaltrack-Schritten geprüft.
+
+Offen bleiben natürliche Vorpose-/Scratch-Vorbereitung,
 Animations-Ticking, Directors/Bounds, Skinning und der vollständige Renderpfad.
 Die Androidprüfung folgt erst am Projektende.

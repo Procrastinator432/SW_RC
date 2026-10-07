@@ -189,3 +189,39 @@ Native Wandklassen-Metadaten eingebunden: Pawn-/Unterklassen-Ausschluss aus Orig
 
 
 2026-10-07: Echte Originaltracks an ApplyAnimChannel angebunden. Austauschbare Quaternion- und Winkelbudget-Policy; portable f64-Näherung der x87-Winkelrechnung ausdrücklich gekennzeichnet. 900 Kanal-Diagnoseposen mit 29912 Knochenmatrizen aus 225 Original-Linkups unabhängig geprüft: Replace, Layer, Transition und LayerTransition. Vorpose/Scratch sind definierte Referenz-Snapshots, noch keine automatische Animationslaufzeit. 271 Tests, Clippy und Format bestanden. Details D:\Rust Projects\RepublicCommandoAndroid\docs\ORIGINAL_CHANNEL_POSES.md. Android zum Schluss.
+
+
+2026-10-07: Native aktive Kanalfolge und gemeinsame Pose-Übernahme ergänzt. Vorpose bleibt während aller Kanäle erhalten, Scratch wird geteilt/persistent übergeben; Cache-/Disable-/Referenzfallback und Fehlergrenzen berücksichtigt. 225 Original-Linkup-Läufe mit je vier Schritten: 900 Posen und 29912 Matrizen unabhängig inklusive History und Scratch geprüft, Layer mit zweiter Sequenz soweit vorhanden und vollständige Verdrängung im vierten Schritt. 276 Tests, Clippy, Format bestanden. Noch keine natürliche Tick-/Cache-Komplettierung, Directors, Bounds oder Skinning. Android zum Schluss. Details D:\Rust Projects\RepublicCommandoAndroid\docs\SKELETAL_CHANNEL_STACK.md.
+
+
+2026-10-07: Lokale Posegrenzen und Abschlussflags rekonstruiert. Move-Root-Ausschluss, Ursprungsskalierung1.2 aus Original-DLL, explizite Padding-/kOne-Snapshots, RSQRT-Sphäre und Flags erst nach erfolgreicher Actor-Publikationsgrenze. 900 Originaltrack-Matrix-Bounds und64 synthetische Fälle unabhängig bitgenau unter der portablen Math-Policy geprüft. 281Tests,Clippy und Format bestanden. Diagnosepadding ist ausdrücklich kein Original-Meshwert; Actor-Weltbounds bleiben Hostgrenze, Directors/Skinning offen. Android zum Schluss. Details D:\Rust Projects\RepublicCommandoAndroid\docs\SKELETAL_BOUNDS.md.
+
+
+2026-10-07: Actor-Weltgrenzen-Transformation und lokaler Abschluss verbunden. Acht Boxecken mit nativen SSE-Ausdrücken, separate Kugelzentrum-Reihenfolge, größte Zeilenlänge per unsigned Floatbits, RSQRT-Radiusskalierung und Box-vor-Sphäre-Fehlergrenze. 3600 Transformationen von Originaltrack-Diagnosebounds plus64 allgemeine Matrixfälle/16Seedfehler unabhängig geprüft; 287Tests,Clippy,Format bestanden. Matrizen/Padding weiterhin explizite Diagnosevorgaben, keine Original-Runtime-Actorbindung; Directors/Skinning offen. Android zum Schluss. Details D:\Rust Projects\RepublicCommandoAndroid\docs\SKELETAL_WORLD_BOUNDS.md.
+
+
+2026-10-07: Director-Auswahl in Hierarchiestage und lokaler Translations-/Plane-Skalierungspfad rekonstruiert. Erstes aktives Match, signed31-Knochenindex, Korrektur vor Kindverknüpfung; Rotation/Weltraum-Inversion bleiben explizit unsupported. 1800 Originaltrack-Diagnoseposen mit 59824 Matrizen und lokalen Bounds unabhängig geprüft, Director-Snapshots vorgegeben. 292Tests,Clippy,Format bestanden. Android zum Schluss. Details D:\Rust Projects\RepublicCommandoAndroid\docs\SKELETAL_DIRECTORS.md.
+
+
+2026-10-07: Native Matrixinversion und Weltraum-Umrechnung der Translations-/Plane-Directors rekonstruiert. Originale skalare SSE-Reihenfolge, Identitaetsrueckfall bei exakt singulaerer Matrix, Korrektur vor Kindverknuepfung. 2700 Originaltrack-Diagnoseposen / 89736 Matrizen, 128 allgemeine Inversionen und 32 allgemeine Umrechnungen unabhaengig geprueft. Director-/MeshToWorld-Snapshots vorgegeben; Rotation, Runtimebindung und Skinning bleiben offen. 298 Tests, Clippy und Format bestanden. Android zum Schluss. Details D:\Rust Projects\RepublicCommandoAndroid\docs\SKELETAL_WORLD_DIRECTORS.md.
+
+
+2026-10-07: Native Matrix-zu-Quaternion-Umrechnung fuer Rotationsdirectors rekonstruiert. Vier originale Rechenzweige inklusive auffaelliger nichtpositiver Spurformeln, Diagonalgleichstaende und expliziter RSQRT-Mathgrenze. 29912 Originaltrack-abgeleitete Knochenmatrizen und 256 feste Seed-/Zweigproben bitgenau gegen separaten ASM-Interpreter geprueft. Sechs neue Tests; 304 Tests, Clippy und Format bestanden. Director-Rotation/History noch nicht verbunden, Skinning offen. Android zum Schluss. Details D:\Rust Projects\RepublicCommandoAndroid\docs\SKELETAL_MATRIX_QUATERNIONS.md.
+
+
+2026-10-07: Director-Rotationsvorbereitung mit History, zeitlicher und absoluter Winkelbegrenzung rekonstruiert. History-Initialisierung mit Byte-Padding-Erhalt, Budget-Reset, begrenzungsbedingter Matrixneuaufbau/Skalenreset und Abschluss-History. 3600 Originaltrack-abgeleitete Diagnosefaelle inklusive mutierter Snapshots unabhaengig unter portabler Math-Policy bitgenau geprueft. Acht neue Tests; 312 Tests, Clippy und Format bestanden. Anwendung auf Knochen/Vorfahren und Runtimebindung offen; Android zum Schluss. Details D:\Rust Projects\RepublicCommandoAndroid\docs\SKELETAL_DIRECTOR_ROTATION.md.
+
+
+2026-10-07: Director-Rotationsanwendung mit relativer Komposition und Korrektur frueherer Knochenmatrizen verbunden. Mutierbare Director-History, Actor-Spaltenskalierung, W-Nullskalierung, rueckwaerts verteilte Quaternion-Potenzen, Translation/Plane-Skalierung zuletzt. 7200 Diagnoseposen / 239296 Matrizen und Director-Snapshots unabhaengig geprueft, einschliesslich zweier Folgeaufrufe pro Konfiguration. 318 Tests, Clippy und Format bestanden. Runtime-/Director-Datenbindung, Pose-Vorbereitung, Bounds-Integration und Skinning offen; Android zum Schluss. Details D:\Rust Projects\RepublicCommandoAndroid\docs\SKELETAL_DIRECTOR_APPLICATION.md.
+
+
+2026-10-07: Director-Hierarchie mit knochenweiser Bounds-Sammlung, lokaler Sphaere, optionaler Weltpublikation und Abschlussflags verbunden. 7200 integrierte Diagnoseposen / 239296 Matrizen; 5400 Weltpublikationen und 1800 Ohne-Actor-Faelle unabhaengig geprueft. Sechs neue Integrationstests pruefen Teilzustaende und Fehlergrenzen; 324 Tests, Clippy und Format bestanden. Vorbereitete Originaltrack-Posen und vorgegebene Director-/Szenen-/Padding-Snapshots, keine volle Runtime-/Skinning-Integration. Android zum Schluss. Details D:\Rust Projects\RepublicCommandoAndroid\docs\SKELETAL_DIRECTED_BOUNDS.md.
+
+
+2026-10-07: SetBonePlace-Director-Einstieg rekonstruiert: Zielaufloesung, Cacheinvalidierung, Anfangsindex-Rueckfall, erstes Match, 22-Wort-Update mit History-Erhalt oder 28-Wort-Anlage. Namens-/Alias-Aufloesung, Identity-Quaternion und undefinierte Paddingbytes explizit vorgegeben; kein Live-FName-/Actor-Binding. 512 Zustandsfaelle und sechs neue Tests geprueft; 330 Tests, Clippy und Format bestanden. Android zum Schluss. Details D:\Rust Projects\RepublicCommandoAndroid\docs\SKELETAL_SET_BONE_PLACE.md.
+
+
+2026-10-07: SetBonePlace mit gemeinsamer FName-Handle-/Alias-Referenzknochensuche verbunden; optionaler Alias-Matrixausgang vor Trefferpruefung rekonstruiert. 130 Originalskelette / 3111 Knochen / 3631 Abfragen inklusive Anlage und History-erhaltendem Update unabhaengig geprueft. Globale Handle-Tabelle und Alias-Snapshots diagnostisch, native dynamische Registrierung und Original-Aliasarchive offen; bekanntes Legacy-Mesh ausgeschlossen. 336 Tests, Clippy und Format bestanden. Android zum Schluss. Details D:\Rust Projects\RepublicCommandoAndroid\docs\SKELETAL_BONE_NAMES.md.
+
+
+2026-10-07: Inverser Referenzpose-Cache aus ApplyAnimation rekonstruiert: Leer-Cache-Gate, Cachebyte-Invalidierung, Elternkomposition inklusive Move und originale skalare Matrixinverse. 130 Originalskelette / 3111 inverse Matrizen plus 64 allgemeine Produkte unabhaengig gegen Original-ASM geprueft. Vorbereitungsmodul auf Mesh-Snapshots; vollstaendige ApplyAnimation-Verbindung, Skinning und sichtbare Animation offen. 341 Tests, Clippy und Format bestanden. Android zum Schluss. Details D:\Rust Projects\RepublicCommandoAndroid\docs\SKELETAL_REFERENCE_CACHE.md.

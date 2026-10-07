@@ -20,6 +20,26 @@ pub struct SkeletonSnapshot {
     pub aliases: Vec<BoneAlias>,
 }
 impl SkeletonSnapshot {
+    /// Native alias matrix copy precedes reference-bone lookup, even on a miss.
+    /// Alias matrices correspond one-for-one to supplied alias entries; they are
+    /// read only when a matching alias and a non-null output are both present.
+    pub fn match_ref_bone_with_matrix(
+        &self,
+        name: u32,
+        alias_matrices: &[[u32; 16]],
+        output: Option<&mut [u32; 16]>,
+    ) -> Result<Option<usize>, String> {
+        if name != 0 {
+            if let Some(out) = output {
+                if let Some(index) = self.aliases.iter().position(|a| a.name_handle == name) {
+                    *out = *alias_matrices
+                        .get(index)
+                        .ok_or("matched bone alias matrix unavailable")?;
+                }
+            }
+        }
+        Ok(self.match_ref_bone(name))
+    }
     /// MatchRefBone with a null output matrix. Alias lookup is one pass, not recursive.
     pub fn match_ref_bone(&self, name: u32) -> Option<usize> {
         if name == 0 {

@@ -6,7 +6,7 @@
 
 Die Skelett-Vtable `1066a5c8`, Slot +dc, zeigt auf GetFrame (`1050b330`). Die Funktion leitet Actor und den Vergleich `flags == 3` direkt an ApplyAnimation (`10509dc0`) weiter. Genau dieses Flag verwendet der vorher untersuchte absolute GetMoveCoords-Aufruf. Die übrigen GetFrame-Argumente werden von diesem nativen Wrapper nicht ausgewertet.
 
-ApplyAnimation führt vor dem Root-only-Zweig mehrere Schritte aus: Pose-/Matrixpuffer an die Knochenanzahl anpassen, ungültige Cachezustände markieren, MeshToWorld übernehmen, bei fehlendem inversen Referenzcache diesen aufbauen und Director-Daten aktualisieren. Diese Vorbereitung ist exportiert, aber noch nicht portiert. `apply_root_prepared` beginnt ausdrücklich danach. Der Caller muss vorbereitete Daten liefern; die Diagnose liefert diese Voraussetzung, statt eine komplette ApplyAnimation-Ausführung vorzutäuschen.
+ApplyAnimation führt vor dem Root-only-Zweig mehrere Schritte aus: Pose-/Matrixpuffer an die Knochenanzahl anpassen, ungültige Cachezustände markieren, MeshToWorld übernehmen, bei fehlendem inversen Referenzcache diesen aufbauen und Animations-Linkups aktualisieren. Diese Vorbereitung ist exportiert, aber noch nicht portiert. `apply_root_prepared` beginnt ausdrücklich danach. Der Caller muss vorbereitete Daten liefern; die Diagnose liefert diese Voraussetzung, statt eine komplette ApplyAnimation-Ausführung vorzutäuschen. Director-Anlage und -Aktualisierung erfolgen über den separat rekonstruierten [SetBonePlace-Einstieg](SKELETAL_SET_BONE_PLACE.md).
 
 ## Root-Auswahl und Samplinggrenze
 
@@ -56,6 +56,6 @@ Nachweise: `analysis/reports/skeletal-root-pose.json`, `skeletal-root-pose-valid
 
 234 Workspace-Tests (224 rc-package, 4 rc-native, 6 rc-render), Clippy mit Warnungen als Fehler und Formatprüfung bestanden. Fünf neue Tests prüfen Matrixwerte und Translationbits, Root-Gates, getaggte Trackanzahl, Frameclamp/NaN/−0, Loop-/Rate-Sonderverhalten, letzte Samples, Teilschreibzugriffe und erhaltene Instanzflags.
 
-Buffer-/Cache-/Director-Vorbereitung, Originalskelette und Tracks, tatsächliches GetRotPos, vollständige Poseauswertung, Matrixinverse/-komposition und sichtbare Animation bleiben offen. Androidprüfung weiterhin zum Schluss.
+Die obigen Ergebnisse dokumentieren den damaligen Root-only-Meilenstein. Inzwischen sind Originalskelette und Tracks, GetRotPos, vorbereitete Kanal-/Director-Poseauswertung, Matrixinverse/-komposition und Bounds in separaten Modulen rekonstruiert. Der [inverse Referenzpose-Cache](SKELETAL_REFERENCE_CACHE.md) ergänzt jetzt die Cachevorbereitung einschließlich Move-Elternverknüpfung. Die vollständige Verbindung dieser Module im ApplyAnimation-Ablauf, weitere Puffer-/Linkup-Vorbereitung, Skinning und sichtbare Animation bleiben offen. Androidprüfung weiterhin zum Schluss.
 
 Fortsetzung: [GetRotPos-Schlüsselwahl und Positionen](SKELETAL_TRACK.md) implementiert jetzt Zeitabschnitte, direkte/Singleton-Schlüssel, Positionsdecodierung/-interpolation und geordnete Linkup-Suche für gelieferte Tracks. Quaternion-Decodierung/Slerp und x87-Framezeit bleiben Hostgrenzen; die obigen 234 Tests und Berichte beschreiben weiterhin diesen früheren Meilenstein.

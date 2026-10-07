@@ -87,6 +87,18 @@ pub fn build_pose_matrices(
     editor: bool,
     output: &mut Vec<[u32; 16]>,
 ) -> Result<(), String> {
+    build_pose_matrices_with_hook(local, hierarchy, editor, output, |_, _| Ok(()))
+}
+/// Hook runs after each parent composition, before the next bone uses that matrix.
+/// Native directors can also modify earlier matrices; callers must collect bounds
+/// in this hook if their backend does so, rather than recomputing them afterwards.
+pub fn build_pose_matrices_with_hook(
+    local: &[RootTransform],
+    hierarchy: &BoneHierarchy,
+    editor: bool,
+    output: &mut Vec<[u32; 16]>,
+    mut hook: impl FnMut(usize, &mut [[u32; 16]]) -> Result<(), String>,
+) -> Result<(), String> {
     if local.len() != hierarchy.parents.len() {
         return Err("local pose/hierarchy length mismatch".into());
     }
@@ -101,6 +113,7 @@ pub fn build_pose_matrices(
             }
             output[i] = compose_bone_matrix(output[i], output[index]);
         }
+        hook(i, output)?;
     }
     Ok(())
 }
