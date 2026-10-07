@@ -1,0 +1,92 @@
+{
+  "expressions": [
+    {
+      "children": [],
+      "logical_end": 5,
+      "logical_offset": 0,
+      "opcode": 41,
+      "operand": {
+        "kind": "Object",
+        "value": {
+          "index": 563,
+          "path": "Actor.PlayAnim.Sequence"
+        }
+      },
+      "serialized_offset": 0
+    },
+    {
+      "children": [],
+      "logical_end": 10,
+      "logical_offset": 5,
+      "opcode": 41,
+      "operand": {
+        "kind": "Object",
+        "value": {
+          "index": 564,
+          "path": "Actor.PlayAnim.Bone"
+        }
+      },
+      "serialized_offset": 3
+    },
+    {
+      "children": [],
+      "logical_end": 15,
+      "logical_offset": 10,
+      "opcode": 41,
+      "operand": {
+        "kind": "Object",
+        "value": {
+          "index": 565,
+          "path": "Actor.PlayAnim.Rate"
+        }
+      },
+      "serialized_offset": 6
+    },
+    {
+      "children": [],
+      "logical_end": 20,
+      "logical_offset": 15,
+      "opcode": 41,
+      "operand": {
+        "kind": "Object",
+        "value": {
+          "index": 566,
+          "path": "Actor.PlayAnim.StartFrame"
+        }
+      },
+      "serialized_offset": 9
+    },
+    {
+      "children": [],
+      "logical_end": 25,
+      "logical_offset": 20,
+      "opcode": 41,
+      "operand": {
+        "kind": "Object",
+        "value": {
+          "index": 567,
+          "path": "Actor.PlayAnim.Channel"
+        }
+      },
+      "serialized_offset": 12
+    },
+    {
+      "children": [],
+      "logical_end": 26,
+      "logical_offset": 25,
+      "opcode": 11,
+      "operand": {
+        "kind": "None"
+      },
+      "serialized_offset": 15
+    }
+  ],
+  "flags": 132097,
+  "friendly_name": "PlayAnim",
+  "logical_script_bytes": 26,
+  "native_index": 259,
+  "precedence": 0,
+  "replication_offset": null,
+  "script_offset": 33,
+  "serialized_script_bytes": 16
+}

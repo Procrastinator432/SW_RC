@@ -1,0 +1,248 @@
+{
+  "expressions": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "logical_end": 9,
+              "logical_offset": 4,
+              "opcode": 1,
+              "operand": {
+                "kind": "Object",
+                "value": {
+                  "index": 11737,
+                  "path": "Prop.bDisplayStateMessages"
+                }
+              },
+              "serialized_offset": 4
+            }
+          ],
+          "logical_end": 9,
+          "logical_offset": 3,
+          "opcode": 45,
+          "operand": {
+            "kind": "None"
+          },
+          "serialized_offset": 3
+        }
+      ],
+      "logical_end": 9,
+      "logical_offset": 0,
+      "opcode": 7,
+      "operand": {
+        "kind": "Target",
+        "value": 58
+      },
+      "serialized_offset": 0
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "logical_end": 16,
+              "logical_offset": 11,
+              "opcode": 1,
+              "operand": {
+                "kind": "Object",
+                "value": {
+                  "index": 1349,
+                  "path": "Actor.Level"
+                }
+              },
+              "serialized_offset": 10
+            },
+            {
+              "children": [],
+              "logical_end": 24,
+              "logical_offset": 19,
+              "opcode": 1,
+              "operand": {
+                "kind": "Object",
+                "value": {
+                  "index": 4126,
+                  "path": "LevelInfo.Game"
+                }
+              },
+              "serialized_offset": 16
+            }
+          ],
+          "logical_end": 24,
+          "logical_offset": 10,
+          "opcode": 25,
+          "operand": {
+            "kind": "Context",
+            "value": {
+              "result_size": 4,
+              "skip": 5
+            }
+          },
+          "serialized_offset": 9
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "logical_end": 33,
+              "logical_offset": 32,
+              "opcode": 23,
+              "operand": {
+                "kind": "None"
+              },
+              "serialized_offset": 25
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "logical_end": 37,
+                      "logical_offset": 35,
+                      "opcode": 31,
+                      "operand": {
+                        "kind": "String",
+                        "value": ""
+                      },
+                      "serialized_offset": 28
+                    },
+                    {
+                      "children": [
+                        {
+                          "children": [],
+                          "logical_end": 40,
+                          "logical_offset": 39,
+                          "opcode": 23,
+                          "operand": {
+                            "kind": "None"
+                          },
+                          "serialized_offset": 32
+                        }
+                      ],
+                      "logical_end": 40,
+                      "logical_offset": 37,
+                      "opcode": 57,
+                      "operand": {
+                        "kind": "Byte",
+                        "value": 86
+                      },
+                      "serialized_offset": 30
+                    },
+                    {
+                      "children": [],
+                      "logical_end": 41,
+                      "logical_offset": 40,
+                      "opcode": 22,
+                      "operand": {
+                        "kind": "None"
+                      },
+                      "serialized_offset": 33
+                    }
+                  ],
+                  "logical_end": 41,
+                  "logical_offset": 34,
+                  "opcode": 112,
+                  "operand": {
+                    "kind": "Native",
+                    "value": 112
+                  },
+                  "serialized_offset": 27
+                },
+                {
+                  "children": [],
+                  "logical_end": 56,
+                  "logical_offset": 41,
+                  "opcode": 31,
+                  "operand": {
+                    "kind": "String",
+                    "value": " Is Damagable"
+                  },
+                  "serialized_offset": 34
+                },
+                {
+                  "children": [],
+                  "logical_end": 57,
+                  "logical_offset": 56,
+                  "opcode": 22,
+                  "operand": {
+                    "kind": "None"
+                  },
+                  "serialized_offset": 49
+                }
+              ],
+              "logical_end": 57,
+              "logical_offset": 33,
+              "opcode": 112,
+              "operand": {
+                "kind": "Native",
+                "value": 112
+              },
+              "serialized_offset": 26
+            },
+            {
+              "children": [],
+              "logical_end": 58,
+              "logical_offset": 57,
+              "opcode": 22,
+              "operand": {
+                "kind": "None"
+              },
+              "serialized_offset": 50
+            }
+          ],
+          "logical_end": 58,
+          "logical_offset": 27,
+          "opcode": 27,
+          "operand": {
+            "kind": "Name",
+            "value": "Broadcast"
+          },
+          "serialized_offset": 22
+        }
+      ],
+      "logical_end": 58,
+      "logical_offset": 9,
+      "opcode": 25,
+      "operand": {
+        "kind": "Context",
+        "value": {
+          "result_size": 0,
+          "skip": 31
+        }
+      },
+      "serialized_offset": 8
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "logical_end": 60,
+          "logical_offset": 59,
+          "opcode": 11,
+          "operand": {
+            "kind": "None"
+          },
+          "serialized_offset": 52
+        }
+      ],
+      "logical_end": 60,
+      "logical_offset": 58,
+      "opcode": 4,
+      "operand": {
+        "kind": "None"
+      },
+      "serialized_offset": 51
+    }
+  ],
+  "flags": 131074,
+  "friendly_name": "BeginState",
+  "logical_script_bytes": 60,
+  "native_index": 0,
+  "precedence": 0,
+  "replication_offset": null,
+  "script_offset": 22,
+  "serialized_script_bytes": 53
+}

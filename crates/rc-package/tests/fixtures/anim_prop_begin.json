@@ -1,0 +1,297 @@
+{
+  "expressions": [
+    {
+      "children": [
+        {
+          "children": [],
+          "logical_end": 6,
+          "logical_offset": 5,
+          "opcode": 22,
+          "operand": {
+            "kind": "None"
+          },
+          "serialized_offset": 4
+        }
+      ],
+      "logical_end": 6,
+      "logical_offset": 0,
+      "opcode": 28,
+      "operand": {
+        "kind": "Object",
+        "value": {
+          "index": 11676,
+          "path": "Prop.Invulnerable.BeginState"
+        }
+      },
+      "serialized_offset": 0
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "logical_end": 20,
+                  "logical_offset": 15,
+                  "opcode": 1,
+                  "operand": {
+                    "kind": "Object",
+                    "value": {
+                      "index": 11845,
+                      "path": "AnimProp.AnimHealthy"
+                    }
+                  },
+                  "serialized_offset": 13
+                }
+              ],
+              "logical_end": 20,
+              "logical_offset": 10,
+              "opcode": 54,
+              "operand": {
+                "kind": "Object",
+                "value": {
+                  "index": 11831,
+                  "path": "AnimProp.PropAnimInfo.Anim"
+                }
+              },
+              "serialized_offset": 9
+            },
+            {
+              "children": [],
+              "logical_end": 25,
+              "logical_offset": 20,
+              "opcode": 33,
+              "operand": {
+                "kind": "Name",
+                "value": "None"
+              },
+              "serialized_offset": 17
+            },
+            {
+              "children": [],
+              "logical_end": 26,
+              "logical_offset": 25,
+              "opcode": 22,
+              "operand": {
+                "kind": "None"
+              },
+              "serialized_offset": 19
+            }
+          ],
+          "logical_end": 26,
+          "logical_offset": 9,
+          "opcode": 255,
+          "operand": {
+            "kind": "Native",
+            "value": 255
+          },
+          "serialized_offset": 8
+        }
+      ],
+      "logical_end": 26,
+      "logical_offset": 6,
+      "opcode": 7,
+      "operand": {
+        "kind": "Target",
+        "value": 69
+      },
+      "serialized_offset": 5
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [],
+                  "logical_end": 40,
+                  "logical_offset": 35,
+                  "opcode": 1,
+                  "operand": {
+                    "kind": "Object",
+                    "value": {
+                      "index": 11845,
+                      "path": "AnimProp.AnimHealthy"
+                    }
+                  },
+                  "serialized_offset": 28
+                }
+              ],
+              "logical_end": 40,
+              "logical_offset": 30,
+              "opcode": 54,
+              "operand": {
+                "kind": "Object",
+                "value": {
+                  "index": 11832,
+                  "path": "AnimProp.PropAnimInfo.bLoop"
+                }
+              },
+              "serialized_offset": 24
+            }
+          ],
+          "logical_end": 40,
+          "logical_offset": 29,
+          "opcode": 45,
+          "operand": {
+            "kind": "None"
+          },
+          "serialized_offset": 23
+        }
+      ],
+      "logical_end": 40,
+      "logical_offset": 26,
+      "opcode": 7,
+      "operand": {
+        "kind": "Target",
+        "value": 56
+      },
+      "serialized_offset": 20
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "logical_end": 52,
+              "logical_offset": 47,
+              "opcode": 1,
+              "operand": {
+                "kind": "Object",
+                "value": {
+                  "index": 11845,
+                  "path": "AnimProp.AnimHealthy"
+                }
+              },
+              "serialized_offset": 38
+            }
+          ],
+          "logical_end": 52,
+          "logical_offset": 42,
+          "opcode": 54,
+          "operand": {
+            "kind": "Object",
+            "value": {
+              "index": 11831,
+              "path": "AnimProp.PropAnimInfo.Anim"
+            }
+          },
+          "serialized_offset": 34
+        },
+        {
+          "children": [],
+          "logical_end": 53,
+          "logical_offset": 52,
+          "opcode": 22,
+          "operand": {
+            "kind": "None"
+          },
+          "serialized_offset": 42
+        }
+      ],
+      "logical_end": 53,
+      "logical_offset": 40,
+      "opcode": 97,
+      "operand": {
+        "kind": "Native",
+        "value": 260
+      },
+      "serialized_offset": 32
+    },
+    {
+      "children": [],
+      "logical_end": 56,
+      "logical_offset": 53,
+      "opcode": 6,
+      "operand": {
+        "kind": "Target",
+        "value": 69
+      },
+      "serialized_offset": 43
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "logical_end": 68,
+              "logical_offset": 63,
+              "opcode": 1,
+              "operand": {
+                "kind": "Object",
+                "value": {
+                  "index": 11845,
+                  "path": "AnimProp.AnimHealthy"
+                }
+              },
+              "serialized_offset": 52
+            }
+          ],
+          "logical_end": 68,
+          "logical_offset": 58,
+          "opcode": 54,
+          "operand": {
+            "kind": "Object",
+            "value": {
+              "index": 11831,
+              "path": "AnimProp.PropAnimInfo.Anim"
+            }
+          },
+          "serialized_offset": 48
+        },
+        {
+          "children": [],
+          "logical_end": 69,
+          "logical_offset": 68,
+          "opcode": 22,
+          "operand": {
+            "kind": "None"
+          },
+          "serialized_offset": 56
+        }
+      ],
+      "logical_end": 69,
+      "logical_offset": 56,
+      "opcode": 97,
+      "operand": {
+        "kind": "Native",
+        "value": 259
+      },
+      "serialized_offset": 46
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "logical_end": 71,
+          "logical_offset": 70,
+          "opcode": 11,
+          "operand": {
+            "kind": "None"
+          },
+          "serialized_offset": 58
+        }
+      ],
+      "logical_end": 71,
+      "logical_offset": 69,
+      "opcode": 4,
+      "operand": {
+        "kind": "None"
+      },
+      "serialized_offset": 57
+    }
+  ],
+  "flags": 131074,
+  "friendly_name": "BeginState",
+  "logical_script_bytes": 71,
+  "native_index": 0,
+  "precedence": 0,
+  "replication_offset": null,
+  "script_offset": 24,
+  "serialized_script_bytes": 59
+}

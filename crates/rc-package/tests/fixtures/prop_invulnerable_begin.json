@@ -1,0 +1,350 @@
+{
+  "expressions": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "logical_end": 9,
+              "logical_offset": 4,
+              "opcode": 1,
+              "operand": {
+                "kind": "Object",
+                "value": {
+                  "index": 11724,
+                  "path": "Prop.Health"
+                }
+              },
+              "serialized_offset": 4
+            },
+            {
+              "children": [],
+              "logical_end": 10,
+              "logical_offset": 9,
+              "opcode": 37,
+              "operand": {
+                "kind": "None"
+              },
+              "serialized_offset": 8
+            },
+            {
+              "children": [],
+              "logical_end": 11,
+              "logical_offset": 10,
+              "opcode": 22,
+              "operand": {
+                "kind": "None"
+              },
+              "serialized_offset": 9
+            }
+          ],
+          "logical_end": 11,
+          "logical_offset": 3,
+          "opcode": 151,
+          "operand": {
+            "kind": "Native",
+            "value": 151
+          },
+          "serialized_offset": 3
+        }
+      ],
+      "logical_end": 11,
+      "logical_offset": 0,
+      "opcode": 7,
+      "operand": {
+        "kind": "Target",
+        "value": 21
+      },
+      "serialized_offset": 0
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "logical_end": 17,
+          "logical_offset": 12,
+          "opcode": 33,
+          "operand": {
+            "kind": "Name",
+            "value": "Damagable"
+          },
+          "serialized_offset": 11
+        },
+        {
+          "children": [],
+          "logical_end": 18,
+          "logical_offset": 17,
+          "opcode": 22,
+          "operand": {
+            "kind": "None"
+          },
+          "serialized_offset": 14
+        }
+      ],
+      "logical_end": 18,
+      "logical_offset": 11,
+      "opcode": 113,
+      "operand": {
+        "kind": "Native",
+        "value": 113
+      },
+      "serialized_offset": 10
+    },
+    {
+      "children": [],
+      "logical_end": 21,
+      "logical_offset": 18,
+      "opcode": 6,
+      "operand": {
+        "kind": "Target",
+        "value": 82
+      },
+      "serialized_offset": 15
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "logical_end": 30,
+              "logical_offset": 25,
+              "opcode": 1,
+              "operand": {
+                "kind": "Object",
+                "value": {
+                  "index": 11737,
+                  "path": "Prop.bDisplayStateMessages"
+                }
+              },
+              "serialized_offset": 22
+            }
+          ],
+          "logical_end": 30,
+          "logical_offset": 24,
+          "opcode": 45,
+          "operand": {
+            "kind": "None"
+          },
+          "serialized_offset": 21
+        }
+      ],
+      "logical_end": 30,
+      "logical_offset": 21,
+      "opcode": 7,
+      "operand": {
+        "kind": "Target",
+        "value": 82
+      },
+      "serialized_offset": 18
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "logical_end": 37,
+              "logical_offset": 32,
+              "opcode": 1,
+              "operand": {
+                "kind": "Object",
+                "value": {
+                  "index": 1349,
+                  "path": "Actor.Level"
+                }
+              },
+              "serialized_offset": 28
+            },
+            {
+              "children": [],
+              "logical_end": 45,
+              "logical_offset": 40,
+              "opcode": 1,
+              "operand": {
+                "kind": "Object",
+                "value": {
+                  "index": 4126,
+                  "path": "LevelInfo.Game"
+                }
+              },
+              "serialized_offset": 34
+            }
+          ],
+          "logical_end": 45,
+          "logical_offset": 31,
+          "opcode": 25,
+          "operand": {
+            "kind": "Context",
+            "value": {
+              "result_size": 4,
+              "skip": 5
+            }
+          },
+          "serialized_offset": 27
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "logical_end": 54,
+              "logical_offset": 53,
+              "opcode": 23,
+              "operand": {
+                "kind": "None"
+              },
+              "serialized_offset": 43
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [],
+                      "logical_end": 58,
+                      "logical_offset": 56,
+                      "opcode": 31,
+                      "operand": {
+                        "kind": "String",
+                        "value": ""
+                      },
+                      "serialized_offset": 46
+                    },
+                    {
+                      "children": [
+                        {
+                          "children": [],
+                          "logical_end": 61,
+                          "logical_offset": 60,
+                          "opcode": 23,
+                          "operand": {
+                            "kind": "None"
+                          },
+                          "serialized_offset": 50
+                        }
+                      ],
+                      "logical_end": 61,
+                      "logical_offset": 58,
+                      "opcode": 57,
+                      "operand": {
+                        "kind": "Byte",
+                        "value": 86
+                      },
+                      "serialized_offset": 48
+                    },
+                    {
+                      "children": [],
+                      "logical_end": 62,
+                      "logical_offset": 61,
+                      "opcode": 22,
+                      "operand": {
+                        "kind": "None"
+                      },
+                      "serialized_offset": 51
+                    }
+                  ],
+                  "logical_end": 62,
+                  "logical_offset": 55,
+                  "opcode": 112,
+                  "operand": {
+                    "kind": "Native",
+                    "value": 112
+                  },
+                  "serialized_offset": 45
+                },
+                {
+                  "children": [],
+                  "logical_end": 80,
+                  "logical_offset": 62,
+                  "opcode": 31,
+                  "operand": {
+                    "kind": "String",
+                    "value": " Is Invulnerable"
+                  },
+                  "serialized_offset": 52
+                },
+                {
+                  "children": [],
+                  "logical_end": 81,
+                  "logical_offset": 80,
+                  "opcode": 22,
+                  "operand": {
+                    "kind": "None"
+                  },
+                  "serialized_offset": 70
+                }
+              ],
+              "logical_end": 81,
+              "logical_offset": 54,
+              "opcode": 112,
+              "operand": {
+                "kind": "Native",
+                "value": 112
+              },
+              "serialized_offset": 44
+            },
+            {
+              "children": [],
+              "logical_end": 82,
+              "logical_offset": 81,
+              "opcode": 22,
+              "operand": {
+                "kind": "None"
+              },
+              "serialized_offset": 71
+            }
+          ],
+          "logical_end": 82,
+          "logical_offset": 48,
+          "opcode": 27,
+          "operand": {
+            "kind": "Name",
+            "value": "Broadcast"
+          },
+          "serialized_offset": 40
+        }
+      ],
+      "logical_end": 82,
+      "logical_offset": 30,
+      "opcode": 25,
+      "operand": {
+        "kind": "Context",
+        "value": {
+          "result_size": 0,
+          "skip": 34
+        }
+      },
+      "serialized_offset": 26
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "logical_end": 84,
+          "logical_offset": 83,
+          "opcode": 11,
+          "operand": {
+            "kind": "None"
+          },
+          "serialized_offset": 73
+        }
+      ],
+      "logical_end": 84,
+      "logical_offset": 82,
+      "opcode": 4,
+      "operand": {
+        "kind": "None"
+      },
+      "serialized_offset": 72
+    }
+  ],
+  "flags": 131074,
+  "friendly_name": "BeginState",
+  "logical_script_bytes": 84,
+  "native_index": 0,
+  "precedence": 0,
+  "replication_offset": null,
+  "script_offset": 22,
+  "serialized_script_bytes": 74
+}

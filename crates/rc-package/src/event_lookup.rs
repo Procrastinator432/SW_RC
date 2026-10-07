@@ -21,7 +21,7 @@ pub struct EventLookupSnapshot {
     pub states: Vec<StateLookupSnapshot>,
     pub structs: Vec<StructLookupSnapshot>,
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct EventNameSnapshot {
     pub handle: u32,
     pub resolved_index: i32,
@@ -37,7 +37,11 @@ pub struct FunctionSelection {
     pub source: FunctionLookupSource,
 }
 impl EventLookupSnapshot {
-    fn find_struct(&self, start: usize, name: EventNameSnapshot) -> Result<Option<usize>, String> {
+    pub(crate) fn find_struct(
+        &self,
+        start: usize,
+        name: EventNameSnapshot,
+    ) -> Result<Option<usize>, String> {
         let mut state = Some(start);
         let mut seen = HashSet::new();
         let table = loop {

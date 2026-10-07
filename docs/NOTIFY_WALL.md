@@ -13,3 +13,7 @@ Die API verlangt, dass der Aufrufer einen tatsächlich aufgelösten Basisexport 
 Nachweise: `analysis/decompiled/controller-notify-wall.c`, `.asm`, `analysis/reports/controller-wall-bytecode.json`, `notify-wall-base-validation.json` und `notify-wall-validation.json`. Wiederholbare Originalprobe: `rc-notify-wall-probe <engine.u> <report.json>`. `scripts/Record-NotifyWall.py` kontrolliert Exportinstruktionen und Berichte, aktualisiert Evidence und Wiki.
 
 151 Workspace-Tests, Clippy mit Warnungen als Fehler und Formatprüfung bestanden. Tests decken beide Maskenwörter und Bereichsgrenzen, fehlenden StateFrame, unbekannte aktivierte Handler, gelieferte Antworten und abweichende Basis-ASTs ab. Die Probe auf originalem engine.u bestätigt den leeren Basisexport. Android-/Emulatorprüfung bleibt nach Nutzerwunsch bis zum Schluss verschoben.
+
+## Folgearbeit: feste native Namen
+
+Die feste Registrierung aus core.dll belegt jetzt NotifyHitWall als aufgelösten Index353, Bucket97 und Maskenbit53. Die Originalprobe kann alle verwendeten fest registrierten Namen mit nativen Indizes binden; übrige Namen bleiben Diagnosekennungen. Handles sind opaque eigene Identitäten. 162 Tests bestanden; unveränderte 51 Controller-Klassensuchen. Siehe [NATIVE_NAMES.md](NATIVE_NAMES.md).

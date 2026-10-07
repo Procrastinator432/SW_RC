@@ -1,0 +1,17 @@
+# Ereignistabellen aus Original-Kinderlisten
+
+`state_children::read` liest den begrenzten UStruct-Prefix von Klassen und Zuständen: SuperField, ScriptText, die nullterminierte geordnete Children-Liste und FriendlyName. Der native Serializer an `core.dll:10123630` serialisiert Children zunächst über `+0x3c`, danach die Next-Verweise an `+0x28`; deshalb darf die Reihenfolge nicht aus Exportindizes abgeleitet werden.
+
+Der Leser unterstützt diesen Prefix für Paketversionen 120..159, LicenseeVersion 1. Die Originalprobe umfasst auch ältere Klassenpakete mit Version 134 und 157. UClass beginnt hier direkt mit dem Struct-Prefix; UState verlangt zunächst eine leere UObject-Propertyliste. Object-Stacks und unbekannte Feldklassen werden abgelehnt. Die Probe prüft SuperField, FriendlyName, lokale Kinderreferenzen, eindeutige Einträge und Outer-Zugehörigkeit. Bekannte Core-Feldklassen werden in UStruct-Kinder und übrige Felder getrennt. Restlicher Zustandspayload, Masken und Bytecode werden durch diesen Prefix-Leser nicht geprüft.
+
+`rc-state-link-probe <GameData> <report.json>` liest die Originalpakete aus System und Properties. Zusätzlich zur Reihenfolge prüft es, dass kein eigener UStruct-Export in den Listen fehlt. Es verbindet sämtliche Klassen-/State-Eltern, baut frische Tabellen mit `state_link::link_states` auf und prüft die Klassen-Suche von NotifyHitWall für alle Controller-Unterklassen.
+
+Ergebnis: 3170 Klassen, 260 Zustände und 15915 geordnete Felder geprüft. Alle 51 Controller-Klassensuchen finden Engine.Controller.NotifyHitWall. Dieses Basisereignis wird erneut aus dem originalen Function-AST als leer verifiziert; die enge Handlerauswertung liefert false. Andere Handler bleiben Unresolved.
+
+Für diese Probe werden Namen ohne Beachtung der Groß-/Kleinschreibung global vereinheitlicht und mit deterministischen Diagnosekennungen versehen. Sie sind ausdrücklich keine nativen FName-Handles oder Namensindizes; die resultierende Hashverteilung ist keine Rekonstruktion des originalen Speicherlayouts. Die Probe übergibt weder einen aktiven Zustand noch eine Ereignismaske. Aus dem Klassenergebnis darf keine Aussage über die tatsächlich ausgewählte Runtimefunktion, virtuelle Overrides, aktive Zustände oder VM-Seiteneffekte folgen. Das bloße Vorhandensein der 260 Zustandslisten belegt keine ausgeführte Zustandslogik.
+
+160 Workspace-Tests bestanden; Clippy mit Warnungen als Fehler und Formatprüfung bestanden. Neue Tests prüfen Prefix-Trunkierung, Versionen 134/157, Zustands-Propertypräfix, doppelte/fremde/fehlende Kinder und fehlerhafte SuperField-Verweise. Die Originalprobe bestätigt die vollständigen oben genannten Listen und Klassensuchen. Nachweise: `analysis/reports/original-state-link.json` und `original-state-link-validation.json`, wiederholbare Validierung/Dokumentation über `scripts/Record-OriginalStateLink.py`. Originalpaket- und Quellcode-Hashes stehen im Validierungsbericht. Keine zusätzliche Karten- oder Androidprüfung; Android bleibt bis zum Schluss verschoben.
+
+## Folgearbeit: feste native Namen
+
+Die feste Registrierung aus core.dll belegt jetzt NotifyHitWall als aufgelösten Index353, Bucket97 und Maskenbit53. Die Originalprobe kann alle verwendeten fest registrierten Namen mit nativen Indizes binden; übrige Namen bleiben Diagnosekennungen. Handles sind opaque eigene Identitäten. 162 Tests bestanden; unveränderte 51 Controller-Klassensuchen. Siehe [NATIVE_NAMES.md](NATIVE_NAMES.md).

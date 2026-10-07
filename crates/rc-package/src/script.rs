@@ -1,9 +1,9 @@
 //! Bounded function bytecode inspection for SWRC v159; no VM execution.
 use crate::{properties, Export, Package, Reader, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Function {
     pub friendly_name: String,
     pub script_offset: usize,
@@ -15,7 +15,7 @@ pub struct Function {
     pub replication_offset: Option<u16>,
     pub expressions: Vec<Expression>,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Expression {
     pub logical_offset: u32,
     pub serialized_offset: usize,
@@ -24,19 +24,27 @@ pub struct Expression {
     pub operand: Operand,
     pub children: Vec<Expression>,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "kind", content = "value")]
 pub enum Operand {
     None,
-    Object { index: i32, path: String },
+    Object {
+        index: i32,
+        path: String,
+    },
     Name(String),
+    /// Zero-terminated ANSI bytes preserved one byte per Unicode code point.
+    String(String),
     Byte(u8),
     Int(i32),
     Float(f32),
     Vector([f32; 3]),
     Rotator([i32; 3]),
     Target(u16),
-    Context { skip: u16, result_size: u8 },
+    Context {
+        skip: u16,
+        result_size: u8,
+    },
     Native(u16),
 }
 fn word(r: &mut Reader<'_>) -> Result<u16> {
@@ -183,6 +191,22 @@ fn expression(
             *pos += 4;
             0
         }
+        0x1f => {
+            let mut value = String::new();
+            loop {
+                if *pos >= size {
+                    return Err("unterminated script string within logical bounds".into());
+                }
+                let byte = r.byte()?;
+                *pos += 1;
+                if byte == 0 {
+                    break;
+                }
+                value.push(char::from(byte));
+            }
+            operand = Operand::String(value);
+            0
+        }
         0x22 => {
             operand = Operand::Rotator([r.i32()?, r.i32()?, r.i32()?]);
             *pos += 12;
@@ -263,6 +287,40 @@ fn expression(
 mod tests {
     use super::*;
     use crate::{Import, Summary};
+    #[test]
+    fn ansi_strings_preserve_bytes_and_instruction_boundaries() {
+        let (pkg, e, bytes) = fixture(&[0x1f, 0, 0x1f, b'A', 0xe4, 0, 4, 0xb], 8);
+        let f = read_function(&pkg, &bytes, &e).unwrap();
+        assert!(matches!(&f.expressions[0].operand, Operand::String(s) if s.is_empty()));
+        assert!(matches!(&f.expressions[1].operand, Operand::String(s) if s == "A\u{e4}"));
+        assert_eq!(f.expressions[1].logical_offset, 2);
+        assert_eq!(f.expressions[1].logical_end, 6);
+        assert_eq!(f.expressions[2].logical_offset, 6);
+        let (pkg, e, bytes) = fixture(&[6, 7, 0, 0x1f, b'a', b'b', 0, 4, 0xb], 9);
+        assert!(read_function(&pkg, &bytes, &e).is_ok());
+        let (pkg, e, bytes) = fixture(&[6, 5, 0, 0x1f, b'a', b'b', 0, 4, 0xb], 9);
+        assert!(read_function(&pkg, &bytes, &e)
+            .unwrap_err()
+            .contains("boundary"));
+    }
+    #[test]
+    fn strings_stop_at_logical_limit_without_reading_function_metadata() {
+        for size in [1, 2, 3] {
+            let (pkg, e, bytes) = fixture(&[0x1f, b'a', b'b'], size);
+            assert!(read_function(&pkg, &bytes, &e)
+                .unwrap_err()
+                .contains("unterminated"));
+        }
+        let (pkg, e, bytes) = fixture(&[0x1f, b'x', 0], 3);
+        for len in 0..bytes.len() {
+            assert!(read_function(&pkg, &bytes[..len], &e).is_err());
+        }
+        assert!(read_function(&pkg, &bytes, &e).is_ok());
+        let (pkg, e, bytes) = fixture(&[0x34, 0, 0], 3);
+        assert!(read_function(&pkg, &bytes, &e)
+            .unwrap_err()
+            .contains("unsupported"));
+    }
     #[test]
     fn vector_and_rotator_constants_preserve_values_and_width() {
         let mut script = vec![0x23];

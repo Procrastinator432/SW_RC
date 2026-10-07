@@ -13,3 +13,7 @@ Die Tests prüfen Zustandshandler, Klassenfallback, global_only, nichtfunktional
 Das wiederholbare Inventar in `scripts/Record-EventLookup.py` prüft alle 273 bestehenden Paketberichte und findet genau einen serialisierten NotifyHitWall-Funktionsexport: Engine.Controller.NotifyHitWall. Das belegt keine Abwesenheit nativer oder zur Laufzeit geänderter Handler. Weitere Bestätigung für das leere Basisereignis: `UObject.execNothing` (`1012f350`) verändert keinen Rückgabewert.
 
 Nachweise: `analysis/decompiled/notify-event-resolution.c`, `notify-find-struct.c` und `analysis/reports/event-lookup-validation.json`. Offen bleiben Aufbau der Hashtabellen nach dem Laden, tatsächliche aktive Zustandswahl, FName-Registrierung, GIsScriptable- und übrige ProcessEvent-Gates, virtuelle Overrides sowie Scriptausführung und Seiteneffekte. Kartendiagnosen behalten bis dahin ausdrücklich gelieferte Antwort-Snapshots; es wurde keine neue Kartenabdeckung behauptet. Androidprüfung bleibt bis zum Schluss verschoben.
+
+## Folgearbeit: Tabellenaufbau
+
+Der Erstaufbau der Hashtabellen ist jetzt für explizite geordnete Kinderlisten und globale Namensdaten rekonstruiert. Der neue Builder erzeugt direkt EventLookupSnapshot. Originalpaket-Kinderextraktion und Runtime-Statewahl bleiben offen. 157 Tests bestanden. Siehe [STATE_LINK.md](STATE_LINK.md).

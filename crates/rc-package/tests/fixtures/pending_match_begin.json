@@ -1,0 +1,115 @@
+{
+  "expressions": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "logical_end": 7,
+              "logical_offset": 2,
+              "opcode": 1,
+              "operand": {
+                "kind": "Object",
+                "value": {
+                  "index": -257,
+                  "path": "Engine.GameInfo.bWaitingToStartMatch"
+                }
+              },
+              "serialized_offset": 2
+            }
+          ],
+          "logical_end": 7,
+          "logical_offset": 1,
+          "opcode": 45,
+          "operand": {
+            "kind": "None"
+          },
+          "serialized_offset": 1
+        },
+        {
+          "children": [],
+          "logical_end": 8,
+          "logical_offset": 7,
+          "opcode": 39,
+          "operand": {
+            "kind": "None"
+          },
+          "serialized_offset": 5
+        }
+      ],
+      "logical_end": 8,
+      "logical_offset": 0,
+      "opcode": 20,
+      "operand": {
+        "kind": "None"
+      },
+      "serialized_offset": 0
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "logical_end": 14,
+          "logical_offset": 9,
+          "opcode": 1,
+          "operand": {
+            "kind": "Object",
+            "value": {
+              "index": 576,
+              "path": "DMGame.StartupStage"
+            }
+          },
+          "serialized_offset": 7
+        },
+        {
+          "children": [],
+          "logical_end": 16,
+          "logical_offset": 14,
+          "opcode": 36,
+          "operand": {
+            "kind": "Byte",
+            "value": 0
+          },
+          "serialized_offset": 10
+        }
+      ],
+      "logical_end": 16,
+      "logical_offset": 8,
+      "opcode": 15,
+      "operand": {
+        "kind": "None"
+      },
+      "serialized_offset": 6
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "logical_end": 18,
+          "logical_offset": 17,
+          "opcode": 11,
+          "operand": {
+            "kind": "None"
+          },
+          "serialized_offset": 13
+        }
+      ],
+      "logical_end": 18,
+      "logical_offset": 16,
+      "opcode": 4,
+      "operand": {
+        "kind": "None"
+      },
+      "serialized_offset": 12
+    }
+  ],
+  "flags": 131074,
+  "friendly_name": "BeginState",
+  "logical_script_bytes": 18,
+  "native_index": 0,
+  "precedence": 0,
+  "replication_offset": null,
+  "script_offset": 22,
+  "serialized_script_bytes": 14
+}
