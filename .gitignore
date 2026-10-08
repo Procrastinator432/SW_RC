@@ -1,10 +1,7 @@
 /target/
 /tools/
-/analysis/ghidra-projects/
+/analysis/
 /android/.gradle/
 /android/local.properties
 /android/app/build/
 /android/app/src/main/jniLibs/
-/docs/
-/analysis/
-/scripts/

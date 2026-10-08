@@ -1,5 +1,6 @@
 //! Portable depth-tested geometry renderer with basic diffuse textures. No game simulation.
 pub mod query;
+pub mod skeletal;
 use rc_package::{
     geometry::{read_bsp, Triangle},
     read_package,

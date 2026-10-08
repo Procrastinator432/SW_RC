@@ -29,6 +29,10 @@ pub struct SkeletalMeshPrefix {
     pub end_offset: usize,
     pub remaining_bytes: usize,
     pub lod_version: i32,
+    pub materials_offset: usize,
+    pub materials: Vec<i32>,
+    pub points_offset: usize,
+    pub points: Vec<[u32; 3]>,
     pub bones: Vec<StoredBone>,
     pub linkups: Vec<StoredLinkup>,
 }
@@ -41,6 +45,10 @@ fn reference(pkg: &Package, r: &mut Reader<'_>) -> Result<i32> {
     let index = r.index()?;
     pkg.object_path(index)?;
     Ok(index)
+}
+fn points(r: &mut Reader<'_>) -> Result<Vec<[u32; 3]>> {
+    let n = r.count(12)?;
+    (0..n).map(|_| Ok([r.u32()?, r.u32()?, r.u32()?])).collect()
 }
 fn bone(pkg: &Package, r: &mut Reader<'_>) -> Result<StoredBone> {
     let index = r.index()?;
@@ -86,10 +94,11 @@ pub fn read_skeletal_mesh_prefix(
     }
     r.u32()?;
     array(&mut r, 4)?; // +5c and packed vertices
+    let materials_offset = r.pos;
     let n = r.count(1)?;
-    for _ in 0..n {
-        reference(pkg, &mut r)?;
-    }
+    let materials = (0..n)
+        .map(|_| reference(pkg, &mut r))
+        .collect::<Result<Vec<_>>>()?;
     r.take(36)?; // scale/origin/rotator
     for stride in [2, 8, 2, 10, 8] {
         array(&mut r, stride)?;
@@ -102,7 +111,8 @@ pub fn read_skeletal_mesh_prefix(
     if lod_version > 6 {
         r.take(16)?;
     }
-    array(&mut r, 12)?; // SkeletalMesh points
+    let points_offset = r.pos;
+    let points = points(&mut r)?;
     let bones_offset = r.pos;
     let n = r.count(57)?;
     let bones = (0..n)
@@ -133,11 +143,15 @@ pub fn read_skeletal_mesh_prefix(
         end_offset: r.pos,
         remaining_bytes: payload.len() - r.pos,
         lod_version,
+        materials_offset,
+        materials,
+        points_offset,
+        points,
         bones,
         linkups,
     })
 }
-#[derive(Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub enum LinkupRefresh {
     SameLength,
     MissingAnimation,
@@ -173,6 +187,39 @@ pub fn refresh_linkup<T: Eq>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn points_preserve_raw_float_words_and_stop_at_array_end() {
+        let mut bytes = vec![2];
+        for word in [
+            0u32, 0x80000000, 0x7fc12345, 0x3f800000, 0x7f800000, 0xff800000,
+        ] {
+            bytes.extend(word.to_le_bytes());
+        }
+        bytes.push(99);
+        let mut r = Reader::at(&bytes, 0).unwrap();
+        assert_eq!(
+            points(&mut r).unwrap(),
+            [
+                [0, 0x80000000, 0x7fc12345],
+                [0x3f800000, 0x7f800000, 0xff800000]
+            ]
+        );
+        assert_eq!(r.pos, 25);
+    }
+    #[test]
+    fn points_truncations_and_negative_count_fail() {
+        let bytes = [1u8; 13];
+        for end in 0..13 {
+            assert!(points(&mut Reader::at(&bytes[..end], 0).unwrap()).is_err());
+        }
+        assert!(points(&mut Reader::at(&[0x81], 0).unwrap()).is_err());
+    }
+    #[test]
+    fn empty_points_do_not_consume_following_data() {
+        let mut r = Reader::at(&[0, 99], 0).unwrap();
+        assert!(points(&mut r).unwrap().is_empty());
+        assert_eq!(r.pos, 1);
+    }
     fn fixture() -> (Package, Vec<u8>) {
         let pkg = Package {
             summary: crate::Summary {

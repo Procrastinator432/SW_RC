@@ -1,4 +1,4 @@
-//! ApplyAnimation's root-only branch AFTER native buffer/cache/director preparation.
+//! ApplyAnimation's root-only branch AFTER native buffer/cache/linkup preparation.
 //! Track decoding and x87 frame-time multiplication remain explicit host operations.
 use crate::{mesh_animation::AnimationChannel, move_coords::channel_active};
 use serde::{Deserialize, Serialize};

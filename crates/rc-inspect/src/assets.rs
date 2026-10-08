@@ -1,4 +1,6 @@
 use rc_package::{
+    classes,
+    material_uv::{TexPanner2D, UvTransform},
     properties::{self, Value},
     read_package, texture, Package,
 };
@@ -12,10 +14,14 @@ pub struct Assets {
     loaded: HashMap<String, (Package, Vec<u8>)>,
 }
 pub struct Diffuse {
+    pub uv_transform: Option<UvTransform>,
+    pub panner: Option<TexPanner2D>,
     pub source: String,
     pub texture: rc_render::Texture,
     pub scale: f32,
     pub chain: Vec<String>,
+    pub format: u8,
+    pub source_mip: [usize; 2],
 }
 impl Assets {
     pub fn qualify(&self, package: &str, path: &str) -> String {
@@ -33,10 +39,11 @@ impl Assets {
         for directory in directories {
             for entry in fs::read_dir(directory).map_err(|e| e.to_string())? {
                 let path = entry.map_err(|e| e.to_string())?.path();
-                if path
-                    .extension()
-                    .is_some_and(|e| e.eq_ignore_ascii_case("utx") || e.eq_ignore_ascii_case("usx"))
-                {
+                if path.extension().is_some_and(|e| {
+                    ["utx", "usx", "ukx", "u"]
+                        .iter()
+                        .any(|ext| e.eq_ignore_ascii_case(ext))
+                }) {
                     if let Some(name) = path.file_stem().and_then(|n| n.to_str()) {
                         files.insert(name.to_lowercase(), path);
                     }
@@ -49,10 +56,54 @@ impl Assets {
         })
     }
     pub fn diffuse(&mut self, path: &str) -> Result<Diffuse, String> {
+        self.diffuse_at_size(path, 64)
+    }
+    pub fn diffuse_at_size(&mut self, path: &str, limit: usize) -> Result<Diffuse, String> {
+        self.resolve_diffuse(path, limit, None)
+    }
+    /// Explicit time-sampled path. Legacy scalar-only consumers keep rejecting panners.
+    pub fn diffuse_at_time(
+        &mut self,
+        path: &str,
+        limit: usize,
+        time: f32,
+    ) -> Result<Diffuse, String> {
+        if !time.is_finite() {
+            return Err("Nonfinite material time".into());
+        }
+        if !self.loaded.contains_key("engine") {
+            let data = fs::read(
+                self.files
+                    .get("engine")
+                    .ok_or("Missing Engine package defaults")?,
+            )
+            .map_err(|e| e.to_string())?;
+            self.loaded
+                .insert("engine".into(), (read_package(&data)?, data));
+        }
+        let (pkg, data) = &self.loaded["engine"];
+        let class = pkg
+            .exports
+            .iter()
+            .find(|e| e.name == "TexPanner2D" && e.class == 0)
+            .ok_or("Missing TexPanner2D class")?;
+        let defaults = classes::read(pkg, data, class)?.properties;
+        self.resolve_diffuse(path, limit, Some((time, defaults)))
+    }
+    fn resolve_diffuse(
+        &mut self,
+        path: &str,
+        limit: usize,
+        timed: Option<(f32, properties::Properties)>,
+    ) -> Result<Diffuse, String> {
+        if limit == 0 || limit > 1024 {
+            return Err("Diffuse preview size outside 1..1024".into());
+        }
         let mut path = path.to_owned();
         let mut visited = HashSet::new();
         let mut scale = 1.0;
         let mut chain = Vec::new();
+        let mut panner = None;
         for _ in 0..16 {
             if !visited.insert(path.to_lowercase()) {
                 return Err("Material cycle".into());
@@ -103,12 +154,12 @@ impl Assets {
                     .mips
                     .iter()
                     .filter(|m| !m.data.is_empty())
-                    .min_by_key(|m| m.width.max(m.height).abs_diff(64))
+                    .min_by_key(|m| m.width.max(m.height).abs_diff(limit))
                     .ok_or("No stored texture mip")?;
                 let pixels = texture::decode(t.format, mip, palette.as_deref())?;
                 // Bound snapshot size; use original mips when available, nearest sampling otherwise.
-                let width = mip.width.min(64);
-                let height = mip.height.min(64);
+                let width = mip.width.min(limit);
+                let height = mip.height.min(limit);
                 let resized = (0..height)
                     .flat_map(|y| {
                         (0..width).map(move |x| {
@@ -118,9 +169,15 @@ impl Assets {
                     .map(|i| pixels[i])
                     .collect();
                 return Ok(Diffuse {
+                    uv_transform: panner
+                        .map(|p: TexPanner2D| p.at(timed.as_ref().unwrap().0))
+                        .transpose()?,
+                    panner,
                     source: path,
                     scale,
                     chain,
+                    format: t.format,
+                    source_mip: [mip.width, mip.height],
                     texture: rc_render::Texture {
                         width,
                         height,
@@ -144,6 +201,16 @@ impl Assets {
                 })
             };
             let field = match class.as_str() {
+                "Engine.TexPanner2D" if timed.is_some() => {
+                    if panner.is_some() || scale != 1. {
+                        return Err("Multiple/composed UV modifiers not supported yet".into());
+                    }
+                    let parameters =
+                        TexPanner2D::from_properties(&timed.as_ref().unwrap().1, &props)?;
+                    parameters.at(timed.as_ref().unwrap().0)?;
+                    panner = Some(parameters);
+                    "Material"
+                }
                 "Engine.Shader" => "Diffuse",
                 "Engine.FinalBlend" => "Material",
                 "Engine.HsBumpDiff"
@@ -169,6 +236,9 @@ impl Assets {
             };
             if !scale.is_finite() {
                 return Err("Nonfinite material UV scale".into());
+            }
+            if panner.is_some() && scale != 1. {
+                return Err("Multiple/composed UV modifiers not supported yet".into());
             }
             let (index, next) = props
                 .values

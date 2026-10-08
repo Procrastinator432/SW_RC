@@ -1,4 +1,5 @@
 //! Offline scene assembly from original map and mesh packages, with explicit omissions.
+use rc_inspect::assets;
 use rc_package::{
     geometry::Triangle,
     mesh::{read_static_mesh, transform_point},
@@ -10,8 +11,6 @@ use std::{
     env, fs,
     path::{Path, PathBuf},
 };
-#[path = "../assets.rs"]
-mod assets;
 #[path = "../defaults.rs"]
 mod defaults;
 struct MeshAsset {
@@ -199,7 +198,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             Ok(diffuse) => {
                                 let texture = diffuse.texture;
                                 let index = scene.textures.len();
-                                texture_report.push(serde_json::json!({"material":path,"texture":diffuse.source,"width":texture.width,"height":texture.height,"uv_scale":diffuse.scale,"chain":diffuse.chain,"mode":"base diffuse preview; no shader effects"}));
+                                texture_report.push(serde_json::json!({"material":path,"texture":diffuse.source,"format":diffuse.format,"source_mip":diffuse.source_mip,"width":texture.width,"height":texture.height,"uv_scale":diffuse.scale,"chain":diffuse.chain,"mode":"base diffuse preview; no shader effects"}));
                                 scene.textures.push(texture);
                                 texture_cache.insert(path.clone(), Some((index, diffuse.scale)));
                             }
