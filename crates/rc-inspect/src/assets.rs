@@ -1,5 +1,7 @@
 use rc_package::{
     classes,
+    material_jitter::{JitterState, TexJitter},
+    material_panner::TexPanner,
     material_uv::{TexPanner2D, UvTransform},
     properties::{self, Value},
     read_package, texture, Package,
@@ -9,11 +11,28 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct ShaderConstant {
+    pub slot: usize,
+    pub kind: u8,
+    pub value: [f32; 4],
+}
 pub struct Assets {
     files: HashMap<String, PathBuf>,
     loaded: HashMap<String, (Package, Vec<u8>)>,
 }
+#[derive(Default)]
+pub struct MaterialState {
+    pub oscillators: HashMap<String, JitterState>,
+}
+type JitterHost<'a> = Option<(
+    &'a mut MaterialState,
+    &'a mut dyn FnMut() -> Result<u16, String>,
+)>;
 pub struct Diffuse {
+    pub jitter: Option<TexJitter>,
+    pub jitter_state: Option<JitterState>,
+    pub directional_panner: Option<TexPanner>,
     pub uv_transform: Option<UvTransform>,
     pub panner: Option<TexPanner2D>,
     pub source: String,
@@ -24,6 +43,147 @@ pub struct Diffuse {
     pub source_mip: [usize; 2],
 }
 impl Assets {
+    /// Material-defined pixel constants only; dynamic engine constants need a host.
+    pub fn pixel_constants(&mut self, path: &str) -> Result<[[f32; 4]; 8], String> {
+        let mut values = [[0.; 4]; 8];
+        for c in self.shader_constant_bindings(path, "PSConstants")? {
+            match c.kind {
+                0 => {}
+                1 => values[c.slot] = c.value,
+                _ => return Err("Dynamic pixel constant requires engine host".into()),
+            }
+        }
+        Ok(values)
+    }
+    /// Serialized bindings, retaining dynamic kinds instead of inventing host values.
+    pub fn shader_constant_bindings(
+        &mut self,
+        path: &str,
+        field: &str,
+    ) -> Result<Vec<ShaderConstant>, String> {
+        let limit = match field {
+            "PSConstants" => 8,
+            "VSConstants" => 96,
+            _ => return Err("Unknown shader constant array".into()),
+        };
+        let (class, props) = self.material_properties(path)?;
+        if class != "Engine.HardwareShader" {
+            return Err("Expected HardwareShader".into());
+        }
+        let (package, object) = path.split_once('.').ok_or("Incomplete shader path")?;
+        let (pkg, data) = &self.loaded[&package.to_lowercase()];
+        let export = pkg
+            .exports
+            .iter()
+            .enumerate()
+            .find_map(|(i, e)| {
+                pkg.object_path(i as i32 + 1)
+                    .ok()?
+                    .eq_ignore_ascii_case(object)
+                    .then_some(e)
+            })
+            .ok_or("Missing shader export")?;
+        let payload = pkg.payload(data, export)?;
+        let slice = |offset: usize, count: usize| payload.get(offset..offset.checked_add(count)?);
+        let mut constants = vec![];
+        let mut seen = vec![false; limit];
+        for p in props.values.iter().filter(|p| p.name == field) {
+            let slot = p.array_index as usize;
+            if slot >= limit || seen[slot] || p.struct_name.as_deref() != Some("SConstantsInfo") {
+                return Err("Invalid pixel constant slot/struct".into());
+            }
+            seen[slot] = true;
+            let raw = slice(p.payload_offset, p.bytes).ok_or("Pixel constant payload range")?;
+            let nested = properties::tagged_struct(pkg, raw)?;
+            let kind = nested
+                .values
+                .iter()
+                .find(|p| p.name == "Type")
+                .map(|p| &p.value);
+            let kind = match kind {
+                None => 0,
+                Some(Value::Byte(v)) => *v,
+                _ => return Err("Expected byte shader constant kind".into()),
+            };
+            let mut components = [0.; 4];
+            if let Some(value) = nested.values.iter().find(|p| p.name == "Value") {
+                if value.struct_name.as_deref() != Some("Plane") {
+                    return Err("Expected pixel constant Plane".into());
+                }
+                let plane = raw
+                    .get(
+                        value.payload_offset
+                            ..value
+                                .payload_offset
+                                .checked_add(value.bytes)
+                                .ok_or("Plane overflow")?,
+                    )
+                    .ok_or("Plane payload range")?;
+                let plane = properties::tagged_struct(pkg, plane)?;
+                for (i, name) in ["X", "Y", "Z", "W"].iter().enumerate() {
+                    if let Some(p) = plane.values.iter().find(|p| p.name == *name) {
+                        let Value::Float(v) = p.value else {
+                            return Err("Expected float plane component".into());
+                        };
+                        if !v.is_finite() {
+                            return Err("Nonfinite pixel constant".into());
+                        }
+                        components[i] = v;
+                    }
+                }
+            }
+            constants.push(ShaderConstant {
+                slot,
+                kind,
+                value: components,
+            });
+        }
+        Ok(constants)
+    }
+    /// Read original tagged material inputs without claiming shader evaluation.
+    pub fn material_properties(
+        &mut self,
+        path: &str,
+    ) -> Result<(String, properties::Properties), String> {
+        let (package, object) = path.split_once('.').ok_or("Incomplete material path")?;
+        let key = package.to_lowercase();
+        if !self.loaded.contains_key(&key) {
+            let data = fs::read(self.files.get(&key).ok_or("Missing material package")?)
+                .map_err(|e| e.to_string())?;
+            self.loaded
+                .insert(key.clone(), (read_package(&data)?, data));
+        }
+        let (pkg, data) = &self.loaded[&key];
+        let e = pkg
+            .exports
+            .iter()
+            .enumerate()
+            .find_map(|(i, e)| {
+                pkg.object_path(i as i32 + 1)
+                    .ok()?
+                    .eq_ignore_ascii_case(object)
+                    .then_some(e)
+            })
+            .ok_or("Missing material export")?;
+        Ok((pkg.object_path(e.class)?, properties::read(pkg, data, e)?))
+    }
+    pub fn class_properties(&mut self, path: &str) -> Result<properties::Properties, String> {
+        let (package, object) = path.split_once('.').ok_or("Incomplete class path")?;
+        let key = package.to_lowercase();
+        if !self.loaded.contains_key(&key) {
+            let data = fs::read(self.files.get(&key).ok_or("Missing class package")?)
+                .map_err(|e| e.to_string())?;
+            self.loaded
+                .insert(key.clone(), (read_package(&data)?, data));
+        }
+        let (pkg, data) = &self.loaded[&key];
+        let e = pkg
+            .exports
+            .iter()
+            .find(|e| e.class == 0 && e.name.eq_ignore_ascii_case(object))
+            .ok_or("Missing class export")?;
+        Ok(classes::read(pkg, data, e)?.properties)
+    }
     pub fn qualify(&self, package: &str, path: &str) -> String {
         if path
             .split_once('.')
@@ -59,7 +219,7 @@ impl Assets {
         self.diffuse_at_size(path, 64)
     }
     pub fn diffuse_at_size(&mut self, path: &str, limit: usize) -> Result<Diffuse, String> {
-        self.resolve_diffuse(path, limit, None)
+        self.resolve_diffuse(path, limit, None, None)
     }
     /// Explicit time-sampled path. Legacy scalar-only consumers keep rejecting panners.
     pub fn diffuse_at_time(
@@ -67,6 +227,26 @@ impl Assets {
         path: &str,
         limit: usize,
         time: f32,
+    ) -> Result<Diffuse, String> {
+        self.sampled_diffuse(path, limit, time, None)
+    }
+    /// Retain oscillator state by qualified material object; host owns shared rand order.
+    pub fn diffuse_with_jitter(
+        &mut self,
+        path: &str,
+        limit: usize,
+        time: f32,
+        state: &mut MaterialState,
+        random: &mut dyn FnMut() -> Result<u16, String>,
+    ) -> Result<Diffuse, String> {
+        self.sampled_diffuse(path, limit, time, Some((state, random)))
+    }
+    fn sampled_diffuse(
+        &mut self,
+        path: &str,
+        limit: usize,
+        time: f32,
+        jitter: JitterHost<'_>,
     ) -> Result<Diffuse, String> {
         if !time.is_finite() {
             return Err("Nonfinite material time".into());
@@ -88,13 +268,36 @@ impl Assets {
             .find(|e| e.name == "TexPanner2D" && e.class == 0)
             .ok_or("Missing TexPanner2D class")?;
         let defaults = classes::read(pkg, data, class)?.properties;
-        self.resolve_diffuse(path, limit, Some((time, defaults)))
+        let class = pkg
+            .exports
+            .iter()
+            .find(|e| e.name == "TexPanner" && e.class == 0)
+            .ok_or("Missing TexPanner class")?;
+        let directional_defaults = classes::read(pkg, data, class)?.properties;
+        let class = pkg
+            .exports
+            .iter()
+            .find(|e| e.name == "TexOscillator" && e.class == 0)
+            .ok_or("Missing TexOscillator class")?;
+        let oscillator_defaults = classes::read(pkg, data, class)?.properties;
+        self.resolve_diffuse(
+            path,
+            limit,
+            Some((time, defaults, directional_defaults, oscillator_defaults)),
+            jitter,
+        )
     }
     fn resolve_diffuse(
         &mut self,
         path: &str,
         limit: usize,
-        timed: Option<(f32, properties::Properties)>,
+        timed: Option<(
+            f32,
+            properties::Properties,
+            properties::Properties,
+            properties::Properties,
+        )>,
+        mut jitter_host: JitterHost<'_>,
     ) -> Result<Diffuse, String> {
         if limit == 0 || limit > 1024 {
             return Err("Diffuse preview size outside 1..1024".into());
@@ -104,6 +307,10 @@ impl Assets {
         let mut scale = 1.0;
         let mut chain = Vec::new();
         let mut panner = None;
+        let mut directional_panner = None;
+        let mut uv_transform = None;
+        let mut jitter = None;
+        let mut jitter_state = None;
         for _ in 0..16 {
             if !visited.insert(path.to_lowercase()) {
                 return Err("Material cycle".into());
@@ -169,9 +376,10 @@ impl Assets {
                     .map(|i| pixels[i])
                     .collect();
                 return Ok(Diffuse {
-                    uv_transform: panner
-                        .map(|p: TexPanner2D| p.at(timed.as_ref().unwrap().0))
-                        .transpose()?,
+                    jitter,
+                    jitter_state,
+                    uv_transform,
+                    directional_panner,
                     panner,
                     source: path,
                     scale,
@@ -201,13 +409,39 @@ impl Assets {
                 })
             };
             let field = match class.as_str() {
+                "Engine.TexOscillator" if jitter_host.is_some() => {
+                    if uv_transform.is_some() || scale != 1. {
+                        return Err("Multiple/composed UV modifiers not supported yet".into());
+                    }
+                    let timed = timed.as_ref().ok_or("Jitter needs material time")?;
+                    let (parameters, initial) = TexJitter::from_properties(&timed.3, &props)?;
+                    let (runtime, random) = jitter_host.as_mut().unwrap();
+                    let state = runtime
+                        .oscillators
+                        .entry(path.to_lowercase())
+                        .or_insert(initial);
+                    uv_transform = Some(parameters.step(timed.0, state, *random)?);
+                    jitter = Some(parameters);
+                    jitter_state = Some(*state);
+                    "Material"
+                }
+                "Engine.TexPanner" if timed.is_some() => {
+                    if uv_transform.is_some() || scale != 1. {
+                        return Err("Multiple/composed UV modifiers not supported yet".into());
+                    }
+                    let parameters =
+                        TexPanner::from_properties(&timed.as_ref().unwrap().2, &props)?;
+                    uv_transform = Some(parameters.at(timed.as_ref().unwrap().0)?);
+                    directional_panner = Some(parameters);
+                    "Material"
+                }
                 "Engine.TexPanner2D" if timed.is_some() => {
-                    if panner.is_some() || scale != 1. {
+                    if uv_transform.is_some() || scale != 1. {
                         return Err("Multiple/composed UV modifiers not supported yet".into());
                     }
                     let parameters =
                         TexPanner2D::from_properties(&timed.as_ref().unwrap().1, &props)?;
-                    parameters.at(timed.as_ref().unwrap().0)?;
+                    uv_transform = Some(parameters.at(timed.as_ref().unwrap().0)?);
                     panner = Some(parameters);
                     "Material"
                 }
@@ -237,7 +471,7 @@ impl Assets {
             if !scale.is_finite() {
                 return Err("Nonfinite material UV scale".into());
             }
-            if panner.is_some() && scale != 1. {
+            if uv_transform.is_some() && scale != 1. {
                 return Err("Multiple/composed UV modifiers not supported yet".into());
             }
             let (index, next) = props

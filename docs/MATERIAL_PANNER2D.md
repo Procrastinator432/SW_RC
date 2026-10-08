@@ -44,7 +44,7 @@ Fifteen diagnostic triangle snapshots exercise texture binding and sampled
 UV serialization. These are material fixtures, not animated game meshes.
 
 The earlier report retains its historical 212/77 split. The new report
-recovers 52 of those omissions (37 remain). This is base-diffuse coverage in
+recovers 52 of those omissions (25 remain). This is base-diffuse coverage in
 the new offline API, not full material/game completion.
 
 ## Verification
@@ -70,3 +70,6 @@ cargo fmt --all -- --check
 Remaining: TexPanner/TexOscillator, hologram and other effects, modifier
 composition, script parameter changes, live material/animation integration
 and wider game systems. Android verification remains at the end.
+
+Follow-up: `MATERIAL_PANNER.md` adds five TexPanner slots, leaving 20 original
+omissions across both new time-sampled paths.

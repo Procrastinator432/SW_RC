@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 default-run = "rc-inspect"
 [dependencies]
+serde.workspace = true
 rc-package = { path = "../rc-package" }
 serde_json.workspace = true
 rc-render = { path = "../rc-render" }

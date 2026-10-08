@@ -56,7 +56,9 @@ transforms and hologram/effect behavior have not been substituted with guesses.
 
 Follow-up: `MATERIAL_PANNER2D.md` documents the new explicit time-sampled API
 which resolves those 52 TexPanner2D slots. The historical report and scalar-only
-API retain the above split; 37 of those omissions remain in the new scope.
+API retain the above split; 25 of those omissions remain after that step.
+`MATERIAL_PANNER.md` adds five more TexPanner slots, leaving 20 in the combined
+time-sampled scope.
 
 ## Renderer and visible result
 

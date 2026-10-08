@@ -33,6 +33,15 @@ pub struct Properties {
     pub values: Vec<Property>,
     pub native_offset: usize,
 }
+/// Decode a complete nested tagged struct, rejecting trailing native bytes.
+pub fn tagged_struct(pkg: &Package, payload: &[u8]) -> Result<Properties> {
+    let mut reader = Reader::at(payload, 0)?;
+    let result = read_reader(pkg, &mut reader)?;
+    if reader.pos != payload.len() {
+        return Err("Trailing bytes in tagged struct".into());
+    }
+    Ok(result)
+}
 pub fn read(pkg: &Package, data: &[u8], e: &Export) -> Result<Properties> {
     let mut r = Reader::at(pkg.payload(data, e)?, 0)?;
     if e.flags & 0x02000000 != 0 {
