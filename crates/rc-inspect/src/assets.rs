@@ -17,6 +17,19 @@ pub struct ShaderConstant {
     pub kind: u8,
     pub value: [f32; 4],
 }
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct ShaderTexture {
+    pub slot: u32,
+    pub material: Option<String>,
+}
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct HardwareShaderInputs {
+    pub vertex_source: String,
+    pub pixel_source: String,
+    pub vertex_constants: Vec<ShaderConstant>,
+    pub pixel_constants: Vec<ShaderConstant>,
+    pub textures: Vec<ShaderTexture>,
+}
 pub struct Assets {
     files: HashMap<String, PathBuf>,
     loaded: HashMap<String, (Package, Vec<u8>)>,
@@ -43,6 +56,61 @@ pub struct Diffuse {
     pub source_mip: [usize; 2],
 }
 impl Assets {
+    /// Explicit serialized inputs only; no wrapper overrides or sampler/state defaults.
+    pub fn hardware_shader_inputs(&mut self, path: &str) -> Result<HardwareShaderInputs, String> {
+        let (class, props) = self.material_properties(path)?;
+        if class != "Engine.HardwareShader" {
+            return Err("Expected HardwareShader".into());
+        }
+        let package = path.split_once('.').ok_or("Incomplete shader path")?.0;
+        let text = |name: &str| -> Result<String, String> {
+            let matches: Vec<_> = props
+                .values
+                .iter()
+                .filter(|p| p.name == name && p.array_index == 0)
+                .collect();
+            match matches.as_slice() {
+                [p] => match &p.value {
+                    Value::String(s) => Ok(s.clone()),
+                    _ => Err(format!("Invalid {name}")),
+                },
+                _ => Err(format!("Missing or duplicate {name}")),
+            }
+        };
+        let vertex_source = text("VertexShaderText")?;
+        let pixel_source = text("PixelShaderText")?;
+        let mut textures = Vec::new();
+        let mut seen = HashSet::new();
+        for property in &props.values {
+            if property.name != "Textures" {
+                continue;
+            }
+            if !seen.insert(property.array_index) {
+                return Err("Duplicate shader texture slot".into());
+            }
+            let material = match &property.value {
+                Value::Object { index, path } => {
+                    if *index == 0 {
+                        None
+                    } else {
+                        Some(self.qualify(package, path))
+                    }
+                }
+                _ => return Err("Invalid shader texture reference".into()),
+            };
+            textures.push(ShaderTexture {
+                slot: property.array_index,
+                material,
+            });
+        }
+        Ok(HardwareShaderInputs {
+            vertex_source,
+            pixel_source,
+            vertex_constants: self.shader_constant_bindings(path, "VSConstants")?,
+            pixel_constants: self.shader_constant_bindings(path, "PSConstants")?,
+            textures,
+        })
+    }
     /// Material-defined pixel constants only; dynamic engine constants need a host.
     pub fn pixel_constants(&mut self, path: &str) -> Result<[[f32; 4]; 8], String> {
         let mut values = [[0.; 4]; 8];

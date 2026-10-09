@@ -26,9 +26,14 @@ clamped to [0,1] after conversion to f32 to remove clip-boundary roundoff.
 
 The clip volume follows Microsoft's [viewports and clipping reference](https://learn.microsoft.com/en-us/windows/win32/direct3d9/viewports-and-clipping).
 This diagnostic implementation uses f64 clip/raster arithmetic and half-integer
-pixel centers, then f32 shader inputs/depth. Original [D3D9 rasterization rules](https://learn.microsoft.com/en-us/windows/win32/direct3d9/rasterization-rules)
+pixel centers, then f32 shader inputs/depth. The later [D3D9 rasterization rules](https://learn.microsoft.com/en-us/windows/win32/direct3d9/rasterization-rules)
 describe integer pixel centers and hardware variations. No pixel-exact original
 GPU equivalence is claimed. The existing opaque Scene renderer is unaffected.
+
+Correction 2026-10-09: the original DLL imports `d3d8.dll!Direct3DCreate8`.
+The D3D9 links above are comparison references, not identification of the game's
+graphics API. See [hardware shader handoff](HARDWARE_HANDOFF.md) for the newly
+reconstructed PS-first shared constant scratch buffer and texture-stage walk.
 
 Targets are bounded to 1..1024 in each dimension, clear depth to 1 and use opaque
 ARGB pixels. Nonfinite/excessive vertices and incomplete shader outputs are

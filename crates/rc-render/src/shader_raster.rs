@@ -1,4 +1,4 @@
-//! Explicit diagnostic raster rules, not legacy D3D9 hardware equivalence.
+//! Explicit diagnostic raster rules, not original Direct3D 8 hardware equivalence.
 use rc_package::vertex_shader::Evaluation;
 #[derive(Clone, Copy, Debug)]
 pub struct Vertex {

@@ -1,5 +1,6 @@
 //! Portable depth-tested geometry renderer with basic diffuse textures. No game simulation.
 pub mod fragment;
+pub mod hologram_pass;
 pub mod query;
 pub mod shader_raster;
 pub mod skeletal;

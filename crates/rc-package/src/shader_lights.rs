@@ -1,6 +1,6 @@
 //! Bounded native D3DDrv light slot, color, ambient and spotlight constants.
-use serde::Serialize;
-#[derive(Clone, Copy, Debug, Default, Serialize)]
+use serde::{Deserialize, Serialize};
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct Light {
     /// Native source +30/+34, preserved as raw words.
     pub radius: [u32; 2],
@@ -15,7 +15,7 @@ pub struct Light {
     pub direction: [u32; 3],
     pub flags: [u32; 2],
 }
-#[derive(Clone, Copy, Debug, Default, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct Lighting {
     pub slots: [Option<Light>; 4],
     /// GCubemapManager actor exists and its flags & 0x2000 == 0.

@@ -5,8 +5,8 @@ use crate::{
     skeletal_render_product::rigid_render_product,
     skeletal_skin::{SkinStreamVertex, SkinVertex},
 };
-use serde::Serialize;
-#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DrawSection {
     pub bank: usize,
     pub section_index: usize,

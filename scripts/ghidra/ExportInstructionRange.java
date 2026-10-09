@@ -9,6 +9,7 @@ public class ExportInstructionRange extends GhidraScript {
         Address start = toAddr(a[1]), end = toAddr(a[2]);
         try (PrintWriter out = new PrintWriter(new File(a[0]), StandardCharsets.UTF_8)) {
             Instruction i = getInstructionAt(start);
+            if (i == null) i = getInstructionAfter(start);
             while (i != null && i.getAddress().compareTo(end) <= 0) {
                 out.println(i.getAddress() + " " + i);
                 i = getInstructionAfter(i.getAddress());
