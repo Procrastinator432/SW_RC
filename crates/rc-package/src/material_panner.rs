@@ -5,7 +5,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 const SINE: &[u8; 65536] = include_bytes!("material_sine_table.bin");
-fn sin_tab(angle: i32) -> f32 {
+pub(crate) fn sin_tab(angle: i32) -> f32 {
     let index = ((angle >> 2) & 16383) as usize * 4;
     f32::from_bits(u32::from_le_bytes(
         SINE[index..index + 4].try_into().unwrap(),

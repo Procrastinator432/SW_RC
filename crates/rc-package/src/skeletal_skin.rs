@@ -3,7 +3,7 @@ use crate::skeletal_skin_product::skin_product;
 use crate::skeletal_weighted_kernels::{
     cached_rigid, cached_two, weighted_first, weighted_next, weighted_two,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Native global palette is resized first; prior successful bone writes survive errors.
 /// Matrices are inverse-reference * pose, transposed for the vertex kernel.
@@ -22,7 +22,7 @@ pub fn build_skin_palette(
     }
     Ok(())
 }
-#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq, Deserialize)]
 pub struct BindSkinVertex {
     pub position: [u32; 3],
     pub packed_normal: u32,

@@ -1,0 +1,33 @@
+# geo_01a: Singleplayer-Schadensregeln und Schwierigkeit (M3h)
+
+Version **0.16.0**, Android-Code **18**, Lieferung unter `analysis/milestone3h`.
+
+APK `republic-commando-0.16.0.apk` installieren, im Spiel **Szene laden** wählen und eine dieser Dateien öffnen:
+
+| Szene | Schwierigkeit | Eingehender Schadensfaktor |
+|---|---|---|
+| `geo_01a-easy.rcplay` | Leicht | 0,25 |
+| `geo_01a-normal.rcplay` | Normal; Empfehlung zum Vergleich mit 0.15.0 | 1,0 |
+| `geo_01a-hard.rcplay` | Schwer | 1,75 |
+
+Die Schwierigkeit wird über die geladene Szene gewählt. Bewegung, Springen, Schießen, Nachladen, drei Gegner und Ausgang funktionieren wie bisher. Für einen Schwierigkeitswechsel eine andere Datei laden. Ein Neustart behält die gewählte Stufe. Originalassets bleiben in den Szenendateien getrennt von der APK.
+
+## Belegter Originalpfad
+
+`System/system.ini`, Abschnitt `Engine.Engine`, wählt `CTGame.CTGameInfoSP` für Singleplayer. Die Karte hat kein eigenes `DefaultGameType`. Aufgelöste Klassendefaults wählen `CTCharacters.PlayerCommando` und `CTGame.CTPlayer`. Der Controller erbt von `Engine.PlayerController`. Seine vier Schwierigkeitsfelder sind externe Konfigurationswerte; die Lieferung übernimmt die aktiven Werte aus `System/user.ini:[Engine.PlayerController]`, einschließlich Zeilennachweisen. Die abweichenden auskommentierten Entwicklerwerte aus `devuser.ini` werden nicht verwendet.
+
+`PlayerCommando.CalculateDamageFrom` ruft zuerst die Superklasse auf und multipliziert deren Ergebnis mit `PC.DifficultyDamageModifier`. Der vorhandene Pfad für Knochen, Rüstung und `DamageVariance` bleibt erhalten. Dabei wird jetzt die tatsächliche Spielerklasse verwendet: `PlayerCommando` hat `DV_OrganicCTPlayerDamage`, 3 Sekunden Schildaufladeverzögerung und 20 Schildpunkte pro Sekunde. Die zuvor benutzte Basisklasse `CloneCommando` verwendete `DV_OrganicCTSquadDamage` und 1 Sekunde Verzögerung bei 10 Schildpunkten pro Sekunde. Die Spieler-Varianz enthält keinen Nahkampf-Eintrag; der ausgewählte ForcePike-Treffer bleibt deshalb vor Schwierigkeit bei 125 statt 62,5 Schaden. Die komplette aufgelöste Spieler-Include-Liste ersetzt die Squad-Liste; geerbte Ausschlusslisten werden geprüft und sind für diesen Spielerpfad leer. Danach ruft `Pawn.TakeDamage` `GameInfo.ReduceDamage` auf. Erst anschließend folgen Schildabzug, Überlauf auf Lebenspunkte und Schildaufladefrist. Die Reihenfolge der Float-Operationen wird durch eine Probe gesichert, die bei vorgezogener Schwierigkeit ein anderes Rundungsergebnis liefert.
+
+`GameInfo.ReduceDamage` setzt Schaden in einer neutralen Physikzone auf null. Im alternativen Zweig beendet Gottmodus die Funktion sofort. Eine vorhandene GameRules-Kette würde anschließend `NetDamage` mit ursprünglichem und reduziertem Schaden erhalten. Der Basiskettencode reicht beide Werte unverändert weiter. Daher wird bei einer neutralen Zone selbst bei gleichzeitigem Gottmodus die Kette noch aufgerufen; dieser Vorrang ist separat geprüft.
+
+Die ausgewählte Szene hat keine vorbereiteten Gottmodus-Controller und keine dynamischen GameRules-Instanzen. `GameRulesModifiers` ist im aufgelösten Default null; in der Karte sind keine GameRules-Actors gespeichert. Arbiträre URL-Optionen oder durch Scripts nachträglich erzeugte Regeln werden nicht ausgeführt. Die Szenen verwenden daher einen leeren/weiterreichenden Regelabschluss. Eine vollständige Script-VM-Parität wird nicht behauptet.
+
+Die neutralen Flags des Defaultvolumens sowie der beiden vorbereiteten Kartenvolumen werden aus Originaldefaults und Instanztags aufgelöst. Alle sind hier falsch. Bei einem Treffer wird der Empfängerort mit der bestehenden Volumenauswahl geprüft. Unvollständige Auswahl oder fehlende Flagmetadaten ergeben einen Fehler und rollen den gesamten Spieltakt zurück. Die Volumenauswahl besitzt weiterhin ihre dokumentierte Grenze bei unbekannter nativer Hash-/Touchreihenfolge; gleichrangige Mehrfachauswahl wird abgelehnt.
+
+## Prüfungen und Grenzen
+
+`check/game-rules-validation.json` prüft alle drei tatsächlich geladenen Szenen über die originalen Nahkampf-Notifies und den vorhandenen Projektilpfad. Der erste Treffer kommt jeweils in Takt 38: Leicht lässt 68,75 Schildpunkte, Normal null Schildpunkte und 75 Lebenspunkte. Schwer verursacht 218,75 Schaden und tötet den ungeschützten Spieler beim ersten Treffer; der interne Float-Gesundheitswert wird -18,75, die Anzeige null. Beim Start deshalb sofort schießen oder ausweichen. Diese Werte stammen aus Spieler-Varianz, ForcePike-Schaden und installiertem Schwierigkeitsfaktor; die Lieferung schwächt sie nicht ab. Die drei Gegner fallen jeweils nach insgesamt neun bestätigten Projektiltreffern. Schwierigkeit verändert hier den eingehenden Spielerschaden, nicht Gegnerlebenspunkte, Navigation oder Waffenschaden. Der Schwierigkeitswert `GameDifficulty` aus Multiplayer-/AI-Pfaden wird nicht als zusätzlicher Faktor übernommen.
+
+Synthetisch eingeschaltete neutrale Volumenflags prüfen Schutz für Spieler und Gegner, einschließlich unveränderter Schildaufladefrist und ohne Gegner-Trefferreaktion bei neutralem Nullschaden. Weitere Prüfungen sichern Niederlage, Neustart, identischen Spielzustand bei 120/30/10 Hz Aufrufrate und vollständiges Rollback beim Treffer mit fehlenden Volumenflags. Die ausgelieferten Kartenflags bleiben unverändert. Alte Szenen ohne neues Profil behalten ihre bisherigen Regeln und serialisierten Zustände.
+
+973 Rust-Bibliothekstests, Clippy, Format und Whitespaceprüfung bestehen. Alle drei Szenen bestehen den nativen ABI-Ladetest. Auf Android API 35/x86_64 wird jede Stufe über den normalen Dateidialog geladen und ohne Eingabe bis zur Niederlage geprüft; die Endtakte stimmen exakt mit dem Headless-Test überein (397 / 274 / 38). Jede Stufe lässt sich neu starten. Der vollständige interaktive Gefechtsablauf mit drei Abschüssen und Ausgang besteht auf Normal über GPU und CPU. Kontextwiederherstellung, Backendwechsel und drei kurze Wiederladungen werden zusätzlich geprüft. Historische Szenen und der 1.002-Kommandos-Replay bleiben unverändert. Beide APK-ABIs, Signatur und 16-KiB-Ausrichtung sind Bestandteil der Lieferung. Die abschließenden Build-, ABI-, Android- und Regressionsnachweise sowie Quell-/Originalhashes stehen im Liefermanifest. Emulatorwerte ersetzen keine physische ARM64-Leistungsabnahme. Freundbeschuss, beliebige GameRules-Unterklassen, Gottmodus-Umschalter, vollständige Bot-/Goal-Ausführung, Zielhilfe, weitere FX und Audio bleiben offen. M3 bleibt ein Integrationsmeilenstein in Arbeit. Nächster Abschnitt: verbleibende originale Bot-/Goal-Abhängigkeiten des ausgewählten Gegnertyps.

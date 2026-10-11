@@ -89,6 +89,7 @@ impl StaticBodyWorld {
         extent: [f64; 3],
         motion: bool,
     ) -> Result<WorldSweep, String> {
+        let _timing = crate::performance::Span::new(crate::performance::Category::Collision);
         if start
             .into_iter()
             .chain(end)

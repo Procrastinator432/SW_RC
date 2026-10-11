@@ -1,5 +1,6 @@
 //! Portable depth-tested geometry renderer with basic diffuse textures. No game simulation.
 pub mod fragment;
+pub mod gpu;
 pub mod hologram_pass;
 pub mod query;
 pub mod shader_raster;
@@ -351,6 +352,69 @@ impl Scene {
         )
     }
     pub fn render_view(&self, width: usize, height: usize, view: View) -> Result<Vec<u32>, String> {
+        self.render_combined(width, height, view, &[], None, None)
+    }
+    /// First playable scene: shared depth buffer for static world and transient actors.
+    /// Extra triangles encode RGB in surface bits 0..23; they never index world textures.
+    pub fn render_game_view(
+        &self,
+        width: usize,
+        height: usize,
+        view: View,
+        extra: &[Triangle],
+    ) -> Result<Vec<u32>, String> {
+        if extra.len() > 4096
+            || extra.iter().any(|t| {
+                t.points
+                    .iter()
+                    .flatten()
+                    .any(|v| !v.is_finite() || v.abs() > 1e9)
+            })
+        {
+            return Err("Invalid transient geometry".into());
+        }
+        self.render_combined(width, height, view, extra, Some(4.), None)
+    }
+    pub fn render_animated_view(
+        &self,
+        width: usize,
+        height: usize,
+        view: View,
+        extra: &[Triangle],
+        appearance: &[Option<FaceTexture>],
+        weapon_start: usize,
+    ) -> Result<Vec<u32>, String> {
+        if extra.len() > 100_000
+            || extra.len() != appearance.len()
+            || weapon_start > extra.len()
+            || extra
+                .iter()
+                .flat_map(|t| t.points.iter().flatten())
+                .any(|v| !v.is_finite() || v.abs() > 1e9)
+        {
+            return Err("Invalid animated geometry".into());
+        }
+        self.render_combined(
+            width,
+            height,
+            view,
+            extra,
+            Some(4.),
+            Some((appearance, weapon_start)),
+        )
+    }
+    fn render_combined(
+        &self,
+        width: usize,
+        height: usize,
+        view: View,
+        extra: &[Triangle],
+        near: Option<f32>,
+        animated: Option<(&[Option<FaceTexture>], usize)>,
+    ) -> Result<Vec<u32>, String> {
+        let _draw_timing =
+            rc_package::performance::Span::new(rc_package::performance::Category::SceneDraw);
+        let profiling = rc_package::performance::detailed();
         let View {
             yaw,
             pitch,
@@ -384,11 +448,27 @@ impl Scene {
         );
         let forward = mul(direction, -1.0);
         let focal = height as f32 * 1.1;
-        let near = self.radius * 0.002;
+        let near = near.unwrap_or(self.radius * 0.002);
+        let buffers_timing =
+            rc_package::performance::Span::new(rc_package::performance::Category::FrameBuffers);
         let mut pixels = vec![0xff101923; width * height];
         let mut depth = vec![f32::INFINITY; width * height];
-        for (triangle_index, t) in self.triangles.iter().enumerate() {
-            let appearance = self.appearance.get(triangle_index).copied().flatten();
+        drop(buffers_timing);
+        for (triangle_index, t) in self.triangles.iter().chain(extra).enumerate() {
+            let appearance = if triangle_index < self.triangles.len() {
+                self.appearance.get(triangle_index).copied().flatten()
+            } else {
+                animated.and_then(|(faces, _)| {
+                    faces
+                        .get(triangle_index - self.triangles.len())
+                        .copied()
+                        .flatten()
+                })
+            };
+            if animated.is_some_and(|(_, start)| triangle_index == self.triangles.len() + start) {
+                depth.fill(f32::INFINITY);
+            }
+
             let vertices: [[f32; 5]; 3] = std::array::from_fn(|i| {
                 let d = sub(t.points[i], eye);
                 let uv = appearance.map_or([0.0; 2], |f| f.uv[i]);
@@ -430,7 +510,18 @@ impl Scene {
                 let r = ((90 + seed * 37 % 100) as f32 * lighting) as u32;
                 let g = ((130 + seed * 19 % 100) as f32 * lighting) as u32;
                 let blue = ((140 + seed * 11 % 100) as f32 * lighting) as u32;
-                let color = 0xff000000 | r << 16 | g << 8 | blue;
+                let color = if triangle_index >= self.triangles.len() {
+                    let rgb = t.surface as u32;
+                    let channel =
+                        |shift: u32| ((((rgb >> shift) & 255) as f32 * lighting) as u32) << shift;
+                    0xff000000 | channel(16) | channel(8) | channel(0)
+                } else {
+                    0xff000000 | r << 16 | g << 8 | blue
+                };
+                let _raster_timing = rc_package::performance::Span::when(
+                    profiling,
+                    rc_package::performance::Category::Raster,
+                );
                 for y in ymin..=ymax {
                     for x in xmin..=xmax {
                         let xf = x as f32 + 0.5;
@@ -533,6 +624,60 @@ fn edge(a: [f32; 3], b: [f32; 3], x: f32, y: f32) -> f32 {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn animated_materials_share_world_depth_then_weapon_gets_its_own_depth() {
+        let triangle = |x| Triangle {
+            points: [[x, -10., -10.], [x, 10., -10.], [x, 0., 10.]],
+            surface: 0,
+        };
+        let mut scene = Scene::new(vec![triangle(10.)]).unwrap();
+        scene.textures = vec![
+            Texture {
+                width: 1,
+                height: 1,
+                pixels: vec![0xff0000ff],
+            },
+            Texture {
+                width: 1,
+                height: 1,
+                pixels: vec![0xffff0000],
+            },
+        ];
+        scene.appearance = vec![Some(FaceTexture {
+            texture: 0,
+            uv: [[0.; 2]; 3],
+        })];
+        let view = View {
+            yaw: std::f32::consts::PI,
+            pitch: 0.,
+            zoom: 1.,
+            position: Some(scene.center.map(|v| -v / scene.radius)),
+        };
+        let faces = [Some(FaceTexture {
+            texture: 1,
+            uv: [[0.; 2]; 3],
+        })];
+        let hidden = scene
+            .render_animated_view(64, 64, view, &[triangle(20.)], &faces, 1)
+            .unwrap();
+        let weapon = scene
+            .render_animated_view(64, 64, view, &[triangle(20.)], &faces, 0)
+            .unwrap();
+        assert_eq!(hidden[32 * 64 + 32] & 0xff0000, 0);
+        assert!(hidden[32 * 64 + 32] & 255 > 0);
+        assert!(weapon[32 * 64 + 32] & 0xff0000 > 0);
+        assert_eq!(weapon[32 * 64 + 32] & 255, 0);
+        scene.textures[1].pixels[0] = 0x00ff0000;
+        assert_eq!(
+            hidden,
+            scene
+                .render_animated_view(64, 64, view, &[triangle(20.)], &faces, 0)
+                .unwrap()
+        );
+        assert!(scene
+            .render_animated_view(64, 64, view, &[triangle(20.)], &[], 0)
+            .is_err());
+    }
     use super::*;
     #[test]
     fn anchored_snapshot_roundtrip_camera_orientation_and_malformed_metadata() {

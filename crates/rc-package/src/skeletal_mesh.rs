@@ -31,6 +31,9 @@ pub struct SkeletalMeshPrefix {
     pub lod_version: i32,
     pub materials_offset: usize,
     pub materials: Vec<i32>,
+    pub mesh_scale: [u32; 3],
+    pub mesh_origin: [u32; 3],
+    pub mesh_rotation: [i32; 3],
     pub points_offset: usize,
     pub points: Vec<[u32; 3]>,
     pub bones: Vec<StoredBone>,
@@ -99,7 +102,9 @@ pub fn read_skeletal_mesh_prefix(
     let materials = (0..n)
         .map(|_| reference(pkg, &mut r))
         .collect::<Result<Vec<_>>>()?;
-    r.take(36)?; // scale/origin/rotator
+    let mesh_scale = [r.u32()?, r.u32()?, r.u32()?];
+    let mesh_origin = [r.u32()?, r.u32()?, r.u32()?];
+    let mesh_rotation = [r.i32()?, r.i32()?, r.i32()?];
     for stride in [2, 8, 2, 10, 8] {
         array(&mut r, stride)?;
     }
@@ -145,6 +150,9 @@ pub fn read_skeletal_mesh_prefix(
         lod_version,
         materials_offset,
         materials,
+        mesh_scale,
+        mesh_origin,
+        mesh_rotation,
         points_offset,
         points,
         bones,

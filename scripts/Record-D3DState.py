@@ -1,6 +1,6 @@
 """Independent original x86 render/stage translation and D3D8 cache call replay."""
 from pathlib import Path
-import json,re,struct,hashlib,collections,functools
+import json,re,struct,hashlib,collections,functools,math
 root=Path(__file__).resolve().parents[1]
 s=root/'scripts/Record-MaterialState.py';old={'__file__':str(s)}
 exec(compile(s.read_text().split('fixtures=json.loads')[0],str(s),'exec'),old)
@@ -24,15 +24,25 @@ def parsed(expr):
   elif part in ['EAX','EBX','ECX','EDX','ESI','EDI','EBP','ESP']:terms.append((part,1))
   else:constant+=int(part,0)
  return constant,terms
+def float_word(value):
+ try:return struct.unpack('<I',struct.pack('<f',value))[0]
+ except OverflowError:return 0xff800000 if value<0 else 0x7f800000
+def float_value(word):return struct.unpack('<f',struct.pack('<I',word))[0]
 class Native(old['Machine']):
  def __init__(self):
-  super().__init__({},{});self.s=False;self.o=False;self.events=[];self.xmm={}
+  super().__init__({},{});self.s=False;self.o=False;self.events=[];self.xmm={};self.fpu=[];self.mxcsr=0x1f80
  def bits(self,arg):
+  if arg in ['AX','BX','CX','DX','SI','DI','BP','SP']:return 16
   if arg.startswith('word ptr'):return 16
   return 8 if arg=='AH' else super().bits(arg)
  def get(self,arg):
+  if arg in ['AX','BX','CX','DX','SI','DI','BP','SP']:return self.r['E'+arg]&65535
   if arg in self.xmm:return self.xmm[arg]
   return (self.r['EAX']>>8)&255 if arg=='AH' else super().get(arg)
+ def put(self,arg,value):
+  if arg in ['AX','BX','CX','DX','SI','DI','BP','SP']:
+   self.r['E'+arg]=(self.r['E'+arg]&0xffff0000)|(value&65535)
+  else:super().put(arg,value)
  def address(self,arg):
   c,t=parsed(arg[arg.index('[')+1:arg.index(']')]);return (c+sum(self.r[r]*scale for r,scale in t))&0xffffffff
  def run(self,start,stop):
@@ -40,7 +50,31 @@ class Native(old['Machine']):
   while pc!=stop:
    self.steps+=1;local_steps+=1;assert local_steps<10000,hex(pc)
    op,a=code[pc];nxt=following.get(pc)
-   if op in ['MOV','MOVZX']:self.put(a[0],self.get(a[1]))
+   if op=='FILD':
+    value=self.get(a[0]);assert 0<=value<=1023 # exact packed-normal conversion subset
+    self.fpu.append(float(value))
+   elif op=='FSUB':
+    assert self.get(a[0])==0x44000000 and self.fpu # exact integer minus 512 subset
+    self.fpu[-1]-=512.0
+   elif op=='FSTP':
+    assert a[0].startswith('float ptr') and self.fpu
+    self.put(a[0],float_word(self.fpu.pop()))
+   elif op in ['MOV','MOVZX']:self.put(a[0],self.get(a[1]))
+   elif op=='MOVAPS':self.xmm[a[0]]=self.get(a[1])
+   elif op=='CVTSI2SS':
+    value=self.get(a[1]);value=value-(1<<32) if value&0x80000000 else value
+    self.xmm[a[0]]=float_word(float(value))
+   elif op=='LDMXCSR':
+    self.mxcsr=self.get(a[0]);assert self.mxcsr in [0x1f80,0x3f80],hex(self.mxcsr)
+   elif op=='CVTSS2SI':
+    value=float_value(self.get(a[1]));value=(math.floor(value) if self.mxcsr==0x3f80 else round(value)) if math.isfinite(value) else -(1<<31)
+    self.put(a[0],value if -(1<<31)<=value<(1<<31) else -(1<<31))
+   elif op in ['ADDSS','SUBSS','MULSS','DIVSS']:
+    x=float_value(self.get(a[0]));y=float_value(self.get(a[1]))
+    if op=='DIVSS' and y==0:
+     value=float('nan') if x==0 else math.copysign(float('inf'),x)*math.copysign(1.0,y)
+    else:value={'ADDSS':lambda:x+y,'SUBSS':lambda:x-y,'MULSS':lambda:x*y,'DIVSS':lambda:x/y}[op]()
+    self.xmm[a[0]]=float_word(value)
    elif op=='MOVSS':
     if a[0].startswith('XMM'):self.xmm[a[0]]=self.get(a[1])
     else:self.put(a[0],self.get(a[1]))
@@ -69,12 +103,12 @@ class Native(old['Machine']):
     x=self.get(a[0]);shift=self.get(a[1])&31
     if op=='SAR' and x&(1<<(self.bits(a[0])-1)):x-=1<<self.bits(a[0])
     v=x<<shift if op=='SHL' else x>>shift;self.put(a[0],v)
-   elif op in ['ADD','SUB','CMP','XOR','AND','OR','TEST','SBB']:
+   elif op in ['ADD','ADC','SUB','CMP','XOR','AND','OR','TEST','SBB']:
     x=self.get(a[0]);y=self.get(a[1]);width=self.bits(a[0]);mask=(1<<width)-1;sign=1<<(width-1);carry=int(self.c)
-    v={'ADD':lambda:x+y,'SUB':lambda:x-y,'CMP':lambda:x-y,'XOR':lambda:x^y,'AND':lambda:x&y,'OR':lambda:x|y,'TEST':lambda:x&y,'SBB':lambda:x-y-carry}[op]()&mask
+    v={'ADD':lambda:x+y,'ADC':lambda:x+y+carry,'SUB':lambda:x-y,'CMP':lambda:x-y,'XOR':lambda:x^y,'AND':lambda:x&y,'OR':lambda:x|y,'TEST':lambda:x&y,'SBB':lambda:x-y-carry}[op]()&mask
     self.z=v==0;self.s=bool(v&sign)
     if op in ['SUB','CMP','SBB']:self.c=x<y+(carry if op=='SBB' else 0);self.o=bool((x^y)&(x^v)&sign)
-    elif op=='ADD':self.c=x+y>mask;self.o=bool((~(x^y))&(x^v)&sign)
+    elif op in ['ADD','ADC']:self.c=x+y+(carry if op=='ADC' else 0)>mask;self.o=bool((~(x^y))&(x^v)&sign)
     else:self.c=self.o=False
     if op not in ['CMP','TEST']:self.put(a[0],v)
    elif op in ['INC','DEC','NEG']:
@@ -97,8 +131,8 @@ class Native(old['Machine']):
    elif op in ['SETNZ','SETZ']:self.put(a[0],int(not self.z) if op=='SETNZ' else int(self.z))
    elif op=='CMOVZ':
     if self.z:self.put(a[0],self.get(a[1]))
-   elif op in ['JZ','JNZ','JNC','JMP','JBE','JL','JLE','JGE','JNS']:
-    branch={'JZ':self.z,'JNZ':not self.z,'JNC':not self.c,'JMP':True,'JBE':self.c or self.z,'JL':self.s!=self.o,'JLE':self.z or self.s!=self.o,'JGE':self.s==self.o,'JNS':not self.s}[op]
+   elif op in ['JZ','JNZ','JC','JNC','JMP','JBE','JL','JLE','JGE','JNS']:
+    branch={'JZ':self.z,'JNZ':not self.z,'JC':self.c,'JNC':not self.c,'JMP':True,'JBE':self.c or self.z,'JL':self.s!=self.o,'JLE':self.z or self.s!=self.o,'JGE':self.s==self.o,'JNS':not self.s}[op]
     if branch:nxt=int(a[0],0)
    elif op=='CALL':
     if a[0]=='dword ptr [0x1006f3e8]':

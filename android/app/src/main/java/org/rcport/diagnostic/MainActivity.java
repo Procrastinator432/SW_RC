@@ -2,6 +2,7 @@ package org.rcport.diagnostic;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.graphics.Bitmap;
 import android.view.MotionEvent;
@@ -97,6 +98,23 @@ public class MainActivity extends Activity {
         eyeX=Math.max(-99f,Math.min(99f,eyeX)); eyeY=Math.max(-99f,Math.min(99f,eyeY));
         eyeZ=Math.max(-99f,Math.min(99f,eyeZ)); changed();
     }
+    private void openPlay(Uri uri) {
+        Intent intent=new Intent(this,PlayActivity.class)
+            .putExtra("rcProfile",getIntent().getBooleanExtra("rcProfile",false))
+            .putExtra("rcSoftware",getIntent().getBooleanExtra("rcSoftware",false))
+            .putExtra("rcGpuCapture",getIntent().getBooleanExtra("rcGpuCapture",false));
+        if(uri!=null) intent.setData(uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivity(intent);
+    }
+    private static boolean isPlayable(BufferedInputStream input) throws IOException {
+        input.mark(8);
+        boolean playable=true;
+        for(byte expected:new byte[]{'R','C','P','L','A','Y','0','1'}) {
+            if(input.read()!=expected) {playable=false;break;}
+        }
+        input.reset();
+        return playable;
+    }
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         LinearLayout layout=new LinearLayout(this); layout.setOrientation(LinearLayout.VERTICAL);
@@ -104,8 +122,10 @@ public class MainActivity extends Activity {
         layout.setPadding(padding,padding*2,padding,padding);
         TextView heading=new TextView(this); heading.setText("Republic Commando\nOriginalgeometrie in Rust");
         heading.setTextSize(20); layout.addView(heading);
+        Button play=new Button(this); play.setText("Spielabschnitt geo_01a öffnen");
+        play.setOnClickListener(v -> openPlay(null)); layout.addView(play);
         status=new TextView(this); status.setTextSize(14);
-        status.setText("Karte (.ctm) oder Szene (.rcscene, max. 16 MiB) öffnen. Ziehen dreht den Blick. Noch kein Gameplay.");
+        status.setText("Karte (.ctm) oder Diagnose-Szene (.rcscene, max. 16 MiB) öffnen. Spielbare Szenen (.rcplay) starten automatisch den Spielabschnitt. Ziehen dreht den Blick.");
         layout.addView(status);
         open=new Button(this); open.setText("Karte / Szene öffnen");
         open.setOnClickListener(v -> {
@@ -162,8 +182,15 @@ public class MainActivity extends Activity {
             String message; boolean ready=false; releaseScene(scene); scene=0;
             try(InputStream input=getContentResolver().openInputStream(data.getData()); ByteArrayOutputStream bytes=new ByteArrayOutputStream()) {
                 if(input==null) throw new IOException("Datei konnte nicht geöffnet werden");
+                BufferedInputStream buffered=new BufferedInputStream(input);
+                if(isPlayable(buffered)) {
+                    runOnUiThread(() -> {if(!isDestroyed()) {
+                        open.setEnabled(true); status.setText("Spielbare Szene wird geöffnet …"); openPlay(data.getData());
+                    }});
+                    return;
+                }
                 byte[] block=new byte[16384]; int n;
-                while((n=input.read(block))!=-1) {
+                while((n=buffered.read(block))!=-1) {
                     if(bytes.size()+n>16*1024*1024) throw new IOException("Datei überschreitet 16 MiB");
                     bytes.write(block,0,n);
                 }

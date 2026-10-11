@@ -33,9 +33,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rc-game"
+version = "0.1.0"
+dependencies = [
+ "rc-package",
+ "rc-render",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "rc-inspect"
 version = "0.1.0"
 dependencies = [
+ "rc-game",
  "rc-package",
  "rc-render",
  "serde",
@@ -46,8 +57,10 @@ dependencies = [
 name = "rc-native"
 version = "0.1.0"
 dependencies = [
+ "rc-game",
  "rc-package",
  "rc-render",
+ "serde_json",
 ]
 
 [[package]]

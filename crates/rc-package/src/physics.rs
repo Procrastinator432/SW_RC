@@ -185,6 +185,12 @@ impl StaticBodyWorld {
         let mut velocity = body.velocity;
         // Horizontal velocity clips stay horizontal; do not create upward launch velocity at walls.
         for contact in &horizontal.contacts {
+            // A walkable slope is floor support. The swept displacement already
+            // follows its plane; treating its horizontal normal as a wall erases
+            // uphill velocity and can strand the body at a ramp transition.
+            if contact.hit.normal[2] >= options.minimum_up {
+                continue;
+            }
             let n = [contact.hit.normal[0], contact.hit.normal[1], 0.0];
             let length = dot(n, n);
             if length > 1e-12 {
@@ -299,6 +305,34 @@ mod tests {
             max_iterations: 8,
             step_height: 0.0,
         }
+    }
+    #[test]
+    fn walkable_slope_keeps_uphill_velocity_and_climbs() {
+        let w = StaticBodyWorld {
+            world: Ok(Arc::new(HullSet {
+                hulls: vec![Hull {
+                    offset: 0,
+                    planes: vec![[0.3, 0., (0.91f64).sqrt(), 0.]],
+                    bounds: [[-100., -100., -100.], [100., 100., 100.]],
+                }],
+                missing_solid_leaves: 0,
+                empty_root_solid: false,
+            })),
+            actors: vec![],
+        };
+        let n = (0.91f64).sqrt();
+        let mut body = BodyState {
+            position: [0., 0., (0.3 + n + 0.1) / n],
+            velocity: [-10., 0., 0.],
+            grounded: true,
+        };
+        let initial = body.position;
+        for _ in 0..40 {
+            body = w.body_tick(&body, 0.02, options()).unwrap().body;
+        }
+        assert!(body.position[0] < initial[0] - 5. && body.position[2] > initial[2] + 1.);
+        assert_eq!(body.velocity[0], -10.);
+        assert!(body.grounded);
     }
     #[test]
     fn falling_lands_and_remains_stable_for_many_ticks() {

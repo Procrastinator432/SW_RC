@@ -1,5 +1,8 @@
 # Technischer Stand und Portierungsweg
 
+Aktueller Spielmeilenstein (10. Oktober 2026): geo_01a ist als begrenzter Android-Prototyp mit Bewegung/Körperkollision, Kampf, Gegnern, HUD, Exfil, Sieg/Niederlage und Neustart spielbar. Original-Kampagnen-/KI-/GPU-Parität bleibt offen. [Starten und Nachweise](PLAYABLE_SCENE.md).
+
+
 ## Belegte Ausgangslage
 
 `system.ini` benennt `CTCharacters.PlayerCommando`, `Entry.ctm` und das Kartenformat `.ctm`. Die vorhandenen Unreal-Pakete haben Versionen zwischen 99 und 159. Ab Version 151 verwendet diese SWRC-Variante 32-Bit-Exportgrößen und -Offsets, ab 159 zusätzlich einen kompakten Exportwert. Ältere Pakete verwenden kompakte Größen/Offsets.

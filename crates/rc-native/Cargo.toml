@@ -7,3 +7,5 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 rc-package = { path = "../rc-package" }
 rc-render = { path = "../rc-render" }
+rc-game = { path = "../rc-game" }
+serde_json = "1"

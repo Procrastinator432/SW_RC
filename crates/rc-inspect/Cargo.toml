@@ -8,3 +8,4 @@ serde.workspace = true
 rc-package = { path = "../rc-package" }
 serde_json.workspace = true
 rc-render = { path = "../rc-render" }
+rc-game = { path = "../rc-game" }

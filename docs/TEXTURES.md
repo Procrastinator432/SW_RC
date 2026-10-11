@@ -1,5 +1,7 @@
 # Texturen und Diffuse-Vorschau (0.4)
 
+Aktuelle Korrektur **0.20.1**: Boden-/Mesh-Texturen und ursprünglicher DC-15s-Schuss-Sound sind ergänzt. APK und Szene unter `analysis/mission2-av`. [Ursachen, Starten und Prüfungen](TEXTURES_AND_WEAPON_AUDIO.md). Die folgenden Angaben dokumentieren den vorausgehenden Stand.
+
 Viewer 0.4 rendert jetzt originale Basistexturen auf statischen Meshes.
 `geo_01a` verwendet 26 verschiedene Originalbilder über 41 Materialbelegungen
 auf 124.793 von 134.790 Dreiecken. Der Renderer zeigt keine vollständige

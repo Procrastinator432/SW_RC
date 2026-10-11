@@ -1,5 +1,6 @@
 //! Read-only Republic Commando package tables. No engine or bytecode execution.
 use serde::Serialize;
+pub mod actor_falling;
 pub mod ai_contact;
 pub mod animation_call;
 pub mod animation_replication;
@@ -28,6 +29,7 @@ pub mod d3d_static;
 pub mod d3d_transforms;
 pub mod d3d_upload;
 pub mod defaults;
+pub mod defensive_jump;
 pub mod event_lookup;
 pub mod falling;
 pub mod falling_collision;
@@ -45,6 +47,7 @@ pub mod material_hologram;
 pub mod material_jitter;
 pub mod material_panner;
 pub mod material_uv;
+pub mod melee_goal;
 pub mod mesh;
 pub mod mesh_animation;
 pub mod mesh_collision;
@@ -65,6 +68,10 @@ pub mod prop_state;
 pub mod properties;
 pub mod quaternion_animation;
 pub mod quaternion_matrix;
+pub mod renderer_inverse;
+pub mod renderer_inverse_draw;
+pub mod renderer_transform;
+pub mod scene_projection;
 pub mod script;
 pub mod script_motion;
 pub mod script_state;
@@ -113,6 +120,13 @@ pub mod state_selection;
 pub mod state_transition;
 pub mod texture;
 pub mod vertex_shader;
+pub mod vertmesh_animation;
+pub mod vertmesh_frame;
+pub mod vertmesh_indices;
+pub mod vertmesh_instance;
+pub mod vertmesh_lod;
+pub mod vertmesh_preprocess;
+pub mod vertmesh_render;
 pub mod volumes;
 pub mod walking_input;
 pub mod world_collision;
@@ -590,3 +604,13 @@ mod tests {
         assert!(p.object_path(i32::MIN).is_err());
     }
 }
+pub mod mesh_transform;
+
+pub mod damage_variance;
+pub mod geonosian_attack;
+pub mod pawn_damage;
+pub mod performance;
+
+pub mod jump_goal;
+pub mod jump_trajectory;
+pub mod projectile_motion;

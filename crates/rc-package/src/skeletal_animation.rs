@@ -7,19 +7,19 @@ pub struct AnimationName {
     pub index: i32,
     pub name: String,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AnimationReferenceBone {
     pub name: AnimationName,
     pub word_4: u32,
     pub word_8: u32,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AnimationNotify {
     pub time_bits: u32,
     pub name: AnimationName,
     pub object_index: i32,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StoredSequence {
     pub payload_offset: usize,
     pub end_offset: usize,
@@ -39,7 +39,7 @@ pub struct StoredSequence {
     pub word_58: u32,
     pub tracks: Vec<AnimationTrack>,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MeshAnimation {
     pub word_28: u32,
     pub reference_bones: Vec<AnimationReferenceBone>,

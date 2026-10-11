@@ -1,5 +1,6 @@
 //! C ABI shared by the Android diagnostic shell and the future native engine.
 use std::ffi::c_char;
+pub mod play;
 use std::{
     collections::HashMap,
     sync::{

@@ -197,9 +197,46 @@ pub fn struct_array(pkg: &Package, payload: &[u8]) -> Result<Vec<Properties>> {
     Ok(result)
 }
 
+/// Object references in a schema-confirmed dynamic object/class array.
+/// This does not infer an array's type or merge class default deltas.
+pub fn object_array(pkg: &Package, payload: &[u8]) -> Result<Vec<(i32, String)>> {
+    let mut r = Reader::at(payload, 0)?;
+    let count = r.count(1)?;
+    if count > 4096 {
+        return Err("Object array exceeds diagnostic limit".into());
+    }
+    let mut result = Vec::with_capacity(count);
+    for _ in 0..count {
+        let index = r.index()?;
+        result.push((index, pkg.object_path(index)?));
+    }
+    if r.pos != payload.len() {
+        return Err("Trailing object array data".into());
+    }
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn object_arrays_validate_references_counts_and_complete_payload() {
+        let pkg = package();
+        assert!(object_array(&pkg, &[0]).unwrap().is_empty());
+        assert_eq!(
+            object_array(&pkg, &[2, 0, 0]).unwrap(),
+            vec![(0, String::new()), (0, String::new())]
+        );
+        for data in [
+            &[][..],
+            &[1][..],
+            &[1, 1][..],
+            &[0, 0][..],
+            &[0x41, 0x40][..],
+        ] {
+            assert!(object_array(&pkg, data).is_err());
+        }
+    }
     #[test]
     fn metadata_typed_arrays_ignore_advisory_size_and_preserve_next_tag() {
         let pkg = package();

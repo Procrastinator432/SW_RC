@@ -4,20 +4,20 @@ use crate::{
     skeletal_mesh::read_skeletal_mesh_prefix, skeletal_skin::BindSkinVertex, Export, Package,
     Reader,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize)]
 pub struct StoredAlias {
     pub names: [i32; 2],
     pub matrix: [u32; 16],
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StoredInfluence {
     /// Raw IEEE-754 weight; no conversion or normalization during archive loading.
     pub weight: u32,
     pub vertex_index: u16,
     pub bone_index: u16,
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StoredLod {
     pub offset: usize,
     pub end_offset: usize,
