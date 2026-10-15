@@ -14,7 +14,7 @@ final class SceneBytes {
                 byte[] block=new byte[32768];int n;
                 while((n=input.read(block))!=-1) {
                     size+=n;
-                    if(size>LIMIT) throw new IOException("Szene überschreitet 96 MiB");
+                    if(size>LIMIT) throw new IOException("Szene überschreitet 112 MiB");
                     output.write(block,0,n);
                 }
             }
@@ -22,7 +22,7 @@ final class SceneBytes {
         } finally {if(!temporary.delete()) temporary.deleteOnExit();}
     }
     private static byte[] exact(InputStream input,long length) throws IOException {
-        if(length<1 || length>LIMIT) throw new IOException("Ungültige Szenengröße (maximal 96 MiB)");
+        if(length<1 || length>LIMIT) throw new IOException("Ungültige Szenengröße (maximal 112 MiB)");
         byte[] bytes=new byte[(int)length];int at=0;
         while(at<bytes.length) {
             int n=input.read(bytes,at,bytes.length-at);

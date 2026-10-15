@@ -25,7 +25,9 @@ Ergebnisse: `build/validation.json`, einzelne Protokolle unter `build/logs`. `-O
 .\build.ps1 -Target Android -Abis arm64-v8a
 ```
 
-Standardmäßig entstehen ARM64 und x86_64. Die APK liegt unter `build/artifacts/republic-commando-0.48.0-consolidated.apk`, ihr SHA-256 im Bericht. `Android` allein führt die Quellprüfungen nicht erneut aus. Die erzeugte APK ist weiterhin eine Debug-APK; Store-Signierung und Veröffentlichung gehören nicht zu diesem Schritt.
+Standardmäßig entstehen ARM64 und x86_64. Die APK liegt unter `build/artifacts/republic-commando-<versionName>.apk`, ihr SHA-256 im Bericht. `Android` allein führt die Quellprüfungen nicht erneut aus. Die erzeugte APK ist weiterhin eine Debug-APK; Store-Signierung und Veröffentlichung gehören nicht zu diesem Schritt.
+
+Seit 0.49.0 erzeugt `-Target Package -SceneInputs FILE` das einmalig importierbare `mission1-scenes.rcpack.zip`. `-Target All` erzeugt es nach der Szenenpipeline automatisch aus deren aufgelösten Eingaben. [Kampagnenbedienung und Paketformat](CAMPAIGN_MENU.md).
 
 ## Explizite Szeneneingaben
 

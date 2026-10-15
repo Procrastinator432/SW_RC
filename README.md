@@ -1,6 +1,8 @@
 # Republic Commando → natives Android / Rust
 
-Aktueller Quell-/Buildstand: **0.48.0 – konsolidiert**, lokaler Tag `v0.48.0`. Zentral prüfen: `./build.ps1`; APK bauen: `./build.ps1 -Target Android`. Debug-Stackfehler behoben, vorbereitete Szeneneingaben explizit gepinnt, lokale IDE-/Build-/Assetdateien getrennt. [Build, Voraussetzungen und Nachweise](docs/BUILD.md).
+Aktuelle Lieferung: **0.49.0 – Kampagnenbedienung**, lokaler Tag `v0.49.0`, unter `build/releases/0.49.0`. APK als Update installieren, Szenenpaket einmal als ZIP importieren; danach Mission starten/fortsetzen und automatische Kartenwechsel ohne Dateidialog. Kompakte Touch-Oberfläche und gespeicherte Empfindlichkeit bei640×360dp geprüft. [Starten und Grenzen](docs/CAMPAIGN_MENU.md).
+
+Vorheriger konsolidierter Quell-/Buildstand: **0.48.0 – konsolidiert**, lokaler Tag `v0.48.0`. Zentral prüfen: `./build.ps1`; APK bauen: `./build.ps1 -Target Android`. Debug-Stackfehler behoben, vorbereitete Szeneneingaben explizit gepinnt, lokale IDE-/Build-/Assetdateien getrennt. [Build, Voraussetzungen und Nachweise](docs/BUILD.md).
 
 Vorherige Spielfunktionslieferung: **0.47.0 – zuverlässigere Checkpoint-Wiederherstellung** unter `analysis/mission30-checkpoint-recovery/delivery`. Ersatzcheckpoint sofort erneut persistent, Wiederherstellungsszene erst nach erfolgreichem Laden aktualisiert, neue Speicherdatei vor Backup-Rotation vollständig geschrieben. Schreibfehler mit anschließendem Wiederholungsversuch, wiederholtes kaltes Fortsetzen und echte C-Missionszwischenstände nach Prozessverlust auf Android x86_64 geprüft. Szenen und0.46.0-Spielstände bleiben verwendbar. [Anleitung und Grenzen](docs/CHECKPOINT_RECOVERY.md). Physische ARM64-Abnahme und die bisherigen Originalparitätsgrenzen bleiben offen.
 

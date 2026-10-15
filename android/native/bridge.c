@@ -15,6 +15,7 @@ extern int32_t rc_game_advance(uint64_t, double, float, float, float, float, uin
 extern int32_t rc_game_command(uint64_t, uint32_t);
 extern intptr_t rc_game_draw(uint64_t, size_t, size_t, uint32_t *, size_t);
 extern int32_t rc_game_status(uint64_t, uint32_t *, size_t);
+extern int32_t rc_game_campaign_map(uint64_t);
 extern void rc_game_release(uint64_t);
 extern int32_t rc_profile_begin(void);
 extern void rc_profile_add(uint32_t,uint64_t);
@@ -137,11 +138,11 @@ JNIEXPORT jbyteArray JNICALL Java_org_rcport_diagnostic_PlayActivity_gpuFrame(JN
     if(ticks<0) throw_io(env,"Playable scene step failed");
     return result;
 }
-JNIEXPORT jint JNICALL Java_org_rcport_diagnostic_MainActivity_checkBsp(JNIEnv *env, jclass klass, jlong id, jfloat x, jfloat y, jfloat z, jfloat yaw, jfloat pitch) {
+JNIEXPORT jint JNICALL Java_org_rcport_diagnostic_DiagnosticActivity_checkBsp(JNIEnv *env, jclass klass, jlong id, jfloat x, jfloat y, jfloat z, jfloat yaw, jfloat pitch) {
     (void)env; (void)klass;
     return rc_scene_bsp_query((uint64_t)id,x,y,z,yaw,pitch);
 }
-JNIEXPORT jfloatArray JNICALL Java_org_rcport_diagnostic_MainActivity_startCamera(JNIEnv *env, jclass klass, jlong id, jint index) {
+JNIEXPORT jfloatArray JNICALL Java_org_rcport_diagnostic_DiagnosticActivity_startCamera(JNIEnv *env, jclass klass, jlong id, jint index) {
     (void)klass;
     float values[6];
     if (index < 0 || rc_scene_start((uint64_t)id, (size_t)index, values, 6) != 6) {
@@ -152,7 +153,7 @@ JNIEXPORT jfloatArray JNICALL Java_org_rcport_diagnostic_MainActivity_startCamer
     if (result) (*env)->SetFloatArrayRegion(env, result, 0, 6, values);
     return result;
 }
-JNIEXPORT jlong JNICALL Java_org_rcport_diagnostic_MainActivity_createScene(JNIEnv *env, jclass klass, jbyteArray data) {
+JNIEXPORT jlong JNICALL Java_org_rcport_diagnostic_DiagnosticActivity_createScene(JNIEnv *env, jclass klass, jbyteArray data) {
     (void)klass;
     if (!data) {throw_io(env, "Missing map"); return 0;}
     jsize len = (*env)->GetArrayLength(env, data);
@@ -164,7 +165,7 @@ JNIEXPORT jlong JNICALL Java_org_rcport_diagnostic_MainActivity_createScene(JNIE
     if (!id) throw_io(env, error[0] ? error : "Unable to create scene");
     return (jlong)id;
 }
-JNIEXPORT jintArray JNICALL Java_org_rcport_diagnostic_MainActivity_drawScene(JNIEnv *env, jclass klass, jlong id, jint width, jint height, jfloat yaw, jfloat pitch, jfloat zoom, jfloat x, jfloat y, jfloat z, jboolean free) {
+JNIEXPORT jintArray JNICALL Java_org_rcport_diagnostic_DiagnosticActivity_drawScene(JNIEnv *env, jclass klass, jlong id, jint width, jint height, jfloat yaw, jfloat pitch, jfloat zoom, jfloat x, jfloat y, jfloat z, jboolean free) {
     (void)klass;
     if (width <= 0 || height <= 0 || width > 2048 || height > 2048) {throw_io(env,"Invalid frame size"); return NULL;}
     jsize count = width * height;
@@ -177,10 +178,10 @@ JNIEXPORT jintArray JNICALL Java_org_rcport_diagnostic_MainActivity_drawScene(JN
     if (result != count) {throw_io(env,"Native render failed"); return NULL;}
     return pixels;
 }
-JNIEXPORT void JNICALL Java_org_rcport_diagnostic_MainActivity_releaseScene(JNIEnv *env, jclass klass, jlong id) {
+JNIEXPORT void JNICALL Java_org_rcport_diagnostic_DiagnosticActivity_releaseScene(JNIEnv *env, jclass klass, jlong id) {
     (void)env; (void)klass; rc_scene_release((uint64_t)id);
 }
-JNIEXPORT jstring JNICALL Java_org_rcport_diagnostic_MainActivity_inspectPackage(JNIEnv *env, jclass klass, jbyteArray data) {
+JNIEXPORT jstring JNICALL Java_org_rcport_diagnostic_DiagnosticActivity_inspectPackage(JNIEnv *env, jclass klass, jbyteArray data) {
     (void)klass;
     if (!data) return (*env)->NewStringUTF(env, "Missing package");
     jsize length = (*env)->GetArrayLength(env, data);
@@ -279,4 +280,7 @@ JNIEXPORT jlong JNICALL Java_org_rcport_diagnostic_PlayActivity_checkpointMarker
 JNIEXPORT jintArray JNICALL Java_org_rcport_diagnostic_PlayActivity_gameStatus(JNIEnv*env,jclass klass,jlong id) {
  (void)klass;uint32_t words[10];if(rc_game_status((uint64_t)id,words,10)!=10){throw_io(env,"Invalid game session");return NULL;}
  jintArray out=(*env)->NewIntArray(env,10);if(out)(*env)->SetIntArrayRegion(env,out,0,10,(const jint*)words);return out;
+}
+JNIEXPORT jint JNICALL Java_org_rcport_diagnostic_PlayActivity_gameMap(JNIEnv*env,jclass klass,jlong id) {
+ (void)env;(void)klass;return rc_game_campaign_map((uint64_t)id);
 }

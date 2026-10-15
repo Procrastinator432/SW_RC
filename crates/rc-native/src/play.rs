@@ -91,6 +91,31 @@ pub unsafe extern "C" fn rc_game_actor_status(id: u64, out: *mut u8, capacity: u
     bytes.len() as isize
 }
 /// UTF-8 mission guidance, excluding terminator; zero bytes for legacy scenes.
+fn campaign_map_id(destination: Option<&str>, opening: bool) -> i32 {
+    match destination {
+        Some("GEO_01B.ctm#playerstart") => 2,
+        Some("GEO_01C.ctm#playerstart") => 3,
+        Some("GEO_03A.ctm#playerstart") => 4,
+        None if opening => 1,
+        _ => 0,
+    }
+}
+/// Stable campaign identity from loaded assets, independent of localized guidance.
+/// 1=A, 2=B, 3=C, 4=factory; 0=legacy scene, -1=invalid handle.
+#[no_mangle]
+pub extern "C" fn rc_game_campaign_map(id: u64) -> i32 {
+    let Ok(registry) = games().lock() else {
+        return -1;
+    };
+    let Some(game) = registry.get(&id) else {
+        return -1;
+    };
+    campaign_map_id(
+        game.map.as_ref().map(|m| m.assets.destination.as_str()),
+        game.opening.is_some(),
+    )
+}
+/// UTF-8 mission guidance, excluding terminator; zero bytes for legacy scenes.
 /// # Safety
 /// out is null for a size query or points to capacity writable bytes.
 #[no_mangle]
@@ -746,6 +771,20 @@ pub extern "C" fn rc_game_checkpoint_marker(id: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn campaign_map_identity_is_independent_of_status_text() {
+        assert_eq!(campaign_map_id(None, true), 1);
+        assert_eq!(campaign_map_id(None, false), 0);
+        for (destination, id) in [
+            ("GEO_01B.ctm#playerstart", 2),
+            ("GEO_01C.ctm#playerstart", 3),
+            ("GEO_03A.ctm#playerstart", 4),
+        ] {
+            assert_eq!(campaign_map_id(Some(destination), false), id);
+        }
+        assert_eq!(campaign_map_id(Some("unknown"), true), 0);
+        assert_eq!(rc_game_campaign_map(0), -1);
+    }
     #[test]
     fn profile_short_buffers_preserve_capture_and_observer_rejects_invalid_handle() {
         let mut output = [0xa5a5a5a5a5a5a5a5_u64; 22];

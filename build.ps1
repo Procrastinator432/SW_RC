@@ -1,7 +1,7 @@
 #Requires -Version 7.0
 [CmdletBinding()]
 param(
-    [ValidateSet('Check','Android','Scenes','All')][string]$Target='Check',
+    [ValidateSet('Check','Android','Scenes','Package','All')][string]$Target='Check',
     [string]$ToolsDirectory=(Join-Path $PSScriptRoot 'tools'),
     [string]$OutputDirectory=(Join-Path $PSScriptRoot 'build'),
     [string]$SceneInputs,
@@ -55,11 +55,13 @@ try {
                  else {throw 'JDK missing: set JAVA_HOME or provide -ToolsDirectory (see docs/BUILD.md)'}
             $classes=Join-Path $out 'java/classes';$cache=Join-Path $out 'java/cache'
             New-Item -ItemType Directory -Force -Path $classes,$cache | Out-Null
-            $sources=@('CampaignRoutes','CheckpointStore','SceneBytes') | ForEach-Object {Join-Path $root "android/app/src/main/java/org/rcport/diagnostic/$_.java";Join-Path $root "scripts/java/${_}Check.java"}
+            $sources=@('CampaignRoutes','CheckpointStore','SceneBytes','CampaignStore','TouchLayout') | ForEach-Object {Join-Path $root "android/app/src/main/java/org/rcport/diagnostic/$_.java";Join-Path $root "scripts/java/${_}Check.java"}
             Native (Join-Path $jdk 'bin/javac.exe') (@('-d',$classes)+$sources)
             $java=Join-Path $jdk 'bin/java.exe'
             Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.CampaignRoutesCheck')
             Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.CheckpointStoreCheck',(Join-Path $out 'java/store'))
+            Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.CampaignStoreCheck',(Join-Path $out 'java/campaign'))
+            Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.TouchLayoutCheck')
             # Synthetic 64 MiB payload: the reader is format-agnostic. Two full
             # copies cannot coexist under this heap; no copyrighted scene needed.
             $fixture=Join-Path $out 'java/reader-fixture.bin'
@@ -85,6 +87,13 @@ try {
         Step 'scenes' {
             if(!$SceneInputs){throw 'Scenes require -SceneInputs FILE; see config/scene-inputs.example.json and docs/BUILD.md'}
             & (Join-Path $root 'scripts/Build-Scenes.ps1') -Inputs $SceneInputs -Stage $SceneStage -GameData $GameData -OutputDirectory (Join-Path $out 'scenes') -Online:$Online
+        }
+    }
+    if($Target -in @('Package','All')) {
+        Step 'campaign-package' {
+            $packageInputs=if($Target -eq 'All'){Join-Path $out 'scenes/resolved-inputs.json'}else{$SceneInputs}
+            if(!$packageInputs){throw 'Package requires -SceneInputs FILE'}
+            & (Join-Path $root 'scripts/Build-CampaignPackage.ps1') -Inputs $packageInputs -OutputDirectory (Join-Path $out 'artifacts')
         }
     }
     $report.passed=$true

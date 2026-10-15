@@ -3,6 +3,15 @@ package org.rcport.diagnostic;
 /** Campaign file choices; the native travel API remains the authority for acceptance. */
 final class CampaignRoutes {
     private CampaignRoutes() {}
+    static String display(String map) {
+        switch(map){
+            case "GEO_01A":return "Landezone";
+            case "GEO_01B":return "Geonosianerturm";
+            case "GEO_01C":return "Sun Fac";
+            case "GEO_03A":return "Fabrikeinstieg";
+            default:return "Letzter Checkpoint";
+        }
+    }
     static String map(String guidance) {
         for(String map:new String[]{"GEO_01A","GEO_01B","GEO_01C","GEO_03A"}) {
             if(guidance.startsWith(map))return map;
