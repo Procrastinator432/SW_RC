@@ -30,14 +30,14 @@ pub struct PreparedAssets {
     pub weapon: PreparedMesh,
     pub texture_base: usize,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct Player {
     pub clip: usize,
     pub frame: f32,
     pub finished: bool,
     pub started: bool,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct State {
     pub enemies: Vec<Player>,
     pub weapon: Player,
@@ -51,7 +51,12 @@ impl Player {
             started: false,
         })
     }
-    fn select(&mut self, mesh: &PreparedMesh, name: &str, restart: bool) -> Result<(), String> {
+    pub(crate) fn select(
+        &mut self,
+        mesh: &PreparedMesh,
+        name: &str,
+        restart: bool,
+    ) -> Result<(), String> {
         let clip = mesh.clip(name)?;
         if self.clip != clip || restart {
             self.clip = clip;
@@ -188,7 +193,10 @@ impl PreparedAssets {
             .name
             .name;
         let moving = now.pawn.body.position != old.pawn.body.position;
-        let name = if reload {
+        let throwing = now.thermal.as_ref().is_some_and(|t| t.gate.active);
+        let name = if throwing {
+            "ThrowGrenade"
+        } else if reload {
             "Reload"
         } else if shot || current == "Fire" && !visual.weapon.finished {
             "Fire"
@@ -204,7 +212,7 @@ impl PreparedAssets {
         )?;
         let interval = visual.weapon.advance(
             &self.weapon,
-            !reload && name != "Fire",
+            !reload && name != "Fire" && !throwing,
             if combat.is_some() {
                 None
             } else {
@@ -468,6 +476,37 @@ impl PreparedMesh {
         Ok(())
     }
     pub fn root_position(&self, index: usize, frame: f32) -> Result<[f32; 3], String> {
+        let result = self.sample_root_position(index, frame)?;
+        if result.iter().any(|v| v.abs() > 10000.) {
+            return Err("Invalid root translation".into());
+        }
+        Ok(result)
+    }
+    /// Authored cinematic movement relative to clip entry; separate from pawn root motion.
+    pub fn cinematic_root_delta(&self, index: usize, frame: f32) -> Result<[f32; 3], String> {
+        let now = self.sample_root_position(index, frame)?;
+        let first = self.sample_root_position(index, 0.)?;
+        Ok(std::array::from_fn(|i| now[i] - first[i]))
+    }
+    fn sample_root_position(&self, index: usize, frame: f32) -> Result<[f32; 3], String> {
+        let result = self
+            .sample_root_transform(index, frame)?
+            .position
+            .map(f32::from_bits);
+        if result.iter().any(|v| !v.is_finite() || v.abs() > 1e6) {
+            return Err("Invalid root translation".into());
+        }
+        Ok(result)
+    }
+    /// Raw animated Move transform for GetMoveCoords; no mesh/actor adjustment.
+    pub fn root_matrix(&self, index: usize, frame: f32) -> Result<[u32; 16], String> {
+        Ok(
+            rc_package::skeletal_root_pose::quaternion_translation_matrix(
+                self.sample_root_transform(index, frame)?,
+            ),
+        )
+    }
+    fn sample_root_transform(&self, index: usize, frame: f32) -> Result<RootTransform, String> {
         self.channel(index, frame)?;
         let clip = &self.mesh.clips[index];
         let index = *clip.mapping.first().ok_or("Missing root mapping")?;
@@ -486,11 +525,15 @@ impl PreparedMesh {
                 math: PortableQuaternionMath,
             },
         )?;
-        let result = root.position.map(f32::from_bits);
-        if result.iter().any(|v| !v.is_finite() || v.abs() > 10000.) {
-            return Err("Invalid root translation".into());
+        if root
+            .rotation
+            .iter()
+            .chain(root.position.iter())
+            .any(|v| !f32::from_bits(*v).is_finite())
+        {
+            return Err("Invalid root transform".into());
         }
-        Ok(result)
+        Ok(root)
     }
     pub fn geometry(&self, channel: &AnimationChannel) -> Result<rc_render::Scene, String> {
         self.geometry_with_root(channel, false)
@@ -500,6 +543,14 @@ impl PreparedMesh {
         channel: &AnimationChannel,
         lock_root: bool,
     ) -> Result<rc_render::Scene, String> {
+        let matrices = self.pose_matrices(channel, lock_root)?;
+        self.geometry_from_matrices(&matrices)
+    }
+    fn pose_matrices(
+        &self,
+        channel: &AnimationChannel,
+        lock_root: bool,
+    ) -> Result<Vec<[u32; 16]>, String> {
         let index = channel.words[17]
             .checked_sub(1)
             .ok_or("Null visual sequence")? as usize;
@@ -550,8 +601,50 @@ impl PreparedMesh {
         }
         let mut matrices = vec![];
         build_pose_matrices(&pose.local, &self.hierarchy, false, &mut matrices)?;
+        Ok(matrices)
+    }
+    /// Original animated bone followed by the same mesh adjustment as skinned vertices.
+    pub fn attachment_transform(
+        &self,
+        channel: &AnimationChannel,
+        bone: &str,
+        lock_root: bool,
+    ) -> Result<[[f32; 4]; 4], String> {
+        let index = self
+            .mesh
+            .bones
+            .iter()
+            .position(|b| b.name.name.eq_ignore_ascii_case(bone))
+            .ok_or("Missing attachment bone")?;
+        let matrices = self.pose_matrices(channel, lock_root)?;
+        let b = matrices[index].map(f32::from_bits);
+        let t = self.adjustment()?;
+        Ok(std::array::from_fn(|row| {
+            std::array::from_fn(|column| (0..4).map(|k| b[row * 4 + k] * t[k][column]).sum())
+        }))
+    }
+    fn adjustment(&self) -> Result<[[f32; 4]; 4], String> {
+        Ok(rc_package::mesh_transform::Input {
+            actor_location: [0; 3],
+            actor_rotation: [0; 3],
+            actor_draw_scale: 1f32.to_bits(),
+            actor_draw_scale_3d: [1f32.to_bits(); 3],
+            actor_prepivot: [0; 3],
+            actor_flags: 0,
+            actor_height: 0,
+            mesh_scale: self.mesh.scale,
+            mesh_origin: self.mesh.origin,
+            mesh_rotation: self.mesh.rotation,
+            suppress_origin: 0,
+            bypass_mesh_adjustments: 0,
+        }
+        .build()?
+        .matrix
+        .map(|row| row.map(f32::from_bits)))
+    }
+    fn geometry_from_matrices(&self, matrices: &[[u32; 16]]) -> Result<rc_render::Scene, String> {
         let mut palette = vec![];
-        build_skin_palette(&matrices, &self.inverse, &mut palette)?;
+        build_skin_palette(matrices, &self.inverse, &mut palette)?;
         let mut soft = vec![SkinStreamVertex::default(); self.output_count];
         skin_lod_stream(
             &self.mesh.lod.commands,
@@ -560,7 +653,7 @@ impl PreparedMesh {
             &mut soft,
             &mut vec![],
         )?;
-        let draw = build_skeletal_draw(&self.mesh.lod, &soft, &matrices, &self.inverse)?;
+        let draw = build_skeletal_draw(&self.mesh.lod, &soft, matrices, &self.inverse)?;
         let mut scene = rc_render::Scene::from_skeletal_draw(&draw)?;
         scene.textures.clear();
         for (triangle, face) in scene.triangles.iter().zip(&mut scene.appearance) {
@@ -579,23 +672,7 @@ impl PreparedMesh {
                 return Err("Nonfinite animated UV".into());
             }
         }
-        let transform = rc_package::mesh_transform::Input {
-            actor_location: [0; 3],
-            actor_rotation: [0; 3],
-            actor_draw_scale: 1f32.to_bits(),
-            actor_draw_scale_3d: [1f32.to_bits(); 3],
-            actor_prepivot: [0; 3],
-            actor_flags: 0,
-            actor_height: 0,
-            mesh_scale: self.mesh.scale,
-            mesh_origin: self.mesh.origin,
-            mesh_rotation: self.mesh.rotation,
-            suppress_origin: 0,
-            bypass_mesh_adjustments: 0,
-        }
-        .build()?
-        .matrix
-        .map(|row| row.map(f32::from_bits));
+        let transform = self.adjustment()?;
         for triangle in &mut scene.triangles {
             triangle.points = triangle.points.map(|p| {
                 std::array::from_fn(|i| {

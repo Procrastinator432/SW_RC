@@ -17,7 +17,7 @@ final class SceneAudio implements AutoCloseable {
     private final Map<Integer,File> files=new HashMap<>();
     private final ArrayDeque<Event> pending=new ArrayDeque<>();
     private final ArrayDeque<Integer> streams=new ArrayDeque<>();
-    private boolean closed;
+    private boolean closed,suspended;
     private long lastSequence;
     private static final class Event {
         final long sequence,tick; final int sound,owner;
@@ -29,7 +29,7 @@ final class SceneAudio implements AutoCloseable {
     }
     SceneAudio(Context context,byte[] bytes) throws IOException {
         ByteBuffer b=packet(bytes,"RCSND001"); int count=b.getInt();
-        if(count<0 || count>64) throw new IOException("Invalid sound bank count");
+        if(count<0 || count>128) throw new IOException("Invalid sound bank count");
         sounds=new int[count];
         pool=new SoundPool.Builder().setMaxStreams(16).setAudioAttributes(new AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()).build();
@@ -67,7 +67,7 @@ final class SceneAudio implements AutoCloseable {
         flush();
     }
     private void flush() {
-        if(closed || ready.size()!=sounds.length) return;
+        if(closed || suspended || ready.size()!=sounds.length) return;
         while(!pending.isEmpty()) {
             Event e=pending.removeFirst();
             int stream=pool.play(sounds[e.sound],0.35f,0.35f,1,0,1f);
@@ -76,8 +76,11 @@ final class SceneAudio implements AutoCloseable {
             Log.i("RCAudio","event sequence="+e.sequence+" tick="+e.tick+" sound="+e.sound+" owner="+e.owner);
         }
     }
-    void stop() {pending.clear();for(int id:streams) pool.stop(id);streams.clear();}
-    void reset() {stop();lastSequence=0;}
+    private void stopStreams() {for(int id:streams) pool.stop(id);streams.clear();}
+    void suspend() {suspended=true;stopStreams();}
+    void resume() {suspended=false;flush();}
+    void stop() {pending.clear();stopStreams();}
+    void reset() {stop();suspended=false;lastSequence=0;}
     @Override public void close() {
         if(closed) return;closed=true;stop();pool.release();
         for(File file:files.values()) file.delete();files.clear();ready.clear();

@@ -9,6 +9,148 @@ use rc_package::{
 };
 use std::{collections::BTreeMap, sync::Arc};
 #[test]
+fn legacy_scene_throw_input_is_inert_and_legacy_replay_shape_is_preserved() {
+    let mut a = game(false);
+    let mut b = game(false);
+    let input = Input::default();
+    let json = serde_json::to_value(input).unwrap();
+    assert!(json.get("throw_grenade").is_none());
+    let restored: Input = serde_json::from_value(json).unwrap();
+    assert!(!restored.throw_grenade);
+    for _ in 0..120 {
+        a.advance(STEP, input).unwrap();
+        b.advance(
+            STEP,
+            Input {
+                throw_grenade: true,
+                ..input
+            },
+        )
+        .unwrap();
+    }
+    assert_eq!(
+        serde_json::to_vec(&a.state).unwrap(),
+        serde_json::to_vec(&b.state).unwrap()
+    );
+    assert!(serde_json::to_value(&a.state)
+        .unwrap()
+        .get("thermal")
+        .is_none());
+}
+
+#[test]
+fn throw_wrapper_rejects_truncated_oversized_and_recursive_metadata() {
+    for size in [0, 1, 8 * 1024 * 1024 + 1, u32::MAX] {
+        let mut bytes = b"RCPLAY05".to_vec();
+        bytes.extend_from_slice(&size.to_le_bytes());
+        bytes.extend_from_slice(b"RCPLAY05");
+        assert!(bundle::decode(&bytes).is_err());
+    }
+}
+#[test]
+fn gunner_wrapper_rejects_truncated_oversized_and_recursive_metadata() {
+    for size in [0, 1, 16 * 1024 * 1024 + 1, u32::MAX] {
+        let mut raw = b"RCPLAY06".to_vec();
+        raw.extend(size.to_le_bytes());
+        raw.extend(b"RCPLAY06");
+        assert!(bundle::decode(&raw).is_err());
+    }
+}
+#[test]
+fn demolition_wrapper_rejects_truncated_oversized_and_recursive_metadata() {
+    for size in [0, 1, 32 * 1024 * 1024 + 1, u32::MAX] {
+        let mut raw = b"RCPLAY08".to_vec();
+        raw.extend(size.to_le_bytes());
+        raw.extend(b"RCPLAY08");
+        assert!(bundle::decode(&raw).is_err());
+    }
+    for size in 8..16 {
+        assert!(bundle::decode(&b"RCPLAY08xxxxxxxx"[..size]).is_err());
+    }
+}
+#[test]
+fn artillery_wrapper_rejects_truncated_oversized_and_recursive_metadata() {
+    for size in [0, 1, 16 * 1024 * 1024 + 1, u32::MAX] {
+        let mut raw = b"RCPLAY10".to_vec();
+        raw.extend(size.to_le_bytes());
+        raw.extend(b"RCPLAY10");
+        assert!(bundle::decode(&raw).is_err());
+    }
+    for n in 8..16 {
+        assert!(bundle::decode(&b"RCPLAY10xxxxxxxx"[..n]).is_err());
+    }
+}
+#[test]
+fn spire_wrapper_rejects_truncated_oversized_and_recursive_metadata() {
+    for size in [0, 1, 16 * 1024 * 1024 + 1, u32::MAX] {
+        let mut raw = b"RCPLAY09".to_vec();
+        raw.extend(size.to_le_bytes());
+        raw.extend(b"RCPLAY09");
+        assert!(bundle::decode(&raw).is_err());
+    }
+    for size in 8..16 {
+        assert!(bundle::decode(&b"RCPLAY09xxxxxxxx"[..size]).is_err());
+    }
+}
+#[test]
+fn dynamic_extension_appends_resets_and_rejects_duplicates_atomically() {
+    let mut g = game(false);
+    g.attach_dynamic(vec![dynamic_wall(617)]).unwrap();
+    g.append_dynamic(vec![dynamic_wall(850), dynamic_wall(1093)])
+        .unwrap();
+    assert_eq!(
+        g.dynamic
+            .as_ref()
+            .unwrap()
+            .objects
+            .iter()
+            .map(|o| o.original)
+            .collect::<Vec<_>>(),
+        [617, 850, 1093]
+    );
+    let before = bytes(&g);
+    let textures = g.scene.textures.len();
+    let actors = g.world.actors.len();
+    assert!(g
+        .append_dynamic(vec![dynamic_wall(777), dynamic_wall(850)])
+        .is_err());
+    assert_eq!(bytes(&g), before);
+    assert_eq!(g.world.actors.len(), actors);
+    assert_eq!(g.scene.textures.len(), textures);
+    g.disable_dynamic(1093).unwrap();
+    assert_eq!(g.state.dynamic.as_ref().unwrap(), &[false, false, true]);
+    g.restart();
+    assert_eq!(bytes(&g), before);
+}
+#[test]
+fn grenade_radius_includes_instigator_respects_cover_and_skips_dead_victims() {
+    let mut g = game(false);
+    let before = bytes(&g);
+    let hits = g.blast_damage([0., 0., 20.], 400., 600.).unwrap();
+    assert!(hits.iter().any(|d| d.victim == -1 && d.amount == 400));
+    assert!(hits
+        .iter()
+        .any(|d| d.victim == 0 && d.amount > 0 && d.amount < 400));
+    assert_eq!(bytes(&g), before);
+    g.attach_dynamic(vec![dynamic_wall(850)]).unwrap();
+    assert!(!g
+        .blast_damage([0., 0., 20.], 400., 600.)
+        .unwrap()
+        .iter()
+        .any(|d| d.victim == 0));
+    g.disable_dynamic(850).unwrap();
+    g.state.enemies[0].health = 0;
+    assert!(!g
+        .blast_damage([0., 0., 20.], 400., 600.)
+        .unwrap()
+        .iter()
+        .any(|d| d.victim == 0));
+    assert!(g
+        .blast_damage([-1000., 0., 20.], 400., 600.)
+        .unwrap()
+        .is_empty());
+}
+#[test]
 fn presentation_snapshot_survives_simulation_and_rejects_bad_dimensions() {
     let mut game = game(false);
     let before = replay::state_fingerprint(&game).unwrap();
@@ -952,4 +1094,44 @@ fn oversized_mission_metadata_rejected_before_parsing() {
         bundle::decode(&raw).err().unwrap(),
         "Mission metadata exceeds budget"
     );
+}
+
+#[test]
+fn warrior_ai_bundle_rejects_oversized_and_truncated_layers() {
+    let mut bytes = b"RCPLAY11".to_vec();
+    bytes.extend((12_u32 * 1024 * 1024 + 1).to_le_bytes());
+    bytes.extend([0; 4]);
+    assert_eq!(
+        bundle::decode(&bytes).err().unwrap(),
+        "Warrior AI metadata exceeds budget"
+    );
+    bytes[8..12].copy_from_slice(&100_u32.to_le_bytes());
+    assert_eq!(
+        bundle::decode(&bytes).err().unwrap(),
+        "Truncated Warrior AI metadata"
+    );
+    assert!(bundle::decode(b"RCPLAY11").is_err());
+}
+
+#[test]
+fn squad_wrapper_rejects_truncated_oversized_and_recursive_layers() {
+    for size in [0u32, 1, 24 * 1024 * 1024 + 1, u32::MAX] {
+        let mut raw = b"RCPLAY12".to_vec();
+        raw.extend(size.to_le_bytes());
+        raw.extend(b"RCPLAY12");
+        assert!(bundle::decode(&raw).is_err());
+    }
+    for size in 8..16 {
+        assert!(bundle::decode(&b"RCPLAY12xxxxxxxx"[..size]).is_err());
+    }
+}
+
+#[test]
+fn opening_wrapper_rejects_truncated_oversized_and_recursive_layers() {
+    for size in [0u32, 1, 24 * 1024 * 1024 + 1, u32::MAX] {
+        let mut bytes = b"RCPLAY13".to_vec();
+        bytes.extend(size.to_le_bytes());
+        bytes.extend(b"RCPLAY13");
+        assert!(bundle::decode(&bytes).is_err());
+    }
 }

@@ -45,13 +45,13 @@ pub struct Rules {
     pub melee_range: f64,
     pub clips: Vec<AttackClip>,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct Attack {
     pub active: Option<usize>,
     pub serial: u64,
     pub yaw: f64,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct State {
     pub player: pawn_damage::State,
     pub enemies: Vec<pawn_damage::State>,

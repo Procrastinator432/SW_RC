@@ -24,6 +24,7 @@ public class MainActivity extends Activity {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final AtomicBoolean drawing=new AtomicBoolean();
     private TextView status;
+    private Button continueGame;
     private Button open, mode;
     private ImageView view;
     private LinearLayout movement;
@@ -124,6 +125,8 @@ public class MainActivity extends Activity {
         heading.setTextSize(20); layout.addView(heading);
         Button play=new Button(this); play.setText("Spielabschnitt geo_01a öffnen");
         play.setOnClickListener(v -> openPlay(null)); layout.addView(play);
+        continueGame=new Button(this);continueGame.setText("Fortsetzen");continueGame.setEnabled(new CheckpointStore(getFilesDir()).hasSave());
+        continueGame.setOnClickListener(v -> startActivity(new Intent(this,PlayActivity.class).putExtra("rcContinue",true).putExtra("rcProfile",getIntent().getBooleanExtra("rcProfile",false))));layout.addView(continueGame);
         status=new TextView(this); status.setTextSize(14);
         status.setText("Karte (.ctm) oder Diagnose-Szene (.rcscene, max. 16 MiB) öffnen. Spielbare Szenen (.rcplay) starten automatisch den Spielabschnitt. Ziehen dreht den Blick.");
         layout.addView(status);
@@ -223,4 +226,6 @@ public class MainActivity extends Activity {
     @Override protected void onDestroy() {
         loaded=false; worker.execute(() -> {releaseScene(scene); scene=0;}); worker.shutdown(); super.onDestroy();
     }
+    @Override protected void onResume() {super.onResume();if(continueGame!=null)continueGame.setEnabled(new CheckpointStore(getFilesDir()).hasSave());}
+
 }

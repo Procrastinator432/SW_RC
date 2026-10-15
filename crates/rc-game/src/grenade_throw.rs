@@ -24,7 +24,7 @@ impl Assets {
         Ok(())
     }
 }
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, serde::Deserialize)]
 pub struct State {
     pub active: bool,
     pub released: bool,

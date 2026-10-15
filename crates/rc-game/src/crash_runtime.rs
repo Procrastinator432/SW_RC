@@ -10,7 +10,7 @@ pub struct Assets {
     pub route: Vec<Point>,
     pub spawns: Vec<Point>,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct State {
     pub flow: crash::State,
     pub waypoint: usize,

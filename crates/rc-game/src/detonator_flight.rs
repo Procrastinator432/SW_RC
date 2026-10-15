@@ -80,7 +80,7 @@ impl Assets {
         ))
     }
 }
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, serde::Deserialize)]
 pub struct State {
     pub projectile: detonator::State,
     pub position: Point,

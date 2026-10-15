@@ -67,7 +67,7 @@ def pause_loaded_scene():
     for _ in range(5):
         tree = ui()
         if tree.attrib.get('rotation') == '1' and any(
-                n.attrib.get('text', '').startswith(('Drei Drohnen ausschalten','Drei Gegner ausschalten','Gefallen','Bacta erreichen','Bacta:')) for n in tree.iter('node')):
+                n.attrib.get('text', '').startswith(('Drei Drohnen ausschalten','Drei Gegner ausschalten','Gefallen','Bacta erreichen','Bacta:','Landungsbriefing')) for n in tree.iter('node')):
             tap_node(find(tree, 'PAUSE'))
             # A short passive survival time can expire during the UI dump.
             # Restart and pause through the ordinary controls using the already

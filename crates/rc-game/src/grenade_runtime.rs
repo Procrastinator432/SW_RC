@@ -15,7 +15,7 @@ pub struct Assets {
     pub objects: Vec<dynamic::Object>,
     pub pickup_snapshot: Vec<u8>,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct State {
     pub flow: grenade_pickup::State,
     pub waypoint: usize,
@@ -262,7 +262,7 @@ impl Game {
                 owner: -1,
             });
         }
-        if won {
+        if won && self.thermal.is_none() {
             self.state.phase = Phase::Won;
         }
         Ok(())

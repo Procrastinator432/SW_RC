@@ -14,6 +14,26 @@ pub struct WorldBinding {
     pub decoded_bytes: usize,
     pub remaining_bytes: usize,
 }
+/// Serialized ULevelBase actor-array order, including null slots.
+/// This is the order consumed by the original Actor.AllActors iterator.
+pub fn actor_references(pkg: &Package, data: &[u8]) -> Result<Vec<i32>, String> {
+    let binding = world_binding(pkg, data)?;
+    let export = &pkg.exports[binding.level_export];
+    let payload = pkg.payload(data, export)?;
+    let properties = properties::read(pkg, data, export)?;
+    let mut reader = crate::Reader::at(payload, properties.native_offset)?;
+    if pkg.summary.version >= 153 {
+        reader.index()?;
+    }
+    let count = reader.count(1)?;
+    let mut actors = Vec::with_capacity(count);
+    for _ in 0..count {
+        let actor = reader.index()?;
+        pkg.object_path(actor)?;
+        actors.push(actor);
+    }
+    Ok(actors)
+}
 /// ULevelBase/ULevel serialized prefix through the Model reference, not a full level reader.
 pub fn world_binding(pkg: &Package, data: &[u8]) -> Result<WorldBinding, String> {
     if !(151..=159).contains(&pkg.summary.version) || pkg.summary.licensee_version > 1 {
@@ -208,6 +228,21 @@ mod binding_tests {
             },
             data,
         )
+    }
+    #[test]
+    fn actor_reference_order_keeps_null_slots_and_duplicates() {
+        for version in [151, 152, 153, 159] {
+            let (mut pkg, mut data) = fixture(version);
+            let count = if version >= 153 { 2 } else { 1 };
+            data[count] = 4;
+            data.splice(count + 1..count + 3, [0, 1, 0, 1]);
+            pkg.exports[0].serial_size = data.len() as u32;
+            assert_eq!(actor_references(&pkg, &data).unwrap(), [0, 1, 0, 1]);
+            for end in 0..data.len() {
+                pkg.exports[0].serial_size = end as u32;
+                assert!(actor_references(&pkg, &data[..end]).is_err());
+            }
+        }
     }
     #[test]
     fn level_binding_versions_renamed_objects_and_every_truncation() {

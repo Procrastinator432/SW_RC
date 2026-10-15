@@ -22,7 +22,7 @@ pub struct Assets {
     pub bacta_rate: f32,
     pub sounds: Vec<crate::combat::Sound>,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct State {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grenades: Option<crate::grenade_runtime::State>,
@@ -162,6 +162,39 @@ impl Game {
         Ok(())
     }
     pub fn mission_target(&self) -> Option<Point> {
+        if let Some(p) = self.map3_finale_target() {
+            return Some(p);
+        }
+        if let Some(p) = self.map3_balcony_target() {
+            return Some(p);
+        }
+        if let Some(p) = self.map3_breach_target() {
+            return Some(p);
+        }
+        if let Some(p) = self.map3_guard_target() {
+            return Some(p);
+        }
+        if let Some(p) = self.map3_escape_target() {
+            return Some(p);
+        }
+        if let Some(p) = self.map_target() {
+            return Some(p);
+        }
+        if self.state.opening.as_ref().is_some_and(|s| !s.done) {
+            return None;
+        }
+        if let Some(target) = self.spire_target() {
+            return Some(target);
+        }
+        if let Some(p) = self.demolition_target() {
+            return Some(p);
+        }
+        if let Some(p) = self.rendezvous_target() {
+            return Some(p);
+        }
+        if let Some(p) = self.throw_target() {
+            return Some(p);
+        }
         if let Some(p) = self.grenade_target() {
             return Some(p);
         }
@@ -176,6 +209,119 @@ impl Game {
             .or_else(|| a.route.last().copied())
     }
     pub fn mission_status(&self) -> String {
+        if let Some(status) = self.map3_status() {
+            return status;
+        }
+        if let Some(status) = self.map_gameplay_status() {
+            return status;
+        }
+        if let Some(s) = &self.state.map {
+            if s.destination == "GEO_03A.ctm#playerstart" {
+                return if s.restored {
+                    "GEO_03A · Mission 1 abgeschlossen · Fabrikeinstieg"
+                } else {
+                    "GEO_03A · Fabrikeinstieg · Eigenstaendiger Start"
+                }
+                .into();
+            }
+            if s.destination == "GEO_01C.ctm#playerstart" {
+                return "GEO_01C · Sun Fac · Erkundung · Missionsablauf folgt".into();
+            }
+            return format!(
+                "GEO_01B · Into the Hive · Erkundung{}",
+                if s.companion.as_ref().is_some_and(|c| c.joined) {
+                    " · Scorch folgt"
+                } else {
+                    ""
+                }
+            );
+        }
+        if let Some(status) = self.opening_status() {
+            return status;
+        }
+        if let Some(s) = &self.state.squad {
+            if s.player_down {
+                return "Kampfunfaehig · BENUTZEN: Scorch um Wiederbelebung rufen".into();
+            }
+            if s.down {
+                return "Scorch kampfunfaehig · Naehern und BENUTZEN halten".into();
+            }
+        }
+        if let Some(status) = self.spire_status() {
+            return status;
+        }
+        if let Some(s) = &self.state.demolition {
+            if s.flow.phase != crate::demolition::Phase::Disabled {
+                return match s.flow.phase {
+                    crate::demolition::Phase::Available => {
+                        "Bunker sprengen · Ladung anvisieren und BENUTZEN: Scorch befehlen"
+                    }
+                    crate::demolition::Phase::Moving => {
+                        "Scorch läuft zum Sprengpunkt · Weg freihalten"
+                    }
+                    crate::demolition::Phase::Starting | crate::demolition::Phase::Setting => {
+                        "Scorch setzt die Ladung · Deckung halten"
+                    }
+                    crate::demolition::Phase::Stopping | crate::demolition::Phase::Armed
+                        if s.flow.plunger_selected =>
+                    {
+                        "Zünder bereit · Zurücktreten, dann FEUER zum Auslösen"
+                    }
+                    crate::demolition::Phase::Stopping | crate::demolition::Phase::Armed => {
+                        "Ladung scharf · Nähern, anvisieren und BENUTZEN: Zünder wählen"
+                    }
+                    crate::demolition::Phase::Exploded if s.complete_tick.is_some() => {
+                        "Originalziele0–5 abgeschlossen · Bunker gesprengt"
+                    }
+                    crate::demolition::Phase::Exploded => {
+                        "Bunker gesprengt · Zielbestätigung abwarten"
+                    }
+                    _ => "Sprengbefehl vorbereiten",
+                }
+                .into();
+            }
+        }
+        if let Some(s) = &self.state.rendezvous {
+            if s.radio_started {
+                return if s.flow.objective_completed {
+                    "Originalziele0–4 abgeschlossen · Scorch ist im Squad · Abschnitt geschafft"
+                        .into()
+                } else if s.flow.squad_joined {
+                    "Scorch ist im Squad · HUD-Verknüpfung und Advisor-Dialog".into()
+                } else {
+                    "Rendezvous mit Six-Two · DUCKEN unter den Trümmern · Scorch treffen".into()
+                };
+            }
+        }
+        if let Some(s) = &self.state.bunker {
+            if self.state.phase == Phase::Won {
+                return "Originalziele abgeschlossen: Bacta, Absturzstelle, Granaten und Geschützstellung · Abschnitt geschafft".into();
+            }
+            if s.contact_tick.is_some() {
+                return "Geschützstellung getroffen · Deckung halten".into();
+            }
+        }
+        if let Some(target) = self.throw_target() {
+            let t = self.state.thermal.as_ref().unwrap();
+            if t.gun.objective_completed {
+                return "Geschütz getroffen".into();
+            }
+            let ammo = self
+                .state
+                .mission
+                .as_ref()
+                .unwrap()
+                .grenades
+                .as_ref()
+                .unwrap()
+                .flow
+                .ammunition;
+            return format!(
+                "Geschützstellung · Granaten {} · {:.0} m · GRANATE werfen",
+                ammo,
+                distance(self.state.pawn.body.position, target) / 100.
+            );
+        }
         if let Some(s) = self.grenade_status() {
             return s;
         }
@@ -211,6 +357,9 @@ impl Game {
         )
     }
     pub(crate) fn mission_tick(&mut self, use_action: bool) {
+        if self.state.opening.as_ref().is_some_and(|s| !s.done) {
+            return;
+        }
         let Some(a) = &self.mission else {
             return;
         };
@@ -220,7 +369,7 @@ impl Game {
             return;
         }
         let tick = self.state.statistics.ticks;
-        if tick == 1 || tick == 240 {
+        if self.opening.is_none() && (tick == 1 || tick == 240) {
             s.audio_sequence += 1;
             s.events.push(crate::combat::Event {
                 sequence: s.audio_sequence,

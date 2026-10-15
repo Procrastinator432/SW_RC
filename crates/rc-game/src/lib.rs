@@ -1,10 +1,14 @@
 //! First playable vertical slice. Combat/encounter rules are explicit port policies,
 //! not a claim of reconstructed CTGame combat or campaign-script equivalence.
+pub mod artillery;
 pub mod bot;
 pub mod bundle;
+pub mod checkpoint;
 pub mod combat;
 pub mod crash;
 pub mod crash_runtime;
+pub mod demolition;
+pub mod demolition_runtime;
 pub mod detonator;
 pub mod detonator_flight;
 pub mod dynamic;
@@ -13,14 +17,41 @@ pub mod grenade_pickup;
 pub mod grenade_runtime;
 pub mod grenade_throw;
 pub mod gunner;
+pub mod gunner_runtime;
+pub mod intro;
+pub mod intro_flow;
 pub mod jump;
 pub mod lunge;
+pub mod map3_balcony;
+pub mod map3_breach;
+pub mod map3_elevator;
+pub mod map3_escape;
+pub mod map3_finale;
+pub mod map3_guard;
+pub mod map3_opening;
+pub mod map3_planning;
+pub mod map_gameplay;
+pub mod map_runtime;
 pub mod melee;
 pub mod mission;
+pub mod mission_motion;
+pub mod mission_tactics;
 pub mod navigation;
+pub mod opening;
 pub mod presentation;
+pub mod rappel;
+pub mod rendezvous;
+pub mod rendezvous_runtime;
 pub mod replay;
+pub mod revival;
+pub mod spire;
+pub mod spire_runtime;
+pub mod squad;
+pub mod throw_runtime;
+pub mod transition;
 pub mod visual;
+pub mod warrior_ai;
+mod wave_bytes;
 use rc_package::{
     controller::{ControlledBody, ViewInput},
     movement::PlacementState,
@@ -49,21 +80,25 @@ pub struct Input {
     pub walking: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub use_action: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub throw_grenade: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub crouch: bool,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub enum Phase {
     Playing,
     Won,
     Lost,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct Enemy {
     pub position: Point,
     pub health: u32,
     pub cooldown: f64,
     pub flash: f64,
 }
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, serde::Deserialize)]
 pub struct Statistics {
     pub ticks: u64,
     pub shots: u32,
@@ -74,9 +109,11 @@ pub struct Statistics {
     pub reloads: u32,
     pub discarded_seconds: f64,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct State {
     pub pawn: ControlledBody,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub crouched: bool,
     pub yaw: f64,
     pub pitch: f64,
     pub health: u32,
@@ -99,6 +136,24 @@ pub struct State {
     pub mission: Option<mission::State>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dynamic: Option<Vec<bool>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thermal: Option<throw_runtime::State>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bunker: Option<gunner_runtime::State>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rendezvous: Option<rendezvous_runtime::State>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub demolition: Option<demolition_runtime::State>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spire: Option<spire_runtime::State>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artillery: Option<artillery::State>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub squad: Option<squad::State>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opening: Option<opening::State>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub map: Option<map_runtime::State>,
 }
 pub struct Game {
     pub scene: rc_render::Scene,
@@ -112,11 +167,22 @@ pub struct Game {
     pub mission: Option<mission::Assets>,
     pub dynamic: Option<dynamic::Prepared>,
     pub pickup: Option<grenade_runtime::Prepared>,
+    pub thermal: Option<throw_runtime::Prepared>,
+    pub bunker: Option<gunner_runtime::Prepared>,
+    pub rendezvous: Option<rendezvous_runtime::Prepared>,
+    pub demolition: Option<demolition_runtime::Prepared>,
+    pub spire: Option<spire_runtime::Prepared>,
+    pub artillery: Option<artillery::Prepared>,
+    pub warrior_ai: Option<warrior_ai::Assets>,
+    pub tactics: Option<mission_tactics::Prepared>,
+    pub opening: Option<opening::Prepared>,
+    pub map: Option<map_runtime::Prepared>,
     initial: State,
     accumulator: f64,
     pending_jump: bool,
     pending_fire: bool,
     pending_reload: bool,
+    pending_throw: bool,
 }
 fn distance(a: Point, b: Point) -> f64 {
     (0..3).map(|i| (a[i] - b[i]).powi(2)).sum::<f64>().sqrt()
@@ -178,6 +244,7 @@ impl Game {
             reload_remaining: 0.,
             fire_remaining: 0.,
             phase: Phase::Playing,
+            crouched: false,
             enemies: vec![],
             hit_flash: 0.,
             damage_flash: 0.,
@@ -188,6 +255,15 @@ impl Game {
             combat: None,
             mission: None,
             dynamic: None,
+            thermal: None,
+            bunker: None,
+            rendezvous: None,
+            demolition: None,
+            spire: None,
+            artillery: None,
+            squad: None,
+            opening: None,
+            map: None,
         };
         Ok(Self {
             scene,
@@ -201,11 +277,22 @@ impl Game {
             mission: None,
             dynamic: None,
             pickup: None,
+            thermal: None,
+            bunker: None,
+            rendezvous: None,
+            demolition: None,
+            spire: None,
+            artillery: None,
+            warrior_ai: None,
+            tactics: None,
+            opening: None,
+            map: None,
             initial: state,
             accumulator: 0.,
             pending_jump: false,
             pending_fire: false,
             pending_reload: false,
+            pending_throw: false,
         })
     }
     pub fn attach_visuals(&mut self, assets: visual::Assets) -> Result<(), String> {
@@ -298,10 +385,17 @@ impl Game {
     pub fn restart(&mut self) {
         self.state = self.initial.clone();
         self.sync_dynamic();
+        self.sync_map_gates();
+        self.sync_map3_glass();
+        self.sync_map3_escape();
+        self.sync_map3_breach();
+        self.sync_map3_balcony();
+        self.sync_map3_elevator();
         self.accumulator = 0.;
         self.pending_jump = false;
         self.pending_fire = false;
         self.pending_reload = false;
+        self.pending_throw = false;
     }
     /// Clear queued input/time on focus loss or pause; no background catch-up on resume.
     pub fn suspend(&mut self) {
@@ -309,6 +403,10 @@ impl Game {
         self.pending_jump = false;
         self.pending_fire = false;
         self.pending_reload = false;
+        self.pending_throw = false;
+        if let Some(t) = &mut self.state.thermal {
+            t.held = false;
+        }
         self.state.pawn.jump_held = false;
         if let Some(c) = &mut self.state.combat {
             c.events.clear();
@@ -320,7 +418,23 @@ impl Game {
     }
     pub fn eye(&self) -> Point {
         let mut p = self.state.pawn.body.position;
-        p[2] += self.profile.physics.extent[2] * 0.65;
+        if self.map3_locked() {
+            p[2] += self
+                .map
+                .as_ref()
+                .unwrap()
+                .opening
+                .as_ref()
+                .unwrap()
+                .assets
+                .eye_height;
+            return p;
+        }
+        p[2] += if self.state.crouched {
+            56. * 0.65
+        } else {
+            self.profile.physics.extent[2] * 0.65
+        };
         p
     }
     pub fn aim_at(&mut self, point: Point) {
@@ -350,19 +464,32 @@ impl Game {
         let jump = self.pending_jump || input.jump;
         let fire = self.pending_fire || input.fire;
         let reload = self.pending_reload || input.reload;
+        let throw_grenade = self.pending_throw || input.throw_grenade;
         self.state.yaw = (self.state.yaw - input.look[0]).rem_euclid(std::f64::consts::TAU);
         self.state.pitch = (self.state.pitch - input.look[1]).clamp(-1.4, 1.4);
+        self.clamp_opening_view();
+        self.clamp_map3_view();
         let mut ticks = 0;
         while accumulator + 1e-12 >= STEP && ticks < 8 && self.state.phase == Phase::Playing {
             let tick_input = Input {
                 jump: if ticks == 0 { jump } else { input.jump },
                 fire: if ticks == 0 { fire } else { input.fire },
                 reload: if ticks == 0 { reload } else { false },
+                throw_grenade: if ticks == 0 {
+                    throw_grenade
+                } else {
+                    input.throw_grenade
+                },
                 ..input
             };
             if let Err(e) = self.tick(tick_input) {
                 self.state = old;
                 self.sync_dynamic();
+                self.sync_map3_glass();
+                self.sync_map3_escape();
+                self.sync_map3_breach();
+                self.sync_map3_balcony();
+                self.sync_map3_elevator();
                 return Err(e);
             }
             ticks += 1;
@@ -377,21 +504,104 @@ impl Game {
         self.pending_jump = ticks == 0 && jump;
         self.pending_fire = ticks == 0 && fire;
         self.pending_reload = ticks == 0 && reload;
+        self.pending_throw = ticks == 0 && throw_grenade;
         Ok(ticks)
     }
     fn tick(&mut self, input: Input) -> Result<(), String> {
+        let map_weapon_blocked = self.map_blocks_weapon();
+        let locked = self.map3_opening_tick()?;
+        self.map3_planning_tick()?;
+        self.map3_escape_tick()?;
+        self.map3_guard_tick(input)?;
+        self.map3_breach_tick(input)?;
+        self.map3_balcony_tick(input)?;
+        self.map3_finale_tick()?;
+        self.map3_elevator_tick()?;
+        if self.state.phase == Phase::Won {
+            self.state.statistics.ticks += 1;
+            return Ok(());
+        }
+        let input = if self.map3_healing() {
+            self.state.pawn.body.velocity[0] = 0.;
+            self.state.pawn.body.velocity[1] = 0.;
+            Input {
+                forward: 0.,
+                strafe: 0.,
+                jump: false,
+                fire: false,
+                reload: false,
+                throw_grenade: false,
+                crouch: self.state.crouched,
+                ..input
+            }
+        } else {
+            input
+        };
+        if locked {
+            self.state.statistics.ticks += 1;
+            return Ok(());
+        }
+        self.map_tick()?;
+        self.map_gameplay_tick(input)?;
+        self.opening_tick()?;
+        self.intro_tick()?;
+        let rappel_motion = self.rappel_tick()?;
+        if rappel_motion || self.state.opening.as_ref().is_some_and(|s| s.locked) {
+            if let Some(b) = &mut self.state.bunker {
+                for e in &mut b.explosions {
+                    e.age += STEP;
+                }
+                b.explosions.retain(|e| e.age < 8.);
+            }
+            self.state.statistics.ticks += 1;
+            return Ok(());
+        }
         let previous = self.visuals.as_ref().map(|_| self.state.clone());
+        if (self.rendezvous.is_some() || self.map.is_some()) && input.crouch != self.state.crouched
+        {
+            let shape = rc_package::crouch::CrouchProfile {
+                standing: self.profile.physics.extent,
+                crouching: [40., 40., 56.],
+                properties: std::collections::BTreeMap::new(),
+            };
+            let next = self.world.crouch_diagnostic(
+                &rc_package::crouch::CrouchBody {
+                    body: self.state.pawn.body,
+                    crouched: self.state.crouched,
+                },
+                input.crouch,
+                &shape,
+            )?;
+            self.state.pawn.body = next.state.body;
+            self.state.crouched = next.state.crouched;
+        }
+        let mut physics = self.profile.physics;
+        if self.state.crouched {
+            physics.extent[2] = 56.;
+        }
+        let profile = MovementProfile {
+            controller: self.profile.controller,
+            ratios: self.profile.ratios,
+            physics,
+            properties: std::collections::BTreeMap::new(),
+        };
+        if self.state.squad.as_ref().is_some_and(|s| s.player_down) {
+            self.state.statistics.ticks += 1;
+            self.artillery_tick()?;
+            self.squad_tick(input.use_action)?;
+            return Ok(());
+        }
         let runtime = PawnRuntimeOptions {
             maximum_desired_speed: self.profile.controller.speed,
             weapon_modifier: 1.,
-            crouch_ratio: 1.,
+            crouch_ratio: 0.5,
             wounded_ratio: 1.,
-            crouched: false,
+            crouched: self.state.crouched,
             wounded: false,
-            wants_to_crouch: false,
+            wants_to_crouch: input.crouch,
             current_jump_z: self.profile.controller.jump_speed,
         };
-        let moved = self.volumes.pawn_diagnostic_tick(
+        let moved = self.volumes.pawn_shape_tick(
             &self.world,
             &self.state.pawn,
             ViewInput {
@@ -402,7 +612,7 @@ impl Game {
                 jump: input.jump,
             },
             STEP,
-            &self.profile,
+            &profile,
             runtime,
         )?;
         self.state.pawn = moved.state;
@@ -428,7 +638,21 @@ impl Game {
                 self.state.reserve -= count;
             }
         }
-        if (input.reload || ((input.fire || self.combat.is_some()) && self.state.ammo == 0))
+        let using_plunger = self
+            .state
+            .demolition
+            .as_ref()
+            .is_some_and(|s| s.flow.plunger_selected || s.firing);
+        self.throw_begin(input.throw_grenade && !using_plunger)?;
+        let weapon_blocked = map_weapon_blocked
+            || using_plunger
+            || self
+                .state
+                .thermal
+                .as_ref()
+                .is_some_and(|t| t.gate.blocks_weapon());
+        if !weapon_blocked
+            && (input.reload || ((input.fire || self.combat.is_some()) && self.state.ammo == 0))
             && self.state.ammo < magazine
             && self.state.reserve > 0
             && self.state.reload_remaining == 0.
@@ -436,7 +660,8 @@ impl Game {
             self.state.reload_remaining = self.combat.as_ref().map_or(1.2, |a| a.reload_duration);
             self.state.statistics.reloads += 1;
         }
-        if input.fire
+        if !weapon_blocked
+            && input.fire
             && self.state.fire_remaining == 0.
             && self.state.reload_remaining == 0.
             && self.state.ammo > 0
@@ -464,7 +689,7 @@ impl Game {
                 self.melee_notify_tick(old_visual)?;
             }
         }
-        if self.state.health == 0
+        if (self.state.health == 0 && !self.try_incapacitate_player())
             || self.state.pawn.body.position[2]
                 < f64::from(self.scene.center[2]) - f64::from(self.scene.radius) * 2.
         {
@@ -480,7 +705,8 @@ impl Game {
                 }
             }
             self.state.phase = Phase::Lost;
-        } else if self.mission.is_none()
+        } else if self.map.is_none()
+            && self.mission.is_none()
             && !self.state.enemies.is_empty()
             && self.state.enemies.iter().all(|e| e.health == 0)
             && distance(self.state.pawn.body.position, self.exit) < 140.
@@ -491,6 +717,16 @@ impl Game {
             self.mission_tick(input.use_action);
             self.crash_tick()?;
             self.grenade_tick()?;
+            self.throw_tick()?;
+            self.gunner_tick()?;
+            self.rendezvous_tick()?;
+            self.demolition_tick(input)?;
+            self.spire_tick()?;
+            self.artillery_tick()?;
+            self.squad_tick(input.use_action)?;
+            if self.state.health == 0 && !self.try_incapacitate_player() {
+                self.state.phase = Phase::Lost;
+            }
         }
         Ok(())
     }
@@ -518,10 +754,33 @@ impl Game {
             .enumerate()
             .filter(|(_, e)| e.health > 0)
         {
-            if let Some(f) = ray_box(eye, end, e.position, [22., 22., 60.]) {
+            if let Some(f) = ray_box(
+                eye,
+                end,
+                e.position,
+                self.map3_enemy_extent(i).unwrap_or([22., 22., 60.]),
+            ) {
                 if f < fraction {
                     fraction = f;
                     target = Some(i);
+                }
+            }
+        }
+        let glass = self.map3_glass_fraction(eye, end)?;
+        let glass_hit = glass.is_some_and(|f| f <= fraction + 1e-6);
+        if glass_hit {
+            fraction = glass.unwrap();
+            target = None;
+        }
+        let mut warrior_target = None;
+        if let Some(a) = &self.state.artillery {
+            for (i, w) in a.warriors.iter().enumerate().filter(|(_, w)| w.health > 0) {
+                if let Some(f) = ray_box(eye, end, w.pawn.body.position, [50., 50., 115.]) {
+                    if f < fraction {
+                        fraction = f;
+                        warrior_target = Some(i);
+                        target = None;
+                    }
                 }
             }
         }
@@ -529,6 +788,7 @@ impl Game {
         self.state.fire_remaining = 0.15;
         self.state.muzzle_flash = 0.08;
         self.state.statistics.shots += 1;
+        self.map_fire_sound();
         if let Some(sound) = self.mission.as_ref().and_then(|a| a.weapon_fire_sound) {
             let m = self.state.mission.as_mut().ok_or("Missing mission state")?;
             m.audio_sequence += 1;
@@ -545,6 +805,12 @@ impl Game {
         self.state.impact = Some(std::array::from_fn(|i| {
             eye[i] + (end[i] - eye[i]) * fraction
         }));
+        if glass_hit {
+            self.map3_damage_glass(30);
+        }
+        if let Some(i) = warrior_target {
+            self.warrior_hit(i);
+        }
         if let Some(i) = target.filter(|_| !self.crash_invulnerable()) {
             let e = &mut self.state.enemies[i];
             e.health = e.health.saturating_sub(30);
@@ -556,6 +822,9 @@ impl Game {
         Ok(())
     }
     fn enemy_tick(&mut self) -> Result<(), String> {
+        if self.map3_enemy_tick()? || self.map_enemy_tick()? {
+            return Ok(());
+        }
         if self.combat.as_ref().is_some_and(|a| a.melee.is_some()) {
             return self.melee_enemy_tick();
         }

@@ -7,14 +7,14 @@ pub struct Assets {
     pub seed: u32,
     pub provenance: serde_json::Value,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct Motion {
     pub clip: usize,
     pub origin: Point,
     pub yaw: f64,
     pub frame: f32,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct State {
     pub random: u32,
     pub draws: u64,

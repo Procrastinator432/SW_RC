@@ -30,7 +30,7 @@ pub enum Call {
     Reachable(u32),
     Clear(u32),
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub struct Search {
     pub selected: Option<u32>,
     pub calls: Vec<Call>,
@@ -143,7 +143,7 @@ pub struct Flags {
     pub must_jump: bool,
     pub is_melee_attacking: bool,
 }
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 pub struct Plan {
     pub selected: Option<(Kind, u32)>,
     pub goals: Vec<Goal>,

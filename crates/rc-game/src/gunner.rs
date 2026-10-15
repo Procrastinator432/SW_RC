@@ -40,7 +40,7 @@ pub enum ContactClass {
     Bullet,
     GrenadeProjectile,
 }
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, serde::Deserialize)]
 pub enum Effect {
     Event(String),
     Tracker(String),
@@ -51,7 +51,7 @@ pub enum Effect {
     StopFactory(String),
     ConfirmationSound,
 }
-#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, serde::Deserialize)]
 pub struct State {
     pub elapsed: Option<f64>,
     pub objective_completed: bool,

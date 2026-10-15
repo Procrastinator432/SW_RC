@@ -196,6 +196,40 @@ JNIEXPORT jstring JNICALL Java_org_rcport_diagnostic_MainActivity_inspectPackage
 extern int32_t rc_game_jump_status(uint64_t, uint32_t *, size_t);
 extern intptr_t rc_game_mission_status(uint64_t, uint8_t *, size_t);
 extern intptr_t rc_game_actor_status(uint64_t, uint8_t *, size_t);
+extern intptr_t rc_game_map_handoff(uint64_t, uint8_t *, size_t);
+extern int32_t rc_game_travel(uint64_t,const uint8_t *,size_t,char *,size_t);
+extern int32_t rc_game_restore_handoff(uint64_t,const uint8_t *,size_t,char *,size_t);
+JNIEXPORT void JNICALL Java_org_rcport_diagnostic_PlayActivity_restoreHandoff(JNIEnv *env, jclass klass, jlong id, jbyteArray bytes) {
+    (void)klass;
+    if(!bytes){throw_io(env,"Missing saved handoff");return;}
+    jsize n=(*env)->GetArrayLength(env,bytes);jbyte *data=(*env)->GetByteArrayElements(env,bytes,NULL);if(!data)return;
+    char error[512]={0};int32_t result=rc_game_restore_handoff((uint64_t)id,(const uint8_t *)data,(size_t)n,error,sizeof(error));
+    (*env)->ReleaseByteArrayElements(env,bytes,data,JNI_ABORT);
+    if(result!=0)throw_io(env,error[0]?error:"Saved map handoff rejected");
+}
+JNIEXPORT void JNICALL Java_org_rcport_diagnostic_PlayActivity_travelGame(JNIEnv *env, jclass klass, jlong id, jbyteArray bytes) {
+    (void)klass;
+    if(!bytes){throw_io(env,"Missing destination scene");return;}
+    jsize n=(*env)->GetArrayLength(env,bytes);
+    jbyte *data=(*env)->GetByteArrayElements(env,bytes,NULL);
+    if(!data)return;
+    char error[512]={0};int32_t result=rc_game_travel((uint64_t)id,(const uint8_t *)data,(size_t)n,error,sizeof(error));
+    (*env)->ReleaseByteArrayElements(env,bytes,data,JNI_ABORT);
+    if(result!=0)throw_io(env,error[0]?error:"Map transition failed");
+}
+JNIEXPORT jbyteArray JNICALL Java_org_rcport_diagnostic_PlayActivity_mapHandoff(JNIEnv *env, jclass klass, jlong id) {
+    (void)klass;
+    intptr_t n=rc_game_map_handoff((uint64_t)id,NULL,0);
+    if(n<0 || n>4*1024*1024){throw_io(env,"Map handoff size failed");return NULL;}
+    jbyteArray result=(*env)->NewByteArray(env,(jsize)n);
+    if(!result || n==0)return result;
+    jbyte *data=(*env)->GetByteArrayElements(env,result,NULL);
+    if(!data)return NULL;
+    intptr_t copied=rc_game_map_handoff((uint64_t)id,(uint8_t *)data,(size_t)n);
+    (*env)->ReleaseByteArrayElements(env,result,data,0);
+    if(copied!=n){throw_io(env,"Map handoff copy failed");return NULL;}
+    return result;
+}
 JNIEXPORT jstring JNICALL Java_org_rcport_diagnostic_PlayActivity_actorStatus(JNIEnv *env, jclass klass, jlong id) {
     (void)klass;
     uint8_t buffer[8192];
@@ -219,4 +253,30 @@ JNIEXPORT jintArray JNICALL Java_org_rcport_diagnostic_PlayActivity_jumpStatus(J
     jintArray result=(*env)->NewIntArray(env,12);
     if (result) (*env)->SetIntArrayRegion(env,result,0,12,(const jint *)words);
     return result;
+}
+
+extern intptr_t rc_game_checkpoint(uint64_t,uint8_t*,size_t);
+extern int32_t rc_game_restore_checkpoint(uint64_t,const uint8_t*,size_t,char*,size_t);
+extern uint64_t rc_game_checkpoint_marker(uint64_t);
+JNIEXPORT jbyteArray JNICALL Java_org_rcport_diagnostic_PlayActivity_gameCheckpoint(JNIEnv*env,jclass klass,jlong id) {
+ (void)klass;intptr_t n=rc_game_checkpoint((uint64_t)id,NULL,0);
+ if(n<20 || n>8*1024*1024){throw_io(env,"Checkpoint export failed");return NULL;}
+ uint8_t*b=malloc((size_t)n);if(!b){throw_io(env,"Checkpoint allocation failed");return NULL;}
+ jbyteArray result=(*env)->NewByteArray(env,(jsize)n);
+ if(!result || rc_game_checkpoint((uint64_t)id,b,(size_t)n)!=n){free(b);throw_io(env,"Checkpoint export failed");return NULL;}
+ (*env)->SetByteArrayRegion(env,result,0,(jsize)n,(const jbyte*)b);free(b);return result;
+}
+JNIEXPORT void JNICALL Java_org_rcport_diagnostic_PlayActivity_restoreCheckpoint(JNIEnv*env,jclass klass,jlong id,jbyteArray data) {
+ (void)klass;if(!data){throw_io(env,"Missing checkpoint");return;}
+ jsize n=(*env)->GetArrayLength(env,data);jbyte*b=(*env)->GetByteArrayElements(env,data,NULL);if(!b)return;
+ char error[512]={0};int valid=rc_game_restore_checkpoint((uint64_t)id,(uint8_t*)b,(size_t)n,error,sizeof(error));
+ (*env)->ReleaseByteArrayElements(env,data,b,JNI_ABORT);if(valid!=0)throw_io(env,error[0]?error:"Checkpoint restore failed");
+}
+JNIEXPORT jlong JNICALL Java_org_rcport_diagnostic_PlayActivity_checkpointMarker(JNIEnv*env,jclass klass,jlong id) {
+ (void)env;(void)klass;return (jlong)rc_game_checkpoint_marker((uint64_t)id);
+}
+
+JNIEXPORT jintArray JNICALL Java_org_rcport_diagnostic_PlayActivity_gameStatus(JNIEnv*env,jclass klass,jlong id) {
+ (void)klass;uint32_t words[10];if(rc_game_status((uint64_t)id,words,10)!=10){throw_io(env,"Invalid game session");return NULL;}
+ jintArray out=(*env)->NewIntArray(env,10);if(out)(*env)->SetIntArrayRegion(env,out,0,10,(const jint*)words);return out;
 }

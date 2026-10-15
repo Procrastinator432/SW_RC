@@ -87,7 +87,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bytes = fs::read(&args[1])?;
     let mut g = bundle::decode(&bytes)?;
     let initial = serde_json::to_vec(&g.state)?;
-    assert_eq!(g.state.dynamic.as_ref().unwrap(), &[false; 8]);
+    assert!(g.state.dynamic.as_ref().unwrap().iter().all(|v| !*v));
     assert!(g.state.enemies.is_empty());
     let closed_frame = g.render_frame(320, 200)?.gpu_packet(&g.scene);
     let closed_triangles = g.render_frame(320, 200)?.triangles.len();
@@ -118,7 +118,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = g.state.mission.as_ref().unwrap().crash.as_ref().unwrap();
     assert_eq!(state.flow.stage, rc_game::crash::Stage::Approach);
     assert_eq!(
-        g.state.dynamic.as_ref().unwrap(),
+        &g.state.dynamic.as_ref().unwrap()[..8],
         &[true, false, true, false, false, false, false, false]
     );
     assert_eq!(rc_render::gpu::world(&g.scene)?, static_packet);
@@ -208,7 +208,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         g.advance(STEP, Input::default())?;
     }
     assert_eq!(
-        g.state.dynamic.as_ref().unwrap(),
+        &g.state.dynamic.as_ref().unwrap()[..8],
         &[true, true, true, true, true, true, true, false]
     );
     image(&g, out, "walls-released")?;
@@ -237,10 +237,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     walking(&mut g, &route[route.len() - 1..], &mut trace)?;
     image(&g, out, "grenades-collected")?;
     for _ in 0..1200 {
-        if g.state.phase == Phase::Won {
+        let ready = g
+            .state
+            .mission
+            .as_ref()
+            .unwrap()
+            .grenades
+            .as_ref()
+            .unwrap()
+            .flow
+            .pickup_script
+            == rc_game::grenade_pickup::PickupStage::Done;
+        if g.state.phase == Phase::Won || g.thermal.is_some() && ready {
             break;
         }
         g.advance(STEP, Input::default())?;
+    }
+    if g.thermal.is_some() {
+        return live_throw_check(g, initial, closed_frame, static_packet, trace, out);
     }
     assert_eq!(g.state.phase, Phase::Won);
     let picked = g.state.mission.as_ref().unwrap().grenades.as_ref().unwrap();
@@ -281,5 +295,419 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?,
     )?;
     println!("Contiguous Bacta/crash/grenade section: physical routes, five kills, five grenades, all thirteen audio roles and restart passed at tick{won_tick}");
+    Ok(())
+}
+
+fn live_throw_check(
+    mut g: rc_game::Game,
+    initial: Vec<u8>,
+    closed_frame: Vec<u8>,
+    static_packet: Vec<u8>,
+    mut walking_trace: Vec<serde_json::Value>,
+    out: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    assert_eq!(g.state.phase, Phase::Playing);
+    assert_eq!(
+        g.state
+            .mission
+            .as_ref()
+            .unwrap()
+            .grenades
+            .as_ref()
+            .unwrap()
+            .flow
+            .ammunition,
+        5
+    );
+    let mut prior_sounds = std::collections::BTreeMap::<usize, u32>::new();
+    for e in &g.state.mission.as_ref().unwrap().events {
+        *prior_sounds.entry(e.sound).or_default() += 1;
+    }
+    for i in 0..13 {
+        assert!(prior_sounds.contains_key(&i));
+    }
+    // The actual audio host drains events. Keep this longer diagnostic below the
+    // bounded queue cap so early Foley is not evicted by the prior combat sounds.
+    g.state.mission.as_mut().unwrap().events.clear();
+    let route = g.thermal.as_ref().unwrap().assets.route.clone();
+    walking(&mut g, &route, &mut walking_trace)?;
+    for _ in 0..60 {
+        g.advance(STEP, Input::default())?;
+    }
+    // Approach the last support at walking pace, then let real braking finish.
+    // The earlier coarse route stops its input with substantial residual velocity.
+    for _ in 0..900 {
+        let target = *route.last().unwrap();
+        if dist(g.state.pawn.body.position, target) < 3. {
+            break;
+        }
+        let input = steer(&g, target, 0.03, false);
+        g.advance(STEP, input)?;
+    }
+    for _ in 0..60 {
+        g.advance(STEP, Input::default())?;
+    }
+    walking_trace.push(serde_json::json!({"throw_stand":g.state.pawn}));
+    let target = g.thermal.as_ref().unwrap().assets.gun.contact.position;
+    g.aim_at(target);
+    g.state.pitch += if g.bunker.is_some() { 0.2 } else { 0.4 };
+    if g.bunker.is_some() {
+        image(&g, out, "bunker-intact")?;
+    }
+    let shots = g.state.statistics.shots;
+    let reloads = g.state.statistics.reloads;
+    // Queue a short press with no simulation tick, then release before the tick.
+    assert_eq!(
+        g.advance(
+            0.,
+            Input {
+                throw_grenade: true,
+                ..Input::default()
+            }
+        )?,
+        0
+    );
+    let mut release_tick = None;
+    let mut end_tick = None;
+    let mut trace = vec![];
+    let mut visible_pixels = 0;
+    for tick in 1..=200 {
+        let active = g.state.thermal.as_ref().unwrap().gate.active || tick == 1;
+        g.advance(
+            STEP,
+            Input {
+                throw_grenade: tick > 1,
+                fire: active,
+                reload: active,
+                forward: if g.bunker.is_some() && tick <= 35 {
+                    -1.
+                } else if g.bunker.is_some() && tick < 155 {
+                    1.
+                } else {
+                    0.
+                },
+                look: if g.bunker.is_some() && tick == 36 {
+                    [std::f64::consts::PI, 0.]
+                } else {
+                    [0., 0.]
+                },
+                ..Input::default()
+            },
+        )?;
+        if let Some(b) = &g.state.bunker {
+            let name = if b.destruction_tick == Some(g.state.statistics.ticks) {
+                Some("bunker-explosion")
+            } else if b.explosions.iter().any(|e| !e.bunker && e.age <= STEP) {
+                Some("thermal-explosion")
+            } else {
+                None
+            };
+            if let Some(name) = name {
+                let camera = (g.state.yaw, g.state.pitch);
+                g.aim_at(target);
+                image(&g, out, name)?;
+                let pixels = g.render(640, 400)?;
+                let effects = std::mem::take(&mut g.state.bunker.as_mut().unwrap().explosions);
+                let baseline = g.render(640, 400)?;
+                g.state.bunker.as_mut().unwrap().explosions = effects;
+                let visible = pixels
+                    .iter()
+                    .zip(baseline)
+                    .filter(|(a, b)| **a != *b)
+                    .count();
+                assert!(visible > 0, "Original explosion sprite invisible: {name}");
+                fs::write(
+                    out.join(format!("{name}-visibility.json")),
+                    serde_json::to_vec_pretty(
+                        &serde_json::json!({"passed":true,"visible_pixels":visible}),
+                    )?,
+                )?;
+                g.state.yaw = camera.0;
+                g.state.pitch = camera.1;
+            }
+        }
+        let s = g.state.thermal.as_ref().unwrap().clone();
+        if s.released == 1 && release_tick.is_none() {
+            release_tick = Some(tick);
+            assert_eq!(
+                g.state
+                    .mission
+                    .as_ref()
+                    .unwrap()
+                    .grenades
+                    .as_ref()
+                    .unwrap()
+                    .flow
+                    .ammunition,
+                4
+            );
+            assert_eq!(s.projectiles[0].projectile.age, 0.);
+            let frame = g.render_frame(640, 400)?;
+            let projectiles = std::mem::take(&mut g.state.thermal.as_mut().unwrap().projectiles);
+            let baseline = g.render_frame(640, 400)?;
+            g.state.thermal.as_mut().unwrap().projectiles = projectiles;
+            assert_eq!(frame.weapon_start, baseline.weapon_start + 352);
+            visible_pixels = frame
+                .render_cpu(&g.scene)?
+                .iter()
+                .zip(baseline.render_cpu(&g.scene)?)
+                .filter(|(a, b)| **a != *b)
+                .count();
+            assert!(visible_pixels > 0, "Live grenade is invisible at release");
+            fs::write(out.join("release.rcframe"), frame.gpu_packet(&g.scene))?;
+            image(&g, out, "release")?;
+            let before = serde_json::to_vec(&g.state)?;
+            let volumes = std::mem::take(&mut g.thermal.as_mut().unwrap().assets.flight.volumes);
+            assert!(g
+                .advance(
+                    STEP,
+                    Input {
+                        look: [0.1, 0.1],
+                        ..Input::default()
+                    }
+                )
+                .is_err());
+            assert_eq!(
+                serde_json::to_vec(&g.state)?,
+                before,
+                "Flight error partially committed game tick"
+            );
+            g.thermal.as_mut().unwrap().assets.flight.volumes = volumes;
+        }
+        if tick == 42 {
+            image(&g, out, "flight")?;
+            fs::write(
+                out.join("flight.rcframe"),
+                g.render_frame(640, 400)?.gpu_packet(&g.scene),
+            )?;
+        }
+        if !s.gate.active && end_tick.is_none() {
+            end_tick = Some(tick);
+        }
+        if active {
+            assert_eq!(g.state.statistics.shots, shots);
+            assert_eq!(g.state.statistics.reloads, reloads);
+        }
+        trace.push(serde_json::json!({"tick":tick,"pawn":g.state.pawn,"yaw":g.state.yaw,"pitch":g.state.pitch,"thermal":g.state.thermal,"ammunition":g.state.mission.as_ref().unwrap().grenades.as_ref().unwrap().flow.ammunition}));
+    }
+    fs::write(
+        out.join("live-trace.json"),
+        serde_json::to_vec_pretty(&trace)?,
+    )?;
+    fs::write(
+        out.join("walking-trace.json"),
+        serde_json::to_vec_pretty(&walking_trace)?,
+    )?;
+    if g.bunker.is_some() {
+        return gunner_complete_check(
+            g,
+            initial,
+            closed_frame,
+            static_packet,
+            walking_trace,
+            trace,
+            out,
+        );
+    }
+    assert_eq!(release_tick, Some(35));
+    assert_eq!(end_tick, Some(57));
+    assert_eq!(
+        g.state.thermal.as_ref().unwrap().released,
+        1,
+        "Held input repeated throw"
+    );
+    assert!(
+        g.state.thermal.as_ref().unwrap().gun.objective_completed,
+        "Live projectile missed gun trigger"
+    );
+    assert_eq!(g.state.thermal.as_ref().unwrap().detonated, 1);
+    assert!(g.state.thermal.as_ref().unwrap().projectiles.is_empty());
+    assert_eq!(
+        g.state.phase,
+        Phase::Playing,
+        "Unbound bunker must not report victory"
+    );
+    let first_audio = g.state.mission.as_ref().unwrap().events.clone();
+    // Pause clears the queued next throw, without resetting the ongoing animation.
+    g.advance(STEP, Input::default())?;
+    g.advance(
+        0.,
+        Input {
+            throw_grenade: true,
+            ..Input::default()
+        },
+    )?;
+    g.suspend();
+    g.advance(STEP, Input::default())?;
+    assert_eq!(g.state.thermal.as_ref().unwrap().released, 1);
+    g.aim_at(target); // Aim other throws into the same bounded world.
+    for expected in 2..=5 {
+        g.advance(
+            STEP,
+            Input {
+                throw_grenade: true,
+                ..Input::default()
+            },
+        )?;
+        for _ in 0..200 {
+            g.advance(STEP, Input::default())?;
+        }
+        assert_eq!(g.state.thermal.as_ref().unwrap().released, expected);
+    }
+    assert_eq!(
+        g.state
+            .mission
+            .as_ref()
+            .unwrap()
+            .grenades
+            .as_ref()
+            .unwrap()
+            .flow
+            .ammunition,
+        0
+    );
+    g.advance(
+        STEP,
+        Input {
+            throw_grenade: true,
+            ..Input::default()
+        },
+    )?;
+    assert!(!g.state.thermal.as_ref().unwrap().gate.active);
+    assert_eq!(g.state.thermal.as_ref().unwrap().released, 5);
+    let m = g.state.mission.as_ref().unwrap();
+    let mut sounds = std::collections::BTreeMap::<usize, u32>::new();
+    for e in first_audio.iter().chain(&m.events) {
+        *sounds.entry(e.sound).or_default() += 1;
+    }
+    assert_eq!(sounds[&13], 5, "throw Foley counts {sounds:?}");
+    assert_eq!(sounds[&14], 5, "grab Foley counts {sounds:?}");
+    assert!(sounds[&15] > 0);
+    assert_eq!(sounds[&16], 1);
+    let complete = serde_json::to_value(&g.state)?;
+    assert_eq!(rc_render::gpu::world(&g.scene)?, static_packet);
+    g.restart();
+    assert_eq!(serde_json::to_vec(&g.state)?, initial);
+    assert_eq!(g.render_frame(320, 200)?.gpu_packet(&g.scene), closed_frame);
+    fs::write(
+        out.join("live-trace.json"),
+        serde_json::to_vec_pretty(&trace)?,
+    )?;
+    fs::write(
+        out.join("walking-trace.json"),
+        serde_json::to_vec_pretty(&walking_trace)?,
+    )?;
+    fs::write(
+        out.join("validation.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "passed":true,"input_driven_bacta_crash_pickup_gun_route":true,"release_tick":release_tick,"end_tick":end_tick,
+            "queued_short_press":true,"held_button_no_repeat":true,"fire_reload_blocked":true,"five_consumptions_then_empty":true,
+            "live_world_contact621":true,"first_fuse_once":true,"suspend_clears_pending":true,"restart_state_frame_exact":true,"flight_error_atomic":true,"release_visible_pixels":visible_pixels,"grenade_world_pass_faces":352,
+            "sound_counts":sounds,"prior_sound_counts":prior_sounds,"static_gpu_packet_immutable":true,"complete_state":complete,
+            "scope":"Live throw and contact only. Bunker destruction/collision transition, radius damage, thermal explosion FX/audio, hint/confirmation dispatch and Android acceptance remain open. No mission victory at trigger contact."
+        }))?,
+    )?;
+    println!("Contiguous live throw passed: notify35/end57, five releases, held/empty, world trigger621, weapon gate, audio, pause and exact restart");
+    Ok(())
+}
+
+fn gunner_complete_check(
+    mut g: rc_game::Game,
+    initial: Vec<u8>,
+    closed_frame: Vec<u8>,
+    static_packet: Vec<u8>,
+    walking_trace: Vec<serde_json::Value>,
+    mut trace: Vec<serde_json::Value>,
+    out: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    g.aim_at(g.bunker.as_ref().unwrap().assets.bunker_position);
+    fs::write(
+        out.join("pre-complete.json"),
+        serde_json::to_vec_pretty(&g.state)?,
+    )?;
+    for _ in 0..400 {
+        if g.state.phase != Phase::Playing {
+            break;
+        }
+        g.advance(STEP, Input::default())?;
+        if !g.state.bunker.as_ref().unwrap().explosions.is_empty() {
+            image(&g, out, "explosion")?;
+        }
+        trace.push(serde_json::json!({"tick":g.state.statistics.ticks,"state":g.state}));
+    }
+    fs::write(
+        out.join("gunner-trace.json"),
+        serde_json::to_vec_pretty(&trace)?,
+    )?;
+    assert_eq!(
+        g.state.phase,
+        Phase::Won,
+        "{}",
+        serde_json::to_string(&g.state)?
+    );
+    let b = g.state.bunker.as_ref().unwrap();
+    let contact = b.contact_tick.unwrap();
+    assert_eq!(b.destruction_tick.unwrap() - contact, 60);
+    assert_eq!(b.confirmation_tick.unwrap() - contact, 120);
+    assert_eq!(b.complete_tick.unwrap() - contact, 322);
+    assert_eq!(b.health, 0);
+    assert_eq!(g.state.dynamic.as_ref().unwrap(), &[true; 10]);
+    let bunker = g
+        .dynamic
+        .as_ref()
+        .unwrap()
+        .objects
+        .iter()
+        .find(|o| o.original == 850)
+        .unwrap();
+    assert_eq!(bunker.released_triangles.len(), 1356);
+    if let rc_package::world_collision::BodyShape::Hulls(h) = &g.world.actors[bunker.actor].shape {
+        assert!(std::sync::Arc::ptr_eq(
+            h,
+            bunker.released_hulls.as_ref().unwrap()
+        ));
+        assert_eq!(h.hulls.len(), 35);
+    } else {
+        panic!("Destroyed bunker lost its original collision");
+    }
+    let hatch = g
+        .dynamic
+        .as_ref()
+        .unwrap()
+        .objects
+        .iter()
+        .find(|o| o.original == 1093)
+        .unwrap();
+    assert!(matches!(
+        g.world.actors[hatch.actor].shape,
+        rc_package::world_collision::BodyShape::Clear
+    ));
+    let mut sounds = std::collections::BTreeMap::<usize, u32>::new();
+    for e in &g.state.mission.as_ref().unwrap().events {
+        *sounds.entry(e.sound).or_default() += 1;
+    }
+    for role in [13, 14, 17, 18, 19] {
+        assert_eq!(sounds.get(&role), Some(&1), "audio {sounds:?}");
+    }
+    let complete = serde_json::to_value(&g.state)?;
+    image(&g, out, "complete")?;
+    assert_eq!(rc_render::gpu::world(&g.scene)?, static_packet);
+    let tick = g.state.statistics.ticks;
+    g.advance(STEP, Input::default())?;
+    assert_eq!(tick, g.state.statistics.ticks);
+    g.restart();
+    assert_eq!(serde_json::to_vec(&g.state)?, initial);
+    assert_eq!(g.render_frame(320, 200)?.gpu_packet(&g.scene), closed_frame);
+    fs::write(
+        out.join("walking-trace.json"),
+        serde_json::to_vec_pretty(&walking_trace)?,
+    )?;
+    fs::write(
+        out.join("validation.json"),
+        serde_json::to_vec_pretty(
+            &serde_json::json!({"passed":true,"input_driven_objectives":[0,1,2,3],"sound_counts":sounds,"complete_state":complete,"destruction_delay_ticks":60,"confirmation_delay_ticks":120,"completion_delay_ticks":322,"exact_restart":true,"static_packet_immutable":true,"scope":"Selected original objectives 0-3, bounded combat and sprite adapters; next original mission section remains outside this milestone"}),
+        )?,
+    )?;
+    println!("Gun-position milestone completed at tick{tick}: original objectives0-3, bunker mesh/collision, explosion/audio, delayed confirmation, victory and restart");
     Ok(())
 }

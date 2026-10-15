@@ -38,10 +38,26 @@ pub struct Prepared {
 }
 impl Game {
     pub fn attach_dynamic(&mut self, objects: Vec<Object>) -> Result<(), String> {
-        if self.dynamic.is_some() || objects.is_empty() || objects.len() > 32 {
+        if self.dynamic.is_some() {
+            return Err("Dynamic actors already attached".into());
+        }
+        self.append_dynamic(objects)
+    }
+    /// Append a validated mission extension without changing the earlier actor order.
+    pub fn append_dynamic(&mut self, objects: Vec<Object>) -> Result<(), String> {
+        let existing = self.dynamic.as_ref().map_or(0, |p| p.objects.len());
+        if objects.is_empty()
+            || existing + objects.len() > 32
+            || self.state.dynamic.as_ref().map_or(0, Vec::len) != existing
+        {
             return Err("Invalid dynamic actor set".into());
         }
-        let mut ids = std::collections::BTreeSet::new();
+        let mut ids: std::collections::BTreeSet<_> = self
+            .dynamic
+            .as_ref()
+            .into_iter()
+            .flat_map(|p| p.objects.iter().map(|p| p.original))
+            .collect();
         let mut prepared = vec![];
         let mut textures = vec![];
         for object in objects {
@@ -115,8 +131,14 @@ impl Game {
             });
         }
         self.scene.textures.extend(textures);
-        self.state.dynamic = Some(vec![false; prepared.len()]);
-        self.dynamic = Some(Prepared { objects: prepared });
+        self.state
+            .dynamic
+            .get_or_insert_with(Vec::new)
+            .extend(vec![false; prepared.len()]);
+        self.dynamic
+            .get_or_insert_with(|| Prepared { objects: vec![] })
+            .objects
+            .extend(prepared);
         self.initial = self.state.clone();
         Ok(())
     }

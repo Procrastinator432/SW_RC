@@ -47,6 +47,7 @@ pub struct Assets {
 #[serde(deny_unknown_fields)]
 pub struct Sound {
     pub source: String,
+    #[serde(with = "crate::wave_bytes")]
     pub wave: Vec<u8>,
 }
 #[derive(Serialize, Deserialize)]
@@ -57,7 +58,7 @@ pub struct Notify {
     pub time: f32,
     pub sound: usize,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct Projectile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub velocity: Option<[f32; 3]>,
@@ -66,14 +67,14 @@ pub struct Projectile {
     pub speed: f64,
     pub age: f64,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct Event {
     pub sequence: u64,
     pub tick: u64,
     pub sound: usize,
     pub owner: i32,
 }
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, serde::Deserialize)]
 pub struct State {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jump: Option<crate::jump::State>,

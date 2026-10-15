@@ -4,4 +4,5 @@ pub mod defaults;
 pub mod play_scene;
 pub mod volumes;
 
+pub mod mission_assets;
 pub mod visual_assets;

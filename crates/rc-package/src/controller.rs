@@ -5,18 +5,18 @@ use crate::{
 };
 use serde::Serialize;
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, serde::Deserialize)]
 pub struct ControlledBody {
     pub body: BodyState,
     pub jump_held: bool,
 }
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, serde::Deserialize)]
 pub struct MovementInput {
     /// World XY axes, individual components in [-1,1]; diagonal length is clamped to one.
     pub direction: [f64; 2],
     pub jump: bool,
 }
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, serde::Deserialize)]
 pub struct ControllerOptions {
     pub speed: f64,
     pub acceleration: f64,
@@ -24,13 +24,13 @@ pub struct ControllerOptions {
     pub air_control: f64,
     pub jump_speed: f64,
 }
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, serde::Deserialize)]
 pub struct MovementRatios {
     pub walk: f64,
     pub back: f64,
     pub side: f64,
 }
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, serde::Deserialize)]
 pub struct ViewInput {
     pub forward: f64,
     pub strafe: f64,

@@ -3,7 +3,7 @@
 use crate::{animation_call::PlayAnimParameters, mesh_animation::AnimationChannel};
 use serde::Serialize;
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Serialize, serde::Deserialize)]
 pub struct PlaybackSequence {
     /// Opaque non-null original sequence pointer identity, not a package index.
     pub token: u32,
@@ -12,7 +12,7 @@ pub struct PlaybackSequence {
     pub minimum_blend: f32,
     pub randomize_start: bool,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct ChannelPlaybackSnapshot {
     pub channels: Vec<AnimationChannel>,
     pub byte_60: u8,
@@ -25,7 +25,7 @@ pub trait ChannelPlaybackHost {
     /// Native ReplicateAnim receives this index twice and a final true argument.
     fn replicate(&mut self, index: usize, channel: &AnimationChannel) -> Result<(), String>;
 }
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Serialize, serde::Deserialize)]
 pub struct ChannelPlaybackResult {
     pub reinitialized: bool,
     pub blend_time: f32,

@@ -31,7 +31,7 @@ pub struct Assets {
     pub jump_distance: f32,
     pub offensive_jump_probability: f32,
 }
-#[derive(Default, Debug, Clone, Serialize)]
+#[derive(Default, Debug, Clone, Serialize, serde::Deserialize)]
 pub struct Agent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub defensive_after_melee: Option<bool>,
@@ -44,7 +44,7 @@ pub struct Agent {
     pub blocked: u64,
     pub goal: Option<Goal>,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct Goal {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native: Option<rc_package::melee_goal::State>,
@@ -132,7 +132,15 @@ pub fn ground(
 }
 /// No unsupported stairs, jumps or drops: every sampled segment needs floor support.
 pub fn walkable(world: &StaticBodyWorld, from: Point, to: Point) -> Result<bool, String> {
-    let sweep = world.sweep_motion(from, to, EXTENT)?;
+    walkable_for(world, from, to, EXTENT)
+}
+pub fn walkable_for(
+    world: &StaticBodyWorld,
+    from: Point,
+    to: Point,
+    extent: Point,
+) -> Result<bool, String> {
+    let sweep = world.sweep_motion(from, to, extent)?;
     if !sweep.complete {
         return Err("Incomplete navigation sweep".into());
     }
@@ -145,7 +153,7 @@ pub fn walkable(world: &StaticBodyWorld, from: Point, to: Point) -> Result<bool,
     }
     for i in 0..=steps {
         let p = std::array::from_fn(|a| from[a] + (to[a] - from[a]) * i as f64 / steps as f64);
-        if world.floor_contact(p, EXTENT, 4., 0.7)?.is_none() {
+        if world.floor_contact(p, extent, 4., 0.7)?.is_none() {
             return Ok(false);
         }
     }
@@ -224,7 +232,16 @@ impl Assets {
         from: Point,
         to: Point,
     ) -> Result<Vec<Point>, String> {
-        if walkable(world, from, to)? {
+        self.plan_for(world, from, to, EXTENT)
+    }
+    pub fn plan_for(
+        &self,
+        world: &StaticBodyWorld,
+        from: Point,
+        to: Point,
+        extent: Point,
+    ) -> Result<Vec<Point>, String> {
+        if walkable_for(world, from, to, extent)? {
             return Ok(vec![to]);
         }
         let connect = |point| -> Result<Vec<(usize, f64)>, String> {
@@ -238,7 +255,7 @@ impl Assets {
             nearest.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
             let mut result = vec![];
             for (i, d) in nearest.into_iter().take(8) {
-                if walkable(world, point, self.nodes[i].position)? {
+                if walkable_for(world, point, self.nodes[i].position, extent)? {
                     result.push((i, d));
                 }
             }

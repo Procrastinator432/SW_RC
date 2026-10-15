@@ -435,6 +435,206 @@ pub fn encode(manifest: &Manifest, scene: &rc_render::Scene) -> Result<Vec<u8>, 
     Ok(bytes)
 }
 pub fn decode(bytes: &[u8]) -> Result<Game, String> {
+    if bytes.starts_with(b"RCPLAY14") {
+        if bytes.len() < 12 || bytes.len() > 112 * 1024 * 1024 {
+            return Err("Invalid campaign map bundle".into());
+        }
+        let n = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
+        if n > 32 * 1024 * 1024 {
+            return Err("Map metadata too large".into());
+        }
+        let a = serde_json::from_slice(bytes.get(12..12 + n).ok_or("Truncated map metadata")?)
+            .map_err(|e| e.to_string())?;
+        let base = bytes.get(12 + n..).ok_or("Missing map base")?;
+        if !base.starts_with(b"RCPLAY02") {
+            return Err("Map requires animated scene base".into());
+        }
+        let mut game = decode(base)?;
+        game.attach_map2(a)?;
+        return Ok(game);
+    }
+    if bytes.starts_with(b"RCPLAY13") {
+        if bytes.len() < 12 || bytes.len() > 128 * 1024 * 1024 {
+            return Err("Invalid opening bundle".into());
+        }
+        let size = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
+        if size > 24 * 1024 * 1024 {
+            return Err("Opening metadata limit".into());
+        }
+        let metadata = bytes
+            .get(12..12 + size)
+            .ok_or("Truncated opening metadata")?;
+        let base = bytes.get(12 + size..).ok_or("Missing opening base")?;
+        if !base.starts_with(b"RCPLAY12") {
+            return Err("Opening requires squad base".into());
+        }
+        let assets: crate::opening::Assets =
+            serde_json::from_slice(metadata).map_err(|e| e.to_string())?;
+        let mut game = decode(base)?;
+        game.attach_opening(assets)?;
+        return Ok(game);
+    }
+    if bytes.starts_with(b"RCPLAY12") {
+        if bytes.len() < 16 || bytes.len() > 128 * 1024 * 1024 {
+            return Err("Invalid squad tactics bundle size".into());
+        }
+        let n = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
+        if n > 24 * 1024 * 1024 {
+            return Err("Squad tactics metadata exceeds budget".into());
+        }
+        let assets = serde_json::from_slice(
+            bytes
+                .get(12..12 + n)
+                .ok_or("Truncated squad tactics metadata")?,
+        )
+        .map_err(|e| e.to_string())?;
+        let base = bytes.get(12 + n..).ok_or("Missing squad tactics base")?;
+        if !base.starts_with(b"RCPLAY11") {
+            return Err("Squad tactics requires one Warrior AI base".into());
+        }
+        let mut game = decode(base)?;
+        game.attach_tactics(assets)?;
+        return Ok(game);
+    }
+    if bytes.starts_with(b"RCPLAY11") {
+        if bytes.len() < 16 || bytes.len() > 112 * 1024 * 1024 {
+            return Err("Invalid Warrior AI bundle size".into());
+        }
+        let n = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
+        if n > 12 * 1024 * 1024 {
+            return Err("Warrior AI metadata exceeds budget".into());
+        }
+        let assets = serde_json::from_slice(
+            bytes
+                .get(12..12 + n)
+                .ok_or("Truncated Warrior AI metadata")?,
+        )
+        .map_err(|e| e.to_string())?;
+        let base = bytes.get(12 + n..).ok_or("Missing Warrior AI base")?;
+        if !base.starts_with(b"RCPLAY10") {
+            return Err("Warrior AI requires one artillery base".into());
+        }
+        let mut game = decode(base)?;
+        game.attach_warrior_ai(assets)?;
+        return Ok(game);
+    }
+    if bytes.starts_with(b"RCPLAY10") {
+        if bytes.len() < 16 || bytes.len() > 96 * 1024 * 1024 {
+            return Err("Invalid artillery bundle size".into());
+        }
+        let n = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
+        if n > 16 * 1024 * 1024 {
+            return Err("Artillery metadata exceeds budget".into());
+        }
+        let a = serde_json::from_slice(
+            bytes
+                .get(12..12 + n)
+                .ok_or("Truncated artillery metadata")?,
+        )
+        .map_err(|e| e.to_string())?;
+        let base = bytes.get(12 + n..).ok_or("Missing artillery base")?;
+        if !base.starts_with(b"RCPLAY09") {
+            return Err("Artillery requires one spire base".into());
+        }
+        let mut game = decode(base)?;
+        game.attach_artillery(a)?;
+        return Ok(game);
+    }
+    if bytes.starts_with(b"RCPLAY09") {
+        if bytes.len() < 16 || bytes.len() > 96 * 1024 * 1024 {
+            return Err("Invalid spire bundle size".into());
+        }
+        let n = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
+        if n > 16 * 1024 * 1024 {
+            return Err("Spire metadata exceeds budget".into());
+        }
+        let a = serde_json::from_slice(bytes.get(12..12 + n).ok_or("Truncated spire metadata")?)
+            .map_err(|e| e.to_string())?;
+        let base = bytes.get(12 + n..).ok_or("Missing spire base")?;
+        if !base.starts_with(b"RCPLAY08") {
+            return Err("Spire requires one demolition base".into());
+        }
+        let mut game = decode(base)?;
+        game.attach_spire(a)?;
+        return Ok(game);
+    }
+    if bytes.starts_with(b"RCPLAY08") {
+        if bytes.len() < 16 || bytes.len() > 128 * 1024 * 1024 {
+            return Err("Invalid demolition bundle size".into());
+        }
+        let n = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
+        if n > 32 * 1024 * 1024 {
+            return Err("Demolition metadata exceeds budget".into());
+        }
+        let a = serde_json::from_slice(bytes.get(12..12 + n).ok_or("Truncated demolition assets")?)
+            .map_err(|e| e.to_string())?;
+        let base = bytes.get(12 + n..).ok_or("Missing demolition base")?;
+        if !base.starts_with(b"RCPLAY07") {
+            return Err("Demolition requires one Scorch base".into());
+        }
+        let mut g = decode(base)?;
+        g.attach_demolition(a)?;
+        return Ok(g);
+    }
+    if bytes.starts_with(b"RCPLAY07") {
+        if bytes.len() < 16 || bytes.len() > 96 * 1024 * 1024 {
+            return Err("Invalid rendezvous bundle size".into());
+        }
+        let n = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
+        if n > 24 * 1024 * 1024 {
+            return Err("Rendezvous metadata exceeds budget".into());
+        }
+        let a = serde_json::from_slice(bytes.get(12..12 + n).ok_or("Truncated rendezvous assets")?)
+            .map_err(|e| e.to_string())?;
+        let base = bytes.get(12 + n..).ok_or("Missing rendezvous base")?;
+        if !base.starts_with(b"RCPLAY06") {
+            return Err("Rendezvous requires one gunner base".into());
+        }
+        let mut g = decode(base)?;
+        g.attach_rendezvous(a)?;
+        return Ok(g);
+    }
+    if bytes.starts_with(b"RCPLAY06") {
+        if bytes.len() < 16 || bytes.len() > 96 * 1024 * 1024 {
+            return Err("Invalid gun-position bundle size".into());
+        }
+        let size = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
+        if size > 16 * 1024 * 1024 {
+            return Err("Gun-position assets exceed budget".into());
+        }
+        let assets = serde_json::from_slice(
+            bytes
+                .get(12..12 + size)
+                .ok_or("Truncated gun-position assets")?,
+        )
+        .map_err(|e| e.to_string())?;
+        let base = bytes.get(12 + size..).ok_or("Missing throw base")?;
+        if !base.starts_with(b"RCPLAY05") {
+            return Err("Gun-position requires one throw base".into());
+        }
+        let mut game = decode(base)?;
+        game.attach_gunner(assets)?;
+        return Ok(game);
+    }
+    if bytes.starts_with(b"RCPLAY05") {
+        if bytes.len() < 16 || bytes.len() > 96 * 1024 * 1024 {
+            return Err("Invalid throw bundle size".into());
+        }
+        let size = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
+        if size > 8 * 1024 * 1024 {
+            return Err("Throw metadata exceeds budget".into());
+        }
+        let assets =
+            serde_json::from_slice(bytes.get(12..12 + size).ok_or("Truncated throw assets")?)
+                .map_err(|e| e.to_string())?;
+        let base = bytes.get(12 + size..).ok_or("Missing throw base")?;
+        if !base.starts_with(b"RCPLAY04") {
+            return Err("Throw requires one mission base".into());
+        }
+        let mut game = decode(base)?;
+        game.attach_throw(assets)?;
+        return Ok(game);
+    }
     if bytes.starts_with(b"RCPLAY04") {
         if bytes.len() < 16 || bytes.len() > 96 * 1024 * 1024 {
             return Err("Invalid mission bundle size".into());
@@ -509,6 +709,40 @@ pub fn decode(bytes: &[u8]) -> Result<Game, String> {
     let manifest: Manifest = serde_json::from_slice(metadata).map_err(|e| e.to_string())?;
     let scene = rc_render::Scene::from_snapshot(&bytes[12 + size..])?;
     manifest.into_game(scene)
+}
+
+/// RCPLAY05 adds bounded thermal throw metadata around exactly one mission.
+pub fn encode_throw(base: &[u8], assets: &crate::throw_runtime::Assets) -> Result<Vec<u8>, String> {
+    if !base.starts_with(b"RCPLAY04") {
+        return Err("Expected mission base".into());
+    }
+    let data = serde_json::to_vec(assets).map_err(|e| e.to_string())?;
+    if data.len() > 8 * 1024 * 1024 || data.len() + base.len() + 12 > 96 * 1024 * 1024 {
+        return Err("Throw bundle exceeds budget".into());
+    }
+    let mut out = b"RCPLAY05".to_vec();
+    out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    out.extend(data);
+    out.extend(base);
+    Ok(out)
+}
+
+pub fn encode_gunner(
+    base: &[u8],
+    assets: &crate::gunner_runtime::Assets,
+) -> Result<Vec<u8>, String> {
+    if !base.starts_with(b"RCPLAY05") {
+        return Err("Expected throw base".into());
+    }
+    let data = serde_json::to_vec(assets).map_err(|e| e.to_string())?;
+    if data.len() > 16 * 1024 * 1024 || data.len() + base.len() + 12 > 96 * 1024 * 1024 {
+        return Err("Gun-position bundle exceeds budget".into());
+    }
+    let mut out = b"RCPLAY06".to_vec();
+    out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    out.extend(data);
+    out.extend(base);
+    Ok(out)
 }
 
 /// RCPLAY02 wraps an unchanged RCPLAY01 scene with bounded compressed visual assets.

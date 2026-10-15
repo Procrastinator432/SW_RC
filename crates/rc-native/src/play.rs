@@ -12,6 +12,7 @@ use std::{
 struct Session {
     game: Game,
     graphics: [Option<Vec<u8>>; 2],
+    scene_identity: String,
 }
 impl std::ops::Deref for Session {
     type Target = Game;
@@ -37,7 +38,7 @@ pub unsafe extern "C" fn rc_game_actor_status(id: u64, out: *mut u8, capacity: u
     let Some(game) = registry.get(&id) else {
         return -1;
     };
-    let actors: Vec<_> = game
+    let mut actors: Vec<_> = game
         .state
         .enemies
         .iter()
@@ -51,6 +52,28 @@ pub unsafe extern "C" fn rc_game_actor_status(id: u64, out: *mut u8, capacity: u
             "visible":game.wall_fraction(game.eye(),target).is_ok_and(|f|f>=1.)})
         })
         .collect();
+    if let Some(c) = game.state.map.as_ref().and_then(|s| s.companion.as_ref()) {
+        if c.joined {
+            actors.push(serde_json::json!({"position":c.position,"health":c.health,"friendly":true,"role":"Scorch","visible":game.wall_fraction(game.eye(),c.position).is_ok_and(|f|f>=1.)}));
+        }
+    }
+    if let Some(c) = game.state.map.as_ref().and_then(|s| {
+        s.fixer
+            .as_ref()
+            .or_else(|| s.gameplay.as_ref().map(|g| &g.fixer))
+    }) {
+        if c.health > 0 {
+            actors.push(serde_json::json!({"position":c.position,"health":c.health,"friendly":true,"role":"Fixer","visible":game.wall_fraction(game.eye(),c.position).is_ok_and(|f|f>=1.)}));
+        }
+    }
+
+    if let Some(c) = game.state.map.as_ref().and_then(|m| {
+        m.sev
+            .as_ref()
+            .or_else(|| m.opening.as_ref().map(|s| &s.sev))
+    }) {
+        actors.push(serde_json::json!({"position":c.position,"health":c.health,"friendly":true,"role":"Sev","joined":c.joined,"visible":game.wall_fraction(game.eye(),c.position).is_ok_and(|f|f>=1.)}));
+    }
     let Ok(bytes) = serde_json::to_vec(&actors) else {
         return -1;
     };
@@ -93,6 +116,39 @@ pub unsafe extern "C" fn rc_game_mission_status(id: u64, out: *mut u8, capacity:
     text.len() as isize
 }
 /// Original WAV bank (kind 0) or consumable simulation sound events (kind 1).
+/// Versioned UTF-8 map handoff JSON; zero bytes before the original exit.
+/// Queries and copies are repeatable and do not consume the handoff.
+/// # Safety
+/// out is null with zero capacity or points to capacity writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn rc_game_map_handoff(id: u64, out: *mut u8, capacity: usize) -> isize {
+    if out.is_null() && capacity != 0 {
+        return -1;
+    }
+    let Ok(registry) = games().lock() else {
+        return -1;
+    };
+    let Some(game) = registry.get(&id) else {
+        return -1;
+    };
+    let bytes = match game.campaign_handoff() {
+        Ok(Some(h)) => match serde_json::to_vec(&h) {
+            Ok(b) => b,
+            Err(_) => return -1,
+        },
+        Ok(None) => Vec::new(),
+        Err(_) => return -1,
+    };
+    if out.is_null() {
+        return bytes.len() as isize;
+    }
+    if capacity < bytes.len() {
+        return -1;
+    }
+    std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, bytes.len());
+    bytes.len() as isize
+}
+/// Original WAV bank (kind 0) or consumable simulation sound events (kind 1).
 /// Query and short-buffer calls preserve events; only a successful full copy consumes them.
 /// # Safety
 /// out is null with capacity zero, or points to capacity writable bytes.
@@ -105,6 +161,16 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
         return -1;
     };
     let packet = match kind {
+        0 if game.map.is_some() => {
+            let mut b = b"RCSND001".to_vec();
+            let sounds = &game.map.as_ref().unwrap().assets.sounds;
+            b.extend_from_slice(&(sounds.len() as u32).to_le_bytes());
+            for s in sounds {
+                b.extend_from_slice(&(s.wave.len() as u32).to_le_bytes());
+                b.extend_from_slice(&s.wave);
+            }
+            b
+        }
         0 if game.mission.is_some() => {
             let sounds = &game.mission.as_ref().unwrap().sounds;
             let mut b = b"RCSND001".to_vec();
@@ -135,6 +201,7 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
                         .mission
                         .as_ref()
                         .map(|s| s.events.as_slice())
+                        .or_else(|| game.state.map.as_ref().map(|s| s.events.as_slice()))
                         .unwrap_or(&[])
                 });
             b.extend_from_slice(&(events.len() as u32).to_le_bytes());
@@ -160,6 +227,9 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
     }
     std::ptr::copy_nonoverlapping(packet.as_ptr(), out, packet.len());
     if kind == 1 {
+        if let Some(m) = &mut game.state.map {
+            m.events.clear();
+        }
         if let Some(c) = &mut game.state.combat {
             c.events.clear();
         }
@@ -172,6 +242,91 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
 fn games() -> &'static Mutex<HashMap<u64, Session>> {
     GAMES.get_or_init(|| Mutex::new(HashMap::new()))
 }
+/// Atomically replace a completed campaign session with its validated next map.
+/// An invalid/mismatching payload leaves the old game and graphics untouched.
+/// # Safety
+/// data points to len readable bytes, error to capacity writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn rc_game_travel(
+    id: u64,
+    data: *const u8,
+    len: usize,
+    error: *mut c_char,
+    capacity: usize,
+) -> i32 {
+    let result = (|| -> Result<(), String> {
+        if data.is_null() || len == 0 || len > 112 * 1024 * 1024 {
+            return Err("Invalid destination payload".into());
+        }
+        let mut registry = games().lock().map_err(|_| "Game registry unavailable")?;
+        let session = registry.get_mut(&id).ok_or("Invalid game handle")?;
+        let next = session
+            .game
+            .travel_to(std::slice::from_raw_parts(data, len))?;
+        *session = Session {
+            game: next,
+            graphics: [None, None],
+            scene_identity: format!(
+                "{}:{}",
+                len,
+                rc_game::replay::fingerprint(std::slice::from_raw_parts(data, len))
+            ),
+        };
+        Ok(())
+    })();
+    match result {
+        Ok(()) => 0,
+        Err(message) => {
+            if !error.is_null() && capacity > 0 {
+                let n = message.len().min(capacity - 1);
+                std::ptr::copy_nonoverlapping(message.as_ptr(), error as *mut u8, n);
+                *error.add(n) = 0;
+            }
+            -1
+        }
+    }
+}
+/// # Safety
+/// data points to len readable bytes, error to capacity writable bytes; no overlap.
+/// Restore a saved, versioned handoff on a fresh destination map. Invalid
+/// inventory/destination data leaves its initial state unchanged.
+/// # Safety
+/// data points to len readable bytes, error to capacity writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn rc_game_restore_handoff(
+    id: u64,
+    data: *const u8,
+    len: usize,
+    error: *mut c_char,
+    capacity: usize,
+) -> i32 {
+    let result = (|| -> Result<(), String> {
+        if data.is_null() || len == 0 || len > 4 * 1024 * 1024 {
+            return Err("Invalid saved handoff payload".into());
+        }
+        let h = serde_json::from_slice(std::slice::from_raw_parts(data, len))
+            .map_err(|e| e.to_string())?;
+        let mut registry = games().lock().map_err(|_| "Game registry unavailable")?;
+        {
+            let session = registry.get_mut(&id).ok_or("Invalid game handle")?;
+            session.restore_handoff(&h)?;
+            session.graphics[1] = None;
+            Ok(())
+        }
+    })();
+    match result {
+        Ok(()) => 0,
+        Err(message) => {
+            if !error.is_null() && capacity > 0 {
+                let n = message.len().min(capacity - 1);
+                std::ptr::copy_nonoverlapping(message.as_ptr(), error as *mut u8, n);
+                *error.add(n) = 0;
+            }
+            -1
+        }
+    }
+}
+/// Create an independent playable session.
 /// # Safety
 /// data points to len readable bytes, error to capacity writable bytes; no overlap.
 #[no_mangle]
@@ -182,7 +337,7 @@ pub unsafe extern "C" fn rc_game_create(
     capacity: usize,
 ) -> u64 {
     let _timing = performance::Span::new(performance::Category::BundleLoad);
-    let result = if data.is_null() || len > 96 * 1024 * 1024 {
+    let result = if data.is_null() || len > 112 * 1024 * 1024 {
         Err("Invalid game payload".into())
     } else {
         rc_game::bundle::decode(std::slice::from_raw_parts(data, len))
@@ -200,6 +355,11 @@ pub unsafe extern "C" fn rc_game_create(
             Session {
                 game,
                 graphics: [None, None],
+                scene_identity: format!(
+                    "{}:{}",
+                    len,
+                    rc_game::replay::fingerprint(std::slice::from_raw_parts(data, len))
+                ),
             },
         );
         Ok(id)
@@ -216,7 +376,7 @@ pub unsafe extern "C" fn rc_game_create(
         }
     }
 }
-/// Buttons: bit0 jump, bit1 fire, bit2 reload, bit3 walk, bit4 use. Returns tick count or -1.
+/// Buttons: bit0 jump, bit1 fire, bit2 reload, bit3 walk, bit4 use, bit5 grenade. Returns tick count or -1.
 #[no_mangle]
 pub extern "C" fn rc_game_advance(
     id: u64,
@@ -227,7 +387,7 @@ pub extern "C" fn rc_game_advance(
     look_y: f32,
     buttons: u32,
 ) -> i32 {
-    if buttons & !31 != 0 {
+    if buttons & !127 != 0 {
         return -1;
     }
     let Ok(mut registry) = games().lock() else {
@@ -248,6 +408,8 @@ pub extern "C" fn rc_game_advance(
             reload: buttons & 4 != 0,
             walking: buttons & 8 != 0,
             use_action: buttons & 16 != 0,
+            throw_grenade: buttons & 32 != 0,
+            crouch: buttons & 64 != 0,
         },
     )
     .map_or(-1, |n| n as i32)
@@ -327,7 +489,7 @@ pub unsafe extern "C" fn rc_game_status(id: u64, output: *mut u32, capacity: usi
         },
         s.statistics.ticks as u32,
         s.statistics.shots,
-        s.statistics.kills,
+        s.statistics.kills + s.squad.as_ref().map_or(0, |q| q.kills),
         s.statistics.jumps,
         s.statistics.enemy_shots,
     ];
@@ -461,6 +623,124 @@ pub unsafe extern "C" fn rc_game_observe(id: u64, output: *mut f64, capacity: us
     ];
     std::ptr::copy_nonoverlapping(values.as_ptr(), output, 6);
     6
+}
+
+/// Selected squad state. Short buffers are untouched.
+/// # Safety
+/// `output` must hold `capacity` writable u32 words when non-null.
+#[no_mangle]
+pub unsafe extern "C" fn rc_game_squad_status(id: u64, output: *mut u32, capacity: usize) -> i32 {
+    if output.is_null() || capacity < 12 {
+        return -1;
+    }
+    let Ok(registry) = games().lock() else {
+        return -1;
+    };
+    let Some(game) = registry.get(&id) else {
+        return -1;
+    };
+    let mut words = [0u32; 12];
+    if let Some(s) = &game.state.squad {
+        words = [
+            s.health,
+            s.shields.ceil() as u32,
+            u32::from(s.joined),
+            u32::from(s.down),
+            u32::from(s.player_down),
+            match s.order {
+                rc_game::squad::Order::Follow => 0,
+                rc_game::squad::Order::Hold => 1,
+                rc_game::squad::Order::Focus(_) => 2,
+            },
+            (s.progress * 1000.) as u32,
+            s.shots as u32,
+            s.hits as u32,
+            s.kills,
+            s.player_revives,
+            s.scorch_revives,
+        ];
+    }
+    if game.state.squad.is_none() {
+        if let Some(c) = game.state.map.as_ref().and_then(|s| s.companion.as_ref()) {
+            words[0] = c.health;
+            words[1] = c.shields.ceil() as u32;
+            words[2] = u32::from(c.joined);
+            words[3] = u32::from(c.down);
+        }
+    }
+    std::ptr::copy_nonoverlapping(words.as_ptr(), output, 12);
+    12
+}
+
+/// Full build/scene-bound checkpoint, query size with null output. Does not consume audio/input.
+/// # Safety
+/// out is null with zero capacity or points to capacity writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn rc_game_checkpoint(id: u64, out: *mut u8, capacity: usize) -> isize {
+    let Ok(registry) = games().lock() else {
+        return -1;
+    };
+    let Some(session) = registry.get(&id) else {
+        return -1;
+    };
+    let Ok(bytes) = session.checkpoint(&session.scene_identity) else {
+        return -1;
+    };
+    if out.is_null() {
+        return if capacity == 0 {
+            bytes.len() as isize
+        } else {
+            -1
+        };
+    }
+    if capacity < bytes.len() {
+        return bytes.len() as isize;
+    }
+    std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, bytes.len());
+    bytes.len() as isize
+}
+/// Restore a checkpoint atomically into the matching scene; graphics include dynamic collisions.
+/// # Safety
+/// data points to len readable bytes; error points to capacity writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn rc_game_restore_checkpoint(
+    id: u64,
+    data: *const u8,
+    len: usize,
+    error: *mut c_char,
+    capacity: usize,
+) -> i32 {
+    let result = (|| -> Result<(), String> {
+        if data.is_null() || len > rc_game::checkpoint::LIMIT {
+            return Err("Invalid checkpoint payload".into());
+        }
+        let mut registry = games().lock().map_err(|_| "Game registry unavailable")?;
+        let session = registry.get_mut(&id).ok_or("Invalid game handle")?;
+        let identity = session.scene_identity.clone();
+        session.restore_checkpoint(std::slice::from_raw_parts(data, len), &identity)?;
+        session.graphics = [None, None];
+        Ok(())
+    })();
+    match result {
+        Ok(()) => 0,
+        Err(message) => {
+            if !error.is_null() && capacity > 0 {
+                let n = message.len().min(capacity - 1);
+                std::ptr::copy_nonoverlapping(message.as_ptr(), error.cast::<u8>(), n);
+                *error.add(n) = 0;
+            }
+            -1
+        }
+    }
+}
+/// Major objective token for checkpoint scheduling; zero denotes an invalid session.
+#[no_mangle]
+pub extern "C" fn rc_game_checkpoint_marker(id: u64) -> u64 {
+    games()
+        .lock()
+        .ok()
+        .and_then(|r| r.get(&id).map(|s| s.checkpoint_marker()))
+        .unwrap_or(0)
 }
 
 #[cfg(test)]

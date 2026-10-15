@@ -82,6 +82,17 @@ pub fn load(
     clips: &[&str],
     assets: &mut assets::Assets,
 ) -> Result<Mesh, Box<dyn std::error::Error>> {
+    load_from_animation(game, file, object, clips, assets, None)
+}
+/// Select one original animation linkup when multiple sets contain the same clip name.
+pub fn load_from_animation(
+    game: &Path,
+    file: &str,
+    object: &str,
+    clips: &[&str],
+    assets: &mut assets::Assets,
+    animation_filter: Option<&str>,
+) -> Result<Mesh, Box<dyn std::error::Error>> {
     let data = fs::read(game.join("Animations").join(file))?;
     let pkg = read_package(&data)?;
     let e = pkg
@@ -135,6 +146,9 @@ pub fn load(
     let mut available = vec![];
     for link in &prefix.linkups {
         let path = qualify(link.animation_index)?;
+        if animation_filter.is_some_and(|set| !path.eq_ignore_ascii_case(set)) {
+            continue;
+        }
         let (file, object) = path.split_once('.').ok_or("Invalid animation path")?;
         let data = fs::read(game.join("Animations").join(format!("{file}.ukx")))?;
         let p = read_package(&data)?;

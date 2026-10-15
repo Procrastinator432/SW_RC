@@ -1,4 +1,4 @@
-//! IsChannelActive and GetMoveCoords(..., false) on explicit skeletal channel snapshots.
+//! IsChannelActive and GetMoveCoords on explicit skeletal channel snapshots.
 use crate::mesh_animation::AnimationChannel;
 
 pub fn channel_active(channels: &[AnimationChannel], index: i32, bone: i32) -> bool {
@@ -59,7 +59,27 @@ pub trait MoveCoordsHost {
 pub fn get_move_coords_absolute(
     channels: &mut [AnimationChannel],
     move_bone: i32,
+    output: Option<&mut [u32; 16]>,
+    host: &mut impl MoveCoordsHost,
+) -> Result<bool, String> {
+    get_move_coords(channels, move_bone, output, None, host)
+}
+/// Relative variant used by physRootMotion. Anchor is instance matrix +128,
+/// established at animation entry; caller supplies its persistent snapshot.
+pub fn get_move_coords_relative(
+    channels: &mut [AnimationChannel],
+    move_bone: i32,
+    output: Option<&mut [u32; 16]>,
+    anchor: [u32; 16],
+    host: &mut impl MoveCoordsHost,
+) -> Result<bool, String> {
+    get_move_coords(channels, move_bone, output, Some(anchor), host)
+}
+fn get_move_coords(
+    channels: &mut [AnimationChannel],
+    move_bone: i32,
     mut output: Option<&mut [u32; 16]>,
+    anchor: Option<[u32; 16]>,
     host: &mut impl MoveCoordsHost,
 ) -> Result<bool, String> {
     let mut matched = false;
@@ -80,6 +100,9 @@ pub fn get_move_coords_absolute(
         if let Some(matrix) = output.as_deref_mut() {
             let evaluated = host.evaluate_move_matrix(index, channels)?;
             *matrix = evaluated;
+            if let Some(anchor) = anchor {
+                *matrix = crate::root_motion::compose_relative(evaluated, anchor)?;
+            }
         }
         matched = true;
     }
@@ -184,6 +207,32 @@ mod tests {
         assert!(get_move_coords_absolute(&mut c, 0, None, &mut h).unwrap());
         assert_eq!(h.events, ["seq0"]);
         assert_eq!(c[0].words[17], 900);
+    }
+    #[test]
+    fn relative_query_without_output_does_not_read_or_compose_anchor() {
+        let mut c = vec![channel(0, 3)];
+        let mut h = Host {
+            flags: vec![Some(1)],
+            events: vec![],
+            fail: None,
+        };
+        assert!(
+            get_move_coords_relative(&mut c, 0, None, [f32::NAN.to_bits(); 16], &mut h).unwrap()
+        );
+        assert_eq!(h.events, ["seq0"]);
+    }
+    #[test]
+    fn relative_later_evaluation_error_retains_prior_composed_copy() {
+        let mut c = vec![channel(0, 3); 2];
+        let mut h = Host {
+            flags: vec![Some(1); 2],
+            events: vec![],
+            fail: Some(1),
+        };
+        let mut output = [7; 16];
+        assert!(get_move_coords_relative(&mut c, 0, Some(&mut output), [0; 16], &mut h).is_err());
+        assert_eq!(output, [0; 16]);
+        assert_eq!(h.events, ["seq0", "eval0", "seq1", "eval1"]);
     }
     #[test]
     fn last_matrix_wins_and_later_error_keeps_prior_copy() {

@@ -12,6 +12,31 @@ use rc_package::{
 use std::{collections::HashMap, fs, path::Path, sync::Arc};
 
 pub fn load(game_data: &Path, map: &Path, snapshot: &Path) -> Result<rc_game::Game, String> {
+    load_impl(game_data, map, snapshot, false, false)
+}
+/// Opt-in mathematical completion; currently used only for the third-map import.
+pub fn load_completed_cells(
+    game_data: &Path,
+    map: &Path,
+    snapshot: &Path,
+) -> Result<rc_game::Game, String> {
+    load_impl(game_data, map, snapshot, true, false)
+}
+/// Import DT_StaticMesh world collision; dynamic icon/helper DefaultProp meshes are not runtime bodies.
+pub fn load_static_draw_types(
+    game_data: &Path,
+    map: &Path,
+    snapshot: &Path,
+) -> Result<rc_game::Game, String> {
+    load_impl(game_data, map, snapshot, false, true)
+}
+fn load_impl(
+    game_data: &Path,
+    map: &Path,
+    snapshot: &Path,
+    complete_cells: bool,
+    static_draw_types: bool,
+) -> Result<rc_game::Game, String> {
     let catalog = defaults::load(game_data)?;
     let bytes = fs::read(map).map_err(|e| e.to_string())?;
     let pkg = read_package(&bytes)?;
@@ -70,6 +95,16 @@ pub fn load(game_data: &Path, map: &Path, snapshot: &Path) -> Result<rc_game::Ga
         if !boolean("bCollideActors")? || !boolean("bBlockPlayers")? {
             continue;
         }
+        if static_draw_types && !matches!(value("DrawType")?, Value::Byte(8)) {
+            continue;
+        }
+        // Hidden light/icon carrier meshes are editor DefaultProp helpers, not imported factory world bodies.
+        if static_draw_types
+            && path == "GlobalProps.DefaultProp.DefaultPropA"
+            && boolean("bHidden")?
+        {
+            continue;
+        }
         let cylinder = boolean("bUseCylinderCollision")?;
         let vector = |name| match value(name)? {
             Value::Vector(v) => Ok(v),
@@ -124,9 +159,19 @@ pub fn load(game_data: &Path, map: &Path, snapshot: &Path) -> Result<rc_game::Ga
             let collision = mesh_collision::read(p, data, export, &mesh)?;
             let simple = if collision.simple_model > 0 {
                 let e = &p.exports[collision.simple_model as usize - 1];
-                let bsp = geometry::read_bsp(p, data, e)?;
+                let bsp = geometry::read_bsp(p, data, e).map_err(|error| {
+                    format!(
+                        "actor {} class {class}: {path} simple model (version {}): {error}",
+                        pkg.object_path(i as i32 + 1).unwrap_or_default(),
+                        p.summary.version
+                    )
+                })?;
                 let solid = collision::read_model_collision(p, data, e, &bsp)?;
-                Some(HullSet::read(&bsp, &solid)?)
+                Some(if complete_cells {
+                    rc_package::bsp_cells::complete(&bsp, &solid)?
+                } else {
+                    HullSet::read(&bsp, &solid)?
+                })
             } else {
                 None
             };

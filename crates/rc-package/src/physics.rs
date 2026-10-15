@@ -5,13 +5,13 @@ use crate::{
 };
 use serde::Serialize;
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, serde::Deserialize)]
 pub struct BodyState {
     pub position: [f64; 3],
     pub velocity: [f64; 3],
     pub grounded: bool,
 }
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, serde::Deserialize)]
 pub struct PhysicsOptions {
     pub extent: [f64; 3],
     pub gravity: f64,

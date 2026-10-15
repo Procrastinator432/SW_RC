@@ -80,14 +80,14 @@ impl Assets {
         Ok(())
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub enum Stage {
     Start,
     Flight,
     Land,
     Sleep,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct Motion {
     pub node: u32,
     pub stage: Stage,
@@ -122,7 +122,7 @@ impl Motion {
         ]
     }
 }
-#[derive(Clone, Debug, Default, Serialize)]
+#[derive(Clone, Debug, Default, Serialize, serde::Deserialize)]
 pub struct State {
     pub requests: Vec<bool>,
     pub motions: Vec<Option<Motion>>,

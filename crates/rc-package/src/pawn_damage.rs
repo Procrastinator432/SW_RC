@@ -5,7 +5,7 @@
 //! or non-ASCII inputs are not reconstructed here.
 use crate::damage_variance::{calculate, Binding};
 
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct State {
     pub health: f32,
     pub shields: f32,

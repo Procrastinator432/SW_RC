@@ -18,6 +18,8 @@ import java.util.concurrent.*;
 public final class PlayActivity extends Activity {
     static { System.loadLibrary("rc_bridge"); }
     private static native long createGame(byte[] data) throws IOException;
+    private static native void travelGame(long id,byte[] data) throws IOException;
+    private static native void restoreHandoff(long id,byte[] data) throws IOException;
     private static native int[] gameFrame(long id,double elapsed,float forward,float strafe,
         float lookX,float lookY,int buttons,int width,int height,long[] metrics) throws IOException;
     private static native byte[] gameAudio(long id,int kind) throws IOException;
@@ -27,13 +29,22 @@ public final class PlayActivity extends Activity {
     private static native int[] jumpStatus(long id) throws IOException;
     private static native String actorStatus(long id) throws IOException;
     private static native String missionStatus(long id) throws IOException;
+    private static native byte[] mapHandoff(long id) throws IOException;
+    private static native byte[] gameCheckpoint(long id) throws IOException;
+    private static native void restoreCheckpoint(long id,byte[] data) throws IOException;
+    private static native long checkpointMarker(long id);
+    private static native int[] gameStatus(long id) throws IOException;
+    private CheckpointStore checkpoints;
+    private String currentScene; // worker-owned immutable cache key
+    private long savedTick=-1,savedMarker,nextSaveAttempt; // worker-owned
     private String lastJumpState=""; // worker-owned observation only
     private static native void releaseGame(long id);
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final Handler handler=new Handler(Looper.getMainLooper());
     private final Runnable pump=() -> queueFrame(false);
     private long game; // worker only
-    private boolean loaded,paused,resumed,drawing,finished;
+    private boolean loaded,paused,resumed,drawing,finished,pendingTravel,loading;
+    private int audioGeneration;
     private int generation,lastShots,lastHP=100,lastPhase,lastEnemies=3,lastAmmo=20;
     private long lastFrame;
     private ImageView image;
@@ -43,6 +54,7 @@ public final class PlayActivity extends Activity {
     private Controls controls;
     private TextView status;
     private Button open,pause;
+    private String nextMap="";
     private Bitmap bitmap;
     private ToneGenerator audio;
     private SceneAudio sceneAudio;
@@ -51,6 +63,7 @@ public final class PlayActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        checkpoints=new CheckpointStore(getFilesDir());
         profiling=getIntent().getBooleanExtra("rcProfile",false);
         android.app.ActivityManager manager=(android.app.ActivityManager)getSystemService(ACTIVITY_SERVICE);
         useGpu=manager.getDeviceConfigurationInfo().reqGlEsVersion>=0x20000 && !getIntent().getBooleanExtra("rcSoftware",false);
@@ -61,6 +74,7 @@ public final class PlayActivity extends Activity {
         LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.rgb(16,25,35));
         LinearLayout bar=new LinearLayout(this);
         open=button(bar,"Szene öffnen",() -> {
+            pendingTravel=finished && lastPhase==1 && !nextMap.isEmpty();
             Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT); intent.setType("*/*");
             intent.addCategory(Intent.CATEGORY_OPENABLE); startActivityForResult(intent,1);
         });
@@ -71,6 +85,10 @@ public final class PlayActivity extends Activity {
         status=new TextView(this); status.setTextColor(Color.rgb(190,230,224)); status.setTextSize(12);
         status.setText("geo_01a.rcplay öffnen · links bewegen, rechts zielen");
         bar.addView(status,new LinearLayout.LayoutParams(0,-1,1)); root.addView(bar);
+        LinearLayout saves=new LinearLayout(this);
+        button(saves,"Checkpoint speichern",this::saveManually);
+        button(saves,"Checkpoint laden",() -> loadCheckpoint(false));
+        root.addView(saves);
         FrameLayout frame=new FrameLayout(this);
         image=new ImageView(this); image.setScaleType(ImageView.ScaleType.FIT_CENTER);
         image.setContentDescription("Spielbare Szene geo_01a"); frame.addView(image,new FrameLayout.LayoutParams(-1,-1));
@@ -82,7 +100,8 @@ public final class PlayActivity extends Activity {
         frame.addView(gpu,new FrameLayout.LayoutParams(-1,-1));
         controls=new Controls(); frame.addView(controls,new FrameLayout.LayoutParams(-1,-1));
         root.addView(frame,new LinearLayout.LayoutParams(-1,0,1)); setContentView(root);
-        if(getIntent().getData()!=null) loadScene(getIntent().getData());
+        if(getIntent().getBooleanExtra("rcContinue",false))loadCheckpoint(false);
+        else if(getIntent().getData()!=null) loadScene(getIntent().getData());
     }
     private Button button(LinearLayout row,String title,Runnable action) {
         Button b=new Button(this); b.setText(title); b.setTextSize(12); b.setOnClickListener(v -> action.run()); row.addView(b); return b;
@@ -96,22 +115,22 @@ public final class PlayActivity extends Activity {
         if(loaded) {worker.execute(() -> {try {gameCommand(game,0);} catch(Exception e) {failure(e.getMessage());}});queueFrame(true);}
     }
     private void togglePause() {
-        if(!loaded || finished) return;
+        if(!loaded || loading || finished) return;
         paused=!paused; generation++; controls.clear(); lastFrame=0; handler.removeCallbacks(pump);
         pause.setText(paused ? "Fortsetzen" : "Pause");
         if(paused) {
-            if(sceneAudio!=null) sceneAudio.stop();
-            worker.execute(() -> {try {gameCommand(game,0);} catch(Exception e) {Log.e("RCPlay","pause",e);} });
+            if(sceneAudio!=null) sceneAudio.suspend();
+            worker.execute(() -> {try {gameCommand(game,0);saveCheckpointWorker(true);} catch(Exception e) {Log.e("RCPlay","pause",e);} });
             status.setText("Pausiert");
-        } else {status.setText("Drei Gegner ausschalten, dann Exfil erreichen"); queueFrame(false);}
+        } else {if(sceneAudio!=null && resumed) sceneAudio.resume();status.setText("Drei Gegner ausschalten, dann Exfil erreichen"); queueFrame(false);}
     }
     private void restart() {
-        if(!loaded) return;
-        generation++; controls.clear(); handler.removeCallbacks(pump); lastFrame=0; finished=false; paused=false;
+        if(!loaded || loading) return;
+        generation++; audioGeneration++; controls.clear(); handler.removeCallbacks(pump); lastFrame=0; finished=false; paused=false;
         pause.setText("Pause"); status.setText("Neustart …");
         if(sceneAudio!=null) sceneAudio.reset();
         worker.execute(() -> {
-            try { gameCommand(game,1); runOnUiThread(() -> {
+            try { gameCommand(game,1);saveCheckpointWorker(true); runOnUiThread(() -> {
                 if(isDestroyed()) return; lastShots=0; lastHP=100; lastPhase=0; lastEnemies=3; lastAmmo=20;
                 status.setText("Drei Gegner ausschalten, dann Exfil erreichen"); queueFrame(true);
             }); } catch(Exception e) {failure(e.getMessage());}
@@ -122,35 +141,123 @@ public final class PlayActivity extends Activity {
         if(request!=1 || result!=RESULT_OK || data==null || data.getData()==null) return;
         loadScene(data.getData());
     }
-    private void loadScene(Uri uri) {
-        loaded=false; generation++; controls.clear(); handler.removeCallbacks(pump); open.setEnabled(false);
-        if(sceneAudio!=null) {sceneAudio.close();sceneAudio=null;}
-        status.setText("Szene und Kollision werden geladen …"); image.setImageDrawable(null); gpu.world(null);
+    private void saveCheckpointWorker(boolean force) {saveCheckpointWorker(force,false);}
+    private void saveCheckpointWorker(boolean force,boolean announce) {
+        if(game==0 || currentScene==null)return;
+        try {
+            int[] values=gameStatus(game);long marker=checkpointMarker(game);
+            if(values[4]==2 || values[0]==0) {if(announce)runOnUiThread(() -> Toast.makeText(this,"Der letzte spielbare Checkpoint bleibt erhalten.",Toast.LENGTH_LONG).show());return;} // Keep the last playable checkpoint after defeat.
+            if(!force && (System.nanoTime()<nextSaveAttempt || (savedTick>=0 && values[5]-savedTick<600 && marker==savedMarker)))return;
+            checkpoints.save(currentScene,missionStatus(game),gameCheckpoint(game));
+            savedTick=values[5];savedMarker=marker;nextSaveAttempt=0;
+            Log.i("RCCheckpoint","saved ticks="+savedTick+" scene="+currentScene);
+            if(announce)runOnUiThread(() -> {if(!isDestroyed())Toast.makeText(this,"Checkpoint gespeichert",Toast.LENGTH_SHORT).show();});
+        } catch(Exception e) {
+            nextSaveAttempt=System.nanoTime()+30_000_000_000L;Log.e("RCCheckpoint","save failed",e);
+            runOnUiThread(() -> {if(!isDestroyed())Toast.makeText(this,"Checkpoint konnte nicht gespeichert werden: "+e.getMessage(),Toast.LENGTH_LONG).show();});
+        }
+    }
+    private void saveManually() {
+        if(!loaded || loading)return;
+        worker.execute(() -> {try {gameCommand(game,0);saveCheckpointWorker(true,true);}catch(Exception e){failure(e.getMessage());}});
+    }
+    private void loadCheckpoint(boolean previous) {
+        if(loading)return;
+        if(!checkpoints.hasSave()) {status.setText("Noch kein Checkpoint vorhanden. Zuerst eine Szene öffnen.");return;}
+        prepareLoad();
         worker.execute(() -> {
-            long loadStart=System.nanoTime();
-            releaseGame(game); game=0;
-            try(InputStream input=getContentResolver().openInputStream(uri); ByteArrayOutputStream bytes=new ByteArrayOutputStream()) {
-                if(input==null) throw new IOException("Datei konnte nicht geöffnet werden");
-                byte[] block=new byte[32768]; int n;
-                while((n=input.read(block))!=-1) {
-                    if(bytes.size()+n>96*1024*1024) throw new IOException("Szene überschreitet 96 MiB");
-                    bytes.write(block,0,n);
-                }
-                long decodeStart=System.nanoTime();
-                game=createGame(bytes.toByteArray());
-                final GpuSceneView.World world=new GpuSceneView.World(gpuWorld(game));
-                final byte[] soundBank=gameAudio(game,0);
-                Log.i("RCPlay","loaded geo_01a game="+game);
-                if(profiling) Log.i("RCPerf","{\"type\":\"load\",\"read_ns\":"+(decodeStart-loadStart)+",\"create_ns\":"+(System.nanoTime()-decodeStart)+",\"bytes\":"+bytes.size()+"}");
-                runOnUiThread(() -> {
-                    if(isDestroyed()) return;
-                    try {sceneAudio=new SceneAudio(this,soundBank);} catch(IOException ex) {failure(ex.getMessage());open.setEnabled(true);return;}
-                    gpu.world(world); loaded=true; paused=false; finished=false; lastFrame=0;
-                    lastShots=0; lastHP=100; lastPhase=0; lastEnemies=3; lastAmmo=20; pause.setText("Pause"); open.setEnabled(true);
-                    status.setText("Drei Gegner ausschalten, dann Exfil erreichen"); controls.invalidate(); queueFrame(true);
-                });
-            } catch(Exception ex) {runOnUiThread(() -> {if(!isDestroyed()) {open.setEnabled(true); status.setText("Ladefehler: "+ex.getMessage());}});}
+            try {CheckpointStore.Record record=checkpoints.load(previous);if(loadSceneWorker(null,record,false,false) && previous)saveCheckpointWorker(true);}
+            catch(Exception e) {runOnUiThread(() -> recovery("Checkpoint konnte nicht geladen werden: "+e.getMessage(),null,true));}
         });
+    }
+    private void prepareLoad() {
+        loading=true;generation++;audioGeneration++;controls.clear();handler.removeCallbacks(pump);lastFrame=0;open.setEnabled(false);
+        paused=true;if(sceneAudio!=null)sceneAudio.suspend();status.setText("Spielstand und Szene werden geladen …");
+    }
+    private void loadScene(Uri uri) {
+        final boolean travel=pendingTravel;pendingTravel=false;prepareLoad();
+        worker.execute(() -> loadSceneWorker(uri,null,travel,false));
+    }
+    private boolean loadSceneWorker(Uri uri,CheckpointStore.Record record,boolean travel,boolean ignoreHandoff) {
+        long candidate=0;boolean created=false;Uri failedUri=uri;
+        try {
+            final byte[] bytes;
+            if(record!=null)bytes=checkpoints.scene(record.scene,getCacheDir());
+            else try(android.content.res.AssetFileDescriptor descriptor=getContentResolver().openAssetFileDescriptor(uri,"r")) {
+                if(descriptor==null)throw new IOException("Szenendatei konnte nicht geöffnet werden");
+                try(InputStream input=descriptor.createInputStream()){bytes=SceneBytes.read(input,descriptor.getLength(),getCacheDir());}
+            }
+            String cached=checkpoints.cache(bytes);
+            if(travel) {travelGame(game,bytes);candidate=game;}
+            else {
+                candidate=createGame(bytes);created=true;
+                if(record!=null) {
+                    restoreCheckpoint(candidate,record.state);gameCommand(candidate,0);gameAudio(candidate,1);
+                    Log.i("RCCheckpoint","restored "+record.title);
+                } else {
+                    String destination=missionStatus(candidate),saveName=CampaignRoutes.saved(destination);
+                    File saved=saveName==null?null:new File(getFilesDir(),saveName);
+                    if(saved!=null && saved.exists() && !ignoreHandoff) {
+                        if(saved.length()<1 || saved.length()>4*1024*1024)throw new IOException("Gespeicherte Kartenübergabe ist beschädigt");
+                        try(InputStream in=new FileInputStream(saved)){restoreHandoff(candidate,SceneBytes.read(in,saved.length(),getCacheDir()));}
+                        Log.i("RCPlay","Saved handoff restored on "+CampaignRoutes.map(destination));
+                    }
+                    if(ignoreHandoff && saved!=null)CheckpointStore.quarantine(saved);
+                }
+            }
+            final GpuSceneView.World world=new GpuSceneView.World(gpuWorld(candidate));
+            final byte[] bank=gameAudio(candidate,0);String guidance=missionStatus(candidate);
+            // Rejected scenes/checkpoints must not replace the recovery scene.
+            checkpoints.markScene(cached);
+            if(candidate!=game){releaseGame(game);game=candidate;}created=false;
+            currentScene=cached;savedTick=-1;savedMarker=0;
+            // A previous-generation recovery leaves the rejected primary intact for diagnostics.
+            if(record==null)saveCheckpointWorker(true);
+            else {int[] values=gameStatus(game);savedTick=values[5];savedMarker=checkpointMarker(game);}
+            Log.i("RCPlay","loaded "+(CampaignRoutes.map(guidance).isEmpty()?"geo_01a":CampaignRoutes.map(guidance).toLowerCase(Locale.ROOT))+" game="+game);
+            final boolean restoring=record!=null;
+            runOnUiThread(() -> {
+                if(isDestroyed())return;
+                if(sceneAudio!=null)sceneAudio.close();
+                try {sceneAudio=new SceneAudio(this,bank);}catch(IOException e){failure(e.getMessage());open.setEnabled(true);return;}
+                loading=false;nextMap="";gpu.world(world);loaded=true;paused=restoring;finished=false;lastFrame=0;
+                lastShots=0;lastHP=100;lastPhase=0;lastEnemies=3;lastAmmo=20;pause.setText(paused?"Fortsetzen":"Pause");open.setEnabled(true);open.setText("Szene öffnen");
+                status.setText(restoring?"Checkpoint geladen · "+guidance:guidance);
+                controls.clear();controls.invalidate();queueFrame(true);
+            });
+            return true;
+        } catch(Exception e) {
+            if(created)releaseGame(candidate);
+            final Uri recoveryUri=failedUri;
+            runOnUiThread(() -> recovery("Laden fehlgeschlagen: "+e.getMessage(),recoveryUri,record!=null));
+            return false;
+        }
+    }
+    private void recovery(String message,Uri uri,boolean checkpoint) {
+        if(isDestroyed())return;
+        loading=false;paused=true;open.setEnabled(true);pause.setText("Fortsetzen");status.setText(message);
+        ArrayList<String> labels=new ArrayList<>();ArrayList<Runnable> actions=new ArrayList<>();
+        if(checkpoints.hasPrevious()) {
+            labels.add("Vorherigen Checkpoint laden");actions.add(() -> {worker.execute(() -> {try {checkpoints.quarantine(false);}catch(IOException e){Log.e("RCCheckpoint","quarantine",e);}});loadCheckpoint(true);});
+        }
+        labels.add(uri==null?"Karte am Anfang starten":"Ohne gespeicherte Übergabe starten");
+        actions.add(() -> {
+            prepareLoad();worker.execute(() -> {
+                try {
+                    if(checkpoint)checkpoints.quarantine(false);
+                    Uri source=uri;
+                    if(source==null) {String name=checkpoints.lastScene();byte[] b=checkpoints.scene(name,getCacheDir());File file=new File(getCacheDir(),"checkpoint-recovery.rcplay");CheckpointStore.atomic(file,b);source=Uri.fromFile(file);}
+                    loadSceneWorker(source,null,false,uri!=null);
+                }catch(Exception e){runOnUiThread(() -> recovery("Wiederherstellung fehlgeschlagen: "+e.getMessage(),uri,false));}
+            });
+        });
+        labels.add("Andere Szene auswählen");actions.add(() -> {pendingTravel=false;Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);intent.setType("*/*");intent.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(intent,1);});
+        LinearLayout choices=new LinearLayout(this);choices.setOrientation(LinearLayout.VERTICAL);int pad=(int)(16*getResources().getDisplayMetrics().density);choices.setPadding(pad,0,pad,pad);
+        TextView explanation=new TextView(this);explanation.setText(message+"\nDie bisherige Sitzung und der vorherige Checkpoint bleiben erhalten.");explanation.setTextSize(14);choices.addView(explanation);
+        ScrollView scroll=new ScrollView(this);scroll.addView(choices);
+        android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this).setTitle("Spielstand wiederherstellen").setView(scroll).setNegativeButton("Abbrechen",null).create();
+        for(int i=0;i<labels.size();i++){final int index=i;Button choice=new Button(this);choice.setText(labels.get(i));choice.setOnClickListener(v -> {dialog.dismiss();actions.get(index).run();});choices.addView(choice);}
+        dialog.show();
     }
     private void failure(String message) {
         runOnUiThread(() -> {if(!isDestroyed()) {paused=true; controls.clear(); lastFrame=0;
@@ -158,12 +265,12 @@ public final class PlayActivity extends Activity {
             status.setText("Spielfehler: "+message); pause.setText("Fortsetzen");}});
     }
     private void queueFrame(boolean still) {
-        if(!loaded || !resumed || isDestroyed() || drawing || (!still && (paused || finished))) return;
+        if(loading || !loaded || !resumed || isDestroyed() || drawing || (!still && (paused || finished))) return;
         drawing=true;
         long now=System.nanoTime(); final long interval=lastFrame==0 ? 0 : now-lastFrame; double elapsed=still || lastFrame==0 ? 0 : Math.min(0.25,(now-lastFrame)/1e9); lastFrame=now;
-        final int requestedGeneration=generation; final boolean renderGpu=useGpu;
+        final int requestedGeneration=generation; final int requestedAudioGeneration=audioGeneration; final boolean renderGpu=useGpu;
         final float forward=controls.forward(), strafe=controls.strafe(), lookX=controls.lookX, lookY=controls.lookY;
-        final int buttons=controls.buttons(); controls.lookX=0; controls.lookY=0; controls.reload=false; controls.fireQueued=false; controls.jumpQueued=false;
+        final int buttons=controls.buttons(); controls.lookX=0; controls.lookY=0; controls.reload=false; controls.fireQueued=false; controls.jumpQueued=false; controls.grenadeQueued=false;
         worker.execute(() -> {
             int[] pixels=null; GpuSceneView.Frame graphics=null; String error=null; byte[] soundEvents=null; String missionText=""; String actorText="[]";
             final long workStart=System.nanoTime();
@@ -173,6 +280,21 @@ public final class PlayActivity extends Activity {
                 else pixels=gameFrame(game,elapsed,forward,strafe,lookX,lookY,buttons,640,400,metrics);
                 soundEvents=gameAudio(game,1);
                 missionText=missionStatus(game);
+                if(pixels[4]==1 && !still) {
+                    byte[] handoff=mapHandoff(game);
+                    if(handoff.length>0) {
+                        org.json.JSONObject receipt=new org.json.JSONObject(new String(handoff,java.nio.charset.StandardCharsets.UTF_8));
+                        String source=receipt.getString("source");
+                        if(!source.equals("GEO_01A.ctm") && !source.equals("GEO_01B.ctm") && !source.equals("GEO_01C.ctm"))throw new IOException("Unbekannte Übergabequelle");
+                        String filename=source.equals("GEO_01C.ctm")?"geo_01c-handoff.json":source.equals("GEO_01B.ctm")?"geo_01b-handoff.json":"geo_01a-handoff.json";
+                        android.util.AtomicFile target=new android.util.AtomicFile(new java.io.File(getFilesDir(),filename));
+                        java.io.FileOutputStream stream=null;
+                        try {stream=target.startWrite();stream.write(handoff);target.finishWrite(stream);}
+                        catch(IOException ex) {if(stream!=null)target.failWrite(stream);throw ex;}
+                        Log.i("RCPlay","Map handoff saved: "+receipt.getString("destination")+" ("+handoff.length+" bytes)");
+                    }
+                }
+                saveCheckpointWorker(false);
                 if(profiling) actorText=actorStatus(game);
                 String jumpState=Arrays.toString(jumpStatus(game));
                 if(!jumpState.equals(lastJumpState)) {Log.i("RCJump","ticks="+pixels[5]+" "+jumpState);lastJumpState=jumpState;}
@@ -184,6 +306,11 @@ public final class PlayActivity extends Activity {
             final int[] result=pixels; final String problem=error; final GpuSceneView.Frame graphicsFrame=graphics;
             runOnUiThread(() -> {
                 drawing=false; if(isDestroyed()) return;
+                // Pause/backend generations may invalidate the frame, but its audio
+                // has already been consumed from Rust. Keep it for this same scene.
+                if(problem==null && sceneAudio!=null && events!=null && requestedAudioGeneration==audioGeneration) {
+                    try {sceneAudio.events(events);} catch(IOException ex) {failure(ex.getMessage());return;}
+                }
                 if(generation!=requestedGeneration) {if(loaded) queueFrame(true); return;}
                 if(problem!=null) {failure(problem); return;}
                 long bitmapStart=System.nanoTime();
@@ -194,14 +321,13 @@ public final class PlayActivity extends Activity {
                 }
                 long bitmapEnd=System.nanoTime();
                 if(profiling) recordPerformance(result,metrics,now,workStart,workEnd,bitmapStart,bitmapEnd,interval,still,forward,strafe,lookX,lookY,buttons,actorObservation);
-                if(sceneAudio!=null && !paused && resumed) {try {sceneAudio.events(events);} catch(IOException ex) {failure(ex.getMessage());return;}}
                 if(audio!=null && (sceneAudio==null || !sceneAudio.hasOriginalSounds()) && result[6]>lastShots) audio.startTone(ToneGenerator.TONE_PROP_BEEP,35);
                 else if(audio!=null && (sceneAudio==null || !sceneAudio.hasOriginalSounds()) && result[0]<lastHP) audio.startTone(ToneGenerator.TONE_PROP_NACK,50);
                 if(result[0]!=lastHP || result[1]!=lastAmmo || result[3]!=lastEnemies || result[4]!=lastPhase || result[6]!=lastShots)
                     Log.i("RCPlay","state hp="+result[0]+" ammo="+result[1]+" alive="+result[3]+" phase="+result[4]+" ticks="+result[5]+" shots="+result[6]+" kills="+result[7]+" jumps="+result[8]);
                 lastShots=result[6]; lastHP=result[0]; lastPhase=result[4]; lastEnemies=result[3]; lastAmmo=result[1];
                 if(!guidance.isEmpty() && !paused) status.setText(guidance);
-                if(result[4]!=0) {finished=true; controls.clear(); status.setText(result[4]==1 ? (guidance.isEmpty() ? "Abschnitt geschafft · Neustart möglich" : guidance) : "Gefallen · Neustart möglich");}
+                if(result[4]!=0) {finished=true; controls.clear();if(result[4]==1){nextMap=CampaignRoutes.next(guidance);open.setText(nextMap.isEmpty()?"Szene öffnen":"Weiter: "+nextMap);} status.setText(result[4]==1 ? (guidance.isEmpty() ? "Abschnitt geschafft · Neustart möglich" : guidance) : "Gefallen · Neustart möglich");}
                 if(loaded && resumed && !paused && !finished) handler.postDelayed(pump,renderGpu ? Math.max(1,16-(System.nanoTime()-now)/1000000) : 1);
             });
         });
@@ -228,10 +354,10 @@ public final class PlayActivity extends Activity {
             Log.i("RCPerf",record.toString());
         } catch(org.json.JSONException error) {Log.e("RCPerf","Unable to serialize timing",error);}
     }
-    @Override protected void onResume() {super.onResume(); gpu.onResume(); resumed=true; lastFrame=0; if(loaded) queueFrame(true);}
+    @Override protected void onResume() {super.onResume(); gpu.onResume(); resumed=true; lastFrame=0; if(sceneAudio!=null && !paused) sceneAudio.resume(); if(loaded) queueFrame(true);}
     @Override protected void onPause() {
-        resumed=false; if(sceneAudio!=null) sceneAudio.stop(); handler.removeCallbacks(pump); lastFrame=0; if(controls!=null) controls.clear();
-        worker.execute(() -> {if(game!=0) {try {gameCommand(game,0);} catch(Exception e) {Log.e("RCPlay","suspend",e);} }});
+        resumed=false;generation++;if(loaded && !finished)paused=true;pause.setText("Fortsetzen"); if(sceneAudio!=null) sceneAudio.suspend(); handler.removeCallbacks(pump); lastFrame=0; if(controls!=null) controls.clear();
+        worker.execute(() -> {if(game!=0) {try {gameCommand(game,0);saveCheckpointWorker(true);} catch(Exception e) {Log.e("RCPlay","suspend",e);} }});
         gpu.onPause();super.onPause();
     }
     @Override protected void onDestroy() {
@@ -249,13 +375,13 @@ public final class PlayActivity extends Activity {
         private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Map<Integer,Integer> roles=new HashMap<>();
         private float dx,dy,lookX,lookY,lastX,lastY;
-        private boolean fire,jump,reload,fireQueued,jumpQueued,w,s,a,d,walk,use;
-        Controls() {super(PlayActivity.this); setContentDescription("Links Joystick; rechts Blick drehen; Feuer, Sprung und Laden"); setFocusable(true);}
+        private boolean fire,jump,reload,fireQueued,jumpQueued,w,s,a,d,walk,use,grenade,grenadeQueued,crouch;
+        Controls() {super(PlayActivity.this); setContentDescription("Links Joystick; rechts Blick drehen; Feuer, Sprung, Laden, Benutzen, Granate und Ducken"); setFocusable(true);}
         float radius() {return Math.min(getWidth(),getHeight())*0.145f;}
         float forward() {return Math.max(-1,Math.min(1,-dy+(w?1:0)-(s?1:0)));}
         float strafe() {return Math.max(-1,Math.min(1,dx+(d?1:0)-(a?1:0)));}
-        int buttons() {return (jump||jumpQueued?1:0)|(fire||fireQueued?2:0)|(reload?4:0)|(walk?8:0)|(use?16:0);}
-        void clear() {roles.clear(); dx=dy=lookX=lookY=0; fire=jump=reload=fireQueued=jumpQueued=w=s=a=d=walk=use=false; invalidate();}
+        int buttons() {return (jump||jumpQueued?1:0)|(fire||fireQueued?2:0)|(reload?4:0)|(walk?8:0)|(use?16:0)|(grenade||grenadeQueued?32:0)|(crouch?64:0);}
+        void clear() {roles.clear(); dx=dy=lookX=lookY=0; fire=jump=reload=fireQueued=jumpQueued=w=s=a=d=walk=use=grenade=grenadeQueued=crouch=false; invalidate();}
         boolean key(int key,boolean down) {
             switch(key) {
                 case KeyEvent.KEYCODE_W: case KeyEvent.KEYCODE_DPAD_UP:w=down;return true;
@@ -267,6 +393,8 @@ public final class PlayActivity extends Activity {
                 case KeyEvent.KEYCODE_SHIFT_LEFT:walk=down;return true;
                 case KeyEvent.KEYCODE_R:if(down) reload=true;return true;
                 case KeyEvent.KEYCODE_E:use=down;return true;
+                case KeyEvent.KEYCODE_C: crouch=down;return true;
+                case KeyEvent.KEYCODE_G:if(down && !grenade) grenadeQueued=true;grenade=down;return true;
                 case KeyEvent.KEYCODE_ENTER:if(down) restart();return true;
                 default:return false;
             }
@@ -282,6 +410,8 @@ public final class PlayActivity extends Activity {
                 else if(inside(x,y,width-r*3.1f,height-r*1.3f,r*0.65f)) {role=3;jump=true;jumpQueued=true;}
                 else if(inside(x,y,width-r*1.3f,height-r*3.5f,r*0.65f)) {role=4;reload=true;}
                 else if(inside(x,y,width-r*3.1f,height-r*3.5f,r*0.65f)) {role=6;use=true;}
+                else if(inside(x,y,width-r*1.3f,height-r*5.0f,r*0.65f)) {role=7;if(!grenade) grenadeQueued=true;grenade=true;}
+                else if(inside(x,y,width-r*3.1f,height-r*5.0f,r*0.65f)) {role=8;crouch=true;}
                 else if(x<width*0.4f && !roles.containsValue(1)) {role=1;}
                 else if(!roles.containsValue(5)) {role=5;lastX=x;lastY=y;}
                 else {role=0;}
@@ -301,6 +431,8 @@ public final class PlayActivity extends Activity {
                 if(role!=null && role==2) fire=roles.containsValue(2);
                 if(role!=null && role==3) jump=roles.containsValue(3);
                 if(role!=null && role==6) use=roles.containsValue(6);
+                if(role!=null && role==7) grenade=roles.containsValue(7);
+                if(role!=null && role==8) crouch=roles.containsValue(8);
                 if(action==MotionEvent.ACTION_UP) performClick();
             }
             invalidate(); return true;
@@ -318,6 +450,8 @@ public final class PlayActivity extends Activity {
             circle(canvas,width-r*3.1f,height-r*1.3f,r*0.65f,"SPRUNG",jump);
             circle(canvas,width-r*1.3f,height-r*3.5f,r*0.65f,"LADEN",reload);
             circle(canvas,width-r*3.1f,height-r*3.5f,r*0.65f,"BENUTZEN",use);
+            circle(canvas,width-r*1.3f,height-r*5.0f,r*0.65f,"GRANATE",grenade);
+            circle(canvas,width-r*3.1f,height-r*5.0f,r*0.65f,"DUCKEN",crouch);
         }
     }
 }

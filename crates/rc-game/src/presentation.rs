@@ -182,7 +182,7 @@ impl Game {
                 0xcf3020,
             );
         }
-        if self.state.enemies.iter().all(|e| e.health == 0) {
+        if self.map.is_some() || self.state.enemies.iter().all(|e| e.health == 0) {
             let p = self.mission_target().unwrap_or(self.exit);
             cube(
                 &mut extra,
@@ -212,10 +212,26 @@ impl Game {
                 cube(&mut extra, tail, [0.6; 3], 0x306faa);
             }
         }
-        let eye = self.eye();
+        let rappel_eye = self.rappel_eye();
+        let eye = if let Some(eye) = rappel_eye {
+            eye
+        } else if self.state.opening.as_ref().is_some_and(|s| s.locked) {
+            self.opening.as_ref().unwrap().assets.camera_origin
+        } else {
+            self.eye()
+        };
+        let (camera_yaw, camera_pitch) = if rappel_eye.is_some() {
+            (self.state.yaw, self.state.pitch)
+        } else if self.state.opening.as_ref().is_some_and(|s| s.locked) {
+            let target = self.opening.as_ref().unwrap().assets.camera_target;
+            let d: [f64; 3] = std::array::from_fn(|i| target[i] - eye[i]);
+            (d[1].atan2(d[0]), d[2].atan2(d[0].hypot(d[1])))
+        } else {
+            (self.state.yaw, self.state.pitch)
+        };
         let view = rc_render::View {
-            yaw: (self.state.yaw + std::f64::consts::PI) as f32,
-            pitch: -self.state.pitch as f32,
+            yaw: (camera_yaw + std::f64::consts::PI) as f32,
+            pitch: -camera_pitch as f32,
             zoom: 1.,
             position: Some(std::array::from_fn(|i| {
                 (eye[i] as f32 - self.scene.center[i]) / self.scene.radius
@@ -240,8 +256,13 @@ impl Game {
                 return Err("Invalid enemy presentation bounds".into());
             }
             let scale = 120. / enemy_height;
-            for (owner, (enemy, player)) in
-                self.state.enemies.iter().zip(&state.enemies).enumerate()
+            for (owner, (enemy, player)) in self
+                .state
+                .enemies
+                .iter()
+                .zip(&state.enemies)
+                .enumerate()
+                .filter(|_| self.map.as_ref().is_none_or(|m| m.gameplay.is_none()))
             {
                 let mut mesh = assets.enemy.geometry_with_root(
                     &assets.enemy.channel(player.clip, player.frame)?,
@@ -290,29 +311,108 @@ impl Game {
                 }));
                 extra.extend(mesh.triangles);
             }
-            weapon_start = extra.len();
-            let mut mesh = assets.weapon.geometry(
-                &assets
-                    .weapon
-                    .channel(state.weapon.clip, state.weapon.frame)?,
-            )?;
-            let [eye, right, up, forward] = rc_render::gpu::basis(&self.scene, view);
-            for t in &mut mesh.triangles {
-                t.points = t.points.map(|p| {
-                    std::array::from_fn(|i| {
-                        eye[i] + forward[i] * p[0] + right[i] * p[1] + up[i] * p[2]
-                    })
-                });
+            if let (Some(t), Some(prepared)) = (&self.state.thermal, &self.thermal) {
+                for projectile in &t.projectiles {
+                    extra.extend(prepared.triangles.iter().map(|triangle| Triangle {
+                        points:
+                            triangle.points.map(|p| {
+                                std::array::from_fn(|i| p[i] + projectile.position[i] as f32)
+                            }),
+                        surface: triangle.surface,
+                    }));
+                    faces.extend(prepared.appearance.iter().copied());
+                }
             }
-            let base = assets.texture_base + assets.enemy.mesh.materials.len();
-            faces.extend(mesh.appearance.into_iter().map(|f| {
-                f.map(|mut f| {
-                    f.texture += base;
-                    f
-                })
-            }));
-            extra.extend(mesh.triangles);
+            let basis = rc_render::gpu::basis(&self.scene, view);
+            let (fx, fx_faces) = self.explosion_geometry(basis[1], basis[2]);
+            extra.extend(fx);
+            faces.extend(fx_faces);
+            let (artillery, artillery_faces) = self.artillery_geometry()?;
+            extra.extend(artillery);
+            faces.extend(artillery_faces);
+            let (opening, opening_faces) = self.opening_geometry()?;
+            extra.extend(opening);
+            faces.extend(opening_faces);
+            let (encounters, encounter_faces) = self.map_encounter_geometry()?;
+            extra.extend(encounters);
+            faces.extend(encounter_faces);
+            let (elevator, elevator_faces) = self.map3_elevator_geometry();
+            extra.extend(elevator);
+            faces.extend(elevator_faces);
+            let (finale, finale_faces) = self.map3_finale_geometry()?;
+            extra.extend(finale);
+            faces.extend(finale_faces);
+            let (balcony, balcony_faces) = self.map3_balcony_geometry()?;
+            extra.extend(balcony);
+            faces.extend(balcony_faces);
+            let (breach, breach_faces) = self.map3_breach_geometry()?;
+            extra.extend(breach);
+            faces.extend(breach_faces);
+            let (guard, guard_faces) = self.map3_guard_geometry()?;
+            extra.extend(guard);
+            faces.extend(guard_faces);
+            let (escape, escape_faces) = self.map3_escape_geometry();
+            extra.extend(escape);
+            faces.extend(escape_faces);
+            let (planning, planning_faces) = self.map3_planning_geometry()?;
+            extra.extend(planning);
+            faces.extend(planning_faces);
+            let (entry, entry_faces) = self.map3_geometry()?;
+            extra.extend(entry);
+            faces.extend(entry_faces);
+            let (map, map_faces) = self.map_geometry()?;
+            extra.extend(map);
+            faces.extend(map_faces);
+            let (intro, intro_faces) = self.intro_geometry()?;
+            extra.extend(intro);
+            faces.extend(intro_faces);
+            let (rope, rope_faces) = self.rappel_geometry()?;
+            extra.extend(rope);
+            faces.extend(rope_faces);
+            let (scorch, scorch_faces) = self.scorch_geometry()?;
+            extra.extend(scorch);
+            faces.extend(scorch_faces);
+            let (rifle, rifle_faces) = self.squad_weapon_geometry()?;
+            extra.extend(rifle);
+            faces.extend(rifle_faces);
+            let (charge, charge_faces) = self.demolition_geometry(false, view)?;
+            extra.extend(charge);
+            faces.extend(charge_faces);
+            weapon_start = extra.len();
+            let (detonator, detonator_faces) = self.demolition_geometry(true, view)?;
+            if !detonator.is_empty() {
+                extra.extend(detonator);
+                faces.extend(detonator_faces);
+            } else {
+                let mut mesh = assets.weapon.geometry(
+                    &assets
+                        .weapon
+                        .channel(state.weapon.clip, state.weapon.frame)?,
+                )?;
+                let [eye, right, up, forward] = rc_render::gpu::basis(&self.scene, view);
+                for t in &mut mesh.triangles {
+                    t.points = t.points.map(|p| {
+                        std::array::from_fn(|i| {
+                            eye[i] + forward[i] * p[0] + right[i] * p[1] + up[i] * p[2]
+                        })
+                    });
+                }
+                let base = assets.texture_base + assets.enemy.mesh.materials.len();
+                faces.extend(mesh.appearance.into_iter().map(|f| {
+                    f.map(|mut f| {
+                        f.texture += base;
+                        f
+                    })
+                }));
+                extra.extend(mesh.triangles);
+            }
             appearance = Some(faces);
+        }
+        if self.map3_locked() || self.state.opening.as_ref().is_some_and(|s| s.locked) {
+            extra.truncate(weapon_start);
+            if let Some(faces) = &mut appearance {
+                faces.truncate(weapon_start);
+            }
         }
         drop(geometry_timing);
         let _hud_timing = Span::new(Category::Hud);
@@ -345,8 +445,86 @@ impl Game {
         hud.rect(w / 2, h / 2 + 4, 1, 6, color);
         hud.rect(0, 0, w, 30, 0xff14222d);
         let remaining = self.state.enemies.iter().filter(|e| e.health > 0).count();
-        let objective = if self.mission.is_some() {
-            if self.grenade_target().is_some() {
+        let objective = if let Some(status) = self.map_gameplay_status() {
+            status.to_uppercase().replace('·', "|")
+        } else if self.map.is_some() {
+            self.mission_status().to_uppercase().replace('·', "|")
+        } else if self.mission.is_some() {
+            if self.state.opening.as_ref().is_some_and(|s| !s.done) {
+                "GEO_01A | LANDUNGSBRIEFING".into()
+            } else if self.state.spire.as_ref().is_some_and(|s| s.flow.enabled) {
+                let s = &self.state.spire.as_ref().unwrap().flow;
+                if !s.completed
+                    && self
+                        .state
+                        .artillery
+                        .as_ref()
+                        .is_some_and(|a| a.attack_tick.is_some() && a.impacts.len() < 4)
+                {
+                    "GEO_01A | BOMBARDIERUNG - ZURUECK IN DECKUNG"
+                } else if s.completed {
+                    "GEO_01A | TURMEINGANG ERREICHT - ZIELE 0-6"
+                } else if s.entered && !s.barrier_open {
+                    "GEO_01A | ARTILLERIE - BARRIKADENFREIGABE ABWARTEN"
+                } else if s.door_open {
+                    "GEO_01A | TURMTUER OFFEN - AUSGANG ERREICHEN"
+                } else {
+                    "GEO_01A | IN DEN GEONOSIANERTURM EINDRINGEN"
+                }
+                .into()
+            } else if self
+                .state
+                .demolition
+                .as_ref()
+                .is_some_and(|s| s.flow.phase != crate::demolition::Phase::Disabled)
+            {
+                let s = self.state.demolition.as_ref().unwrap();
+                match s.flow.phase {
+                    crate::demolition::Phase::Available => {
+                        "GEO_01A | LADUNG ANVISIEREN - BENUTZEN: BEFEHL"
+                    }
+                    crate::demolition::Phase::Moving => "GEO_01A | SCORCH LAEUFT ZUM SPRENGPUNKT",
+                    crate::demolition::Phase::Starting | crate::demolition::Phase::Setting => {
+                        "GEO_01A | SCORCH SETZT DIE LADUNG"
+                    }
+                    crate::demolition::Phase::Stopping | crate::demolition::Phase::Armed
+                        if s.flow.plunger_selected =>
+                    {
+                        "GEO_01A | ZUENDER - ZURUECKTRETEN, DANN FEUER"
+                    }
+                    crate::demolition::Phase::Stopping | crate::demolition::Phase::Armed => {
+                        "GEO_01A | LADUNG SCHARF - BENUTZEN: ZUENDER"
+                    }
+                    _ => "GEO_01A | BUNKER GESPRENGT - ZIELE 0-5",
+                }
+                .into()
+            } else if self
+                .state
+                .rendezvous
+                .as_ref()
+                .is_some_and(|s| s.radio_started)
+            {
+                let s = self.state.rendezvous.as_ref().unwrap();
+                if s.flow.objective_completed {
+                    "GEO_01A | SCORCH IM SQUAD - ABSCHNITT GESCHAFFT".into()
+                } else if s.flow.squad_joined {
+                    "GEO_01A | DELTA 62 - HUD VERBINDEN".into()
+                } else {
+                    "GEO_01A | SIX-TWO TREFFEN - DUCKEN IM TUNNEL".into()
+                }
+            } else if self.throw_target().is_some() {
+                let t = self.state.thermal.as_ref().unwrap();
+                format!(
+                    "GEO_01A  |  {}",
+                    if self.state.bunker.is_some() && self.state.phase == Phase::Won {
+                        "GESCHUETZSTELLUNG GESICHERT"
+                    } else if t.gun.objective_completed {
+                        "GESCHUETZ GETROFFEN"
+                    } else {
+                        "GESCHUETZ - GRANATE WERFEN"
+                    }
+                )
+            } else if self.grenade_target().is_some() {
                 let s = self
                     .state
                     .mission
@@ -392,6 +570,98 @@ impl Game {
             "GEO_01A  |  ZUR GRUENEN EXFIL-MARKIERUNG".into()
         };
         hud.text(8, 7, &objective, 1, 0xffbdeade);
+        if let Some(s) = &self.state.opening {
+            if s.captions.iter().any(|(_, until)| s.clock < *until) {
+                let columns = ((w - 16) / 6).max(1) as usize;
+                let text = s
+                    .captions
+                    .iter()
+                    .filter(|(_, until)| s.clock < *until)
+                    .map(|(text, _)| text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" | ");
+                let chars: Vec<_> = text.to_uppercase().chars().collect();
+                for (i, line) in chars.chunks(columns).take(3).enumerate() {
+                    hud.text(
+                        8,
+                        h - 65 + i as i32 * 10,
+                        &line.iter().collect::<String>(),
+                        1,
+                        0xffffdf40,
+                    );
+                }
+            }
+            if s.clock < s.prompt_until {
+                hud.text(8, 38, &s.prompt, 1, 0xffbdeade);
+            }
+            if s.clock < s.blink_until && ((s.clock * 2.).floor() as u64).is_multiple_of(2) {
+                hud.rect(0, h - 28, 90, 2, 0xffff4444);
+            }
+        }
+
+        if let Some(s) = self
+            .state
+            .map
+            .as_ref()
+            .and_then(|m| m.opening.as_ref())
+            .filter(|s| s.clock < s.subtitle_until)
+        {
+            let chars: Vec<_> = s.subtitle.to_uppercase().chars().collect();
+            let columns = ((w - 16) / 6).max(1) as usize;
+            for (i, line) in chars.chunks(columns).take(3).enumerate() {
+                hud.text(
+                    8,
+                    h - 65 + i as i32 * 10,
+                    &line.iter().collect::<String>(),
+                    1,
+                    0xffffdf40,
+                );
+            }
+        }
+
+        if self
+            .state
+            .rendezvous
+            .as_ref()
+            .is_some_and(|s| s.flow.squad_joined)
+        {
+            hud.text(w - 100, 38, "62 SCORCH", 1, 0xffffdf40);
+            if let Some(s) = &self.state.squad {
+                let maximum = self.tactics.as_ref().unwrap().assets.squad.max_health;
+                hud.rect(w - 100, 49, 85, 4, 0xff263934);
+                hud.rect(
+                    w - 100,
+                    49,
+                    (85. * s.health as f64 / maximum as f64).clamp(0., 85.) as i32,
+                    4,
+                    if s.down { 0xffff5555 } else { 0xff3be796 },
+                );
+                let label = if s.player_down {
+                    "HILFE: BENUTZEN"
+                } else if s.down {
+                    "62 BELEBEN: HALTEN"
+                } else {
+                    match s.order {
+                        crate::squad::Order::Follow => "62 FOLGT",
+                        crate::squad::Order::Hold => "62 HAELT",
+                        crate::squad::Order::Focus(_) => "62 ZIEL BESCHIESSEN",
+                    }
+                };
+                hud.text(8, 64, label, 1, 0xffffdf40);
+                if s.progress > 0. {
+                    let duration = self.tactics.as_ref().unwrap().assets.squad.revive_duration;
+                    hud.rect(
+                        8,
+                        75,
+                        (120. * s.progress / duration).clamp(0., 120.) as i32,
+                        4,
+                        0xff3be796,
+                    );
+                }
+            } else {
+                hud.rect(w - 100, 49, 85, 4, 0xff3be796);
+            }
+        }
         hud.rect(0, h - 26, w, 26, 0xff14222d);
         hud.text(
             8,
@@ -427,7 +697,16 @@ impl Game {
         if self.state.phase != Phase::Playing {
             hud.rect(w / 2 - 145, h / 2 - 35, 290, 70, 0xff182c39);
             let text = if self.state.phase == Phase::Won {
-                "ABSCHNITT GESCHAFFT"
+                if self
+                    .state
+                    .spire
+                    .as_ref()
+                    .is_some_and(|s| s.handoff.is_some())
+                {
+                    "GEO_01A ABGESCHLOSSEN"
+                } else {
+                    "ABSCHNITT GESCHAFFT"
+                }
             } else {
                 "GEFALLEN"
             };

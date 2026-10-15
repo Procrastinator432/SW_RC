@@ -64,14 +64,14 @@ impl Assets {
         Ok(())
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub enum IntroStage {
     Waiting,
     FirstLine,
     SecondLine,
     Done,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub enum PickupStage {
     Waiting,
     Confirmation,
@@ -79,7 +79,7 @@ pub enum PickupStage {
     NextDialogDelay,
     Done,
 }
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, serde::Deserialize)]
 pub enum Effect {
     Event(String),
     Tracker(String),
@@ -88,7 +88,7 @@ pub enum Effect {
     InventoryChanged { before: u32, after: u32 },
     BlinkHud(f64),
 }
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, serde::Deserialize)]
 pub struct State {
     pub intro: IntroStage,
     pub pickup_script: PickupStage,

@@ -9,39 +9,77 @@ use std::{env, fs, path::Path};
 fn distance(a: Point, b: Point) -> f64 {
     (0..3).map(|i| (a[i] - b[i]).powi(2)).sum::<f64>().sqrt()
 }
-fn render_flight(game:&mut rc_game::Game,source:&Path,out:&Path,trace:&serde_json::Value)->Result<(),Box<dyn std::error::Error>> {
-    let mesh=rc_render::Scene::from_snapshot(&fs::read(source.join("detonator.rcscene"))?)?;
-    if mesh.triangles.len()!=352 || mesh.appearance.iter().any(Option::is_none) {return Err("Incomplete grenade visual".into());}
-    let texture_base=game.scene.textures.len();
+fn render_flight(
+    game: &mut rc_game::Game,
+    source: &Path,
+    out: &Path,
+    trace: &serde_json::Value,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mesh = rc_render::Scene::from_snapshot(&fs::read(source.join("detonator.rcscene"))?)?;
+    if mesh.triangles.len() != 352 || mesh.appearance.iter().any(Option::is_none) {
+        return Err("Incomplete grenade visual".into());
+    }
+    let texture_base = game.scene.textures.len();
     game.scene.textures.extend(mesh.textures);
-    game.state.pawn.body.position=serde_json::from_value(trace["stand"].clone())?;
-    let frames=trace["frames"].as_array().ok_or("No flight frames")?;
-    let mut rows=vec![];
-    for index in [0,frames.len()/2,frames.len()-1] {
-        let position:Point=serde_json::from_value(frames[index]["position"].clone())?;
+    game.state.pawn.body.position = serde_json::from_value(trace["stand"].clone())?;
+    let frames = trace["frames"].as_array().ok_or("No flight frames")?;
+    let mut rows = vec![];
+    for index in [0, frames.len() / 2, frames.len() - 1] {
+        let position: Point = serde_json::from_value(frames[index]["position"].clone())?;
         game.aim_at(position);
-        let mut frame=game.render_frame(640,400)?;
+        let mut frame = game.render_frame(640, 400)?;
         frame.hud.clear();
         frame.triangles.truncate(frame.weapon_start);
-        let faces=frame.appearance.as_mut().ok_or("No frame materials")?;
+        let faces = frame.appearance.as_mut().ok_or("No frame materials")?;
         faces.truncate(frame.weapon_start);
-        let baseline=frame.render_cpu(&game.scene)?;
-        frame.triangles.extend(mesh.triangles.iter().map(|t|rc_package::geometry::Triangle {
-            points:t.points.map(|p|std::array::from_fn(|i|p[i]+position[i] as f32)),surface:t.surface,
+        let baseline = frame.render_cpu(&game.scene)?;
+        frame.triangles.extend(mesh.triangles.iter().map(|t| {
+            rc_package::geometry::Triangle {
+                points: t
+                    .points
+                    .map(|p| std::array::from_fn(|i| p[i] + position[i] as f32)),
+                surface: t.surface,
+            }
         }));
-        frame.appearance.as_mut().unwrap().extend(mesh.appearance.iter().map(|f|f.map(|mut f| {f.texture+=texture_base;f})));
-        frame.weapon_start=frame.triangles.len(); // Projectile participates in world depth.
-        let pixels=frame.render_cpu(&game.scene)?;
-        let changed=pixels.iter().zip(&baseline).filter(|(a,b)|a!=b).count();
-        fs::write(out.join(format!("flight-{index}.argb")),pixels.iter().flat_map(|v|v.to_le_bytes()).collect::<Vec<_>>())?;
-        fs::write(out.join(format!("flight-{index}.rcframe")),frame.gpu_packet(&game.scene))?;
+        frame
+            .appearance
+            .as_mut()
+            .unwrap()
+            .extend(mesh.appearance.iter().map(|f| {
+                f.map(|mut f| {
+                    f.texture += texture_base;
+                    f
+                })
+            }));
+        frame.weapon_start = frame.triangles.len(); // Projectile participates in world depth.
+        let pixels = frame.render_cpu(&game.scene)?;
+        let changed = pixels.iter().zip(&baseline).filter(|(a, b)| a != b).count();
+        fs::write(
+            out.join(format!("flight-{index}.argb")),
+            pixels
+                .iter()
+                .flat_map(|v| v.to_le_bytes())
+                .collect::<Vec<_>>(),
+        )?;
+        fs::write(
+            out.join(format!("flight-{index}.rcframe")),
+            frame.gpu_packet(&game.scene),
+        )?;
         rows.push(serde_json::json!({"frame":index,"position":position,"changed_pixels":changed}));
     }
-    if !rows.iter().any(|r|r["changed_pixels"].as_u64().unwrap_or(0)>0) {return Err("Grenade is invisible in every flight view".into());}
-    fs::write(out.join("render-validation.json"),serde_json::to_vec_pretty(&serde_json::json!({
-        "passed":true,"projectile_faces":352,"textured_faces":352,"world_depth":true,"frames":rows,
-        "scope":"Prepared CPU renders and shared GPU packet generation at actual flight positions. Camera tracks projectile; no live Game presentation or Android acceptance"
-    }))?)?;
+    if !rows
+        .iter()
+        .any(|r| r["changed_pixels"].as_u64().unwrap_or(0) > 0)
+    {
+        return Err("Grenade is invisible in every flight view".into());
+    }
+    fs::write(
+        out.join("render-validation.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "passed":true,"projectile_faces":352,"textured_faces":352,"world_depth":true,"frames":rows,
+            "scope":"Prepared CPU renders and shared GPU packet generation at actual flight positions. Camera tracks projectile; no live Game presentation or Android acceptance"
+        }))?,
+    )?;
     Ok(())
 }
 fn walk_route(game: &rc_game::Game, points: &[Point]) -> Result<(Point, Vec<Point>), String> {
@@ -359,7 +397,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .into());
     };
-    render_flight(&mut game,source,out,&success)?;
+    render_flight(&mut game, source, out, &success)?;
     fs::write(
         out.join("world-flight-trace.json"),
         serde_json::to_vec_pretty(&success)?,

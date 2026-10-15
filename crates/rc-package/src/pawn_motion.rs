@@ -60,8 +60,9 @@ impl VolumeWorld {
         }
         self.pawn_shape_tick(world, state, view, dt, profile, runtime)
     }
-    /// Internal shared solver; caller must provide validated current body dimensions.
-    pub(crate) fn pawn_shape_tick(
+    /// Shared solver for an already resized body. Callers must validate current
+    /// dimensions/placement with crouch_diagnostic before changing the shape.
+    pub fn pawn_shape_tick(
         &self,
         world: &StaticBodyWorld,
         state: &ControlledBody,

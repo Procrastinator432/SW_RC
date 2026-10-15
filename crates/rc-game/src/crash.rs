@@ -88,7 +88,7 @@ impl Assets {
         Ok(())
     }
 }
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, serde::Deserialize)]
 pub enum Effect {
     CollisionDisabled(u32),
     ObjectiveCompleted(u32),
@@ -99,7 +99,7 @@ pub enum Effect {
     Spawn(u32),
     Invulnerable { tag: String, enabled: bool },
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub enum Stage {
     Bacta,
     AdvisorDelay,
@@ -107,14 +107,14 @@ pub enum Stage {
     Retreat,
     Approach,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub enum CombatStage {
     Dormant,
     Protected,
     Vulnerable,
     Secured,
 }
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, serde::Deserialize)]
 pub struct State {
     pub stage: Stage,
     pub combat: CombatStage,

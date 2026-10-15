@@ -3,7 +3,7 @@
 //! squared distance, facing and navigation/animation queries; no full GoalQueue.
 use serde::Serialize;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct State {
     pub remaining: i32,
     pub max_attack_time: f32,
