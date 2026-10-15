@@ -11,7 +11,6 @@ use rc_package::{
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    path::Path,
     sync::Arc,
 };
 fn copy<T: serde::Serialize, U: serde::de::DeserializeOwned>(
@@ -20,15 +19,15 @@ fn copy<T: serde::Serialize, U: serde::de::DeserializeOwned>(
     serde_json::from_value(serde_json::to_value(v)?)
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let root = Path::new("D:/SteamLibrary/steamapps/common/Star Wars Republic Commando/GameData");
-    let out = Path::new("analysis/mission24-map3-breach/delivery");
-    fs::create_dir_all(out)?;
-    let raw = fs::read("analysis/mission23-map3-guard/delivery/geo_01c.rcplay")?;
+    let root = &rc_inspect::build_inputs::game_data()?;
+    let out = rc_inspect::build_inputs::output()?;
+    fs::create_dir_all(&out)?;
+    let raw = fs::read(rc_inspect::build_inputs::input("map_c_guard_scene")?)?;
     let n = u32::from_le_bytes(raw[8..12].try_into()?) as usize;
     let mut map: rc_game::map_runtime::Assets = serde_json::from_slice(&raw[12..12 + n])?;
     let mut g = rc_game::bundle::decode(&raw)?;
     let rows: Vec<serde_json::Value> = serde_json::from_slice(&fs::read(
-        "analysis/mission19-map3/original-map-inventory.json",
+        rc_inspect::build_inputs::input("map_c_inventory")?,
     )?)?;
     let row = |id| rows.iter().find(|r| r["original"] == id).unwrap();
     let props = |id| {
@@ -100,7 +99,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sn = u32::from_le_bytes(static_base[8..12].try_into()?) as usize;
     let mut scene = rc_render::Scene::from_snapshot(&static_base[12 + sn..])?;
     let faces: BTreeMap<String, Vec<usize>> = serde_json::from_slice(&fs::read(
-        "analysis/mission19-map3/surfaces/actor-faces.json",
+        rc_inspect::build_inputs::input("map_c_actor_faces")?,
     )?)?;
     let old_removed: BTreeSet<_> = ["WindowShatter_Test1", "MoverDB_GEO29", "MoverDBSlave_GEO29"]
         .into_iter()
@@ -244,7 +243,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "DoorBreachLoudSM3Coverman",
     ];
     let clips: Vec<rc_game::visual::Clip> = serde_json::from_slice(&fs::read(
-        "analysis/mission24-map3-breach/breach-clips.json",
+        rc_inspect::build_inputs::input("map_c_breach_clips")?,
     )?)?;
     map.squad_mesh.as_mut().unwrap().clips.push(copy(
         clips

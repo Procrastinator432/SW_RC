@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             weapon: copy(&visual.weapon.mesh)?,
         },
     )?;
-    let previous = fs::read("analysis/mission27-map3-elevator/delivery/geo_01c.rcplay")?;
+    let previous = fs::read(rc_inspect::build_inputs::input("map_c_scene")?)?;
     let n = u32::from_le_bytes(previous[8..12].try_into()?) as usize;
     let mut previous: rc_game::map_runtime::Assets = serde_json::from_slice(&previous[12..12 + n])?;
     let mut sev = previous.opening.as_mut().unwrap().actors[2]

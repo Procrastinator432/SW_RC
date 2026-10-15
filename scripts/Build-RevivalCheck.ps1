@@ -1,3 +1,4 @@
+param([string]$OutputDirectory=(Join-Path (Split-Path $PSScriptRoot -Parent) 'build/revival'))
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $bin=Join-Path $root 'tools/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64/bin'
@@ -11,6 +12,7 @@ try {
     try {
         cargo build -p rc-inspect --bin rc-squad-check --release --target x86_64-linux-android --locked --offline
         if($LASTEXITCODE -ne 0){throw 'Android revival fixture build failed'}
-        Copy-Item -LiteralPath target/x86_64-linux-android/release/rc-squad-check -Destination analysis/mission11-revival/android-revival-check
+        New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
+        Copy-Item -LiteralPath target/x86_64-linux-android/release/rc-squad-check -Destination (Join-Path $OutputDirectory 'android-revival-check')
     } finally {Pop-Location}
 } finally {$env:CARGO_ENCODED_RUSTFLAGS=$savedFlags}

@@ -797,6 +797,16 @@ fn a_fire_tap_shorter_than_a_fixed_tick_is_retained_once() {
     assert_eq!(g.state.statistics.shots, 1);
 }
 #[test]
+fn bundle_decoder_roundtrip_fits_explicit_two_megabyte_stack() {
+    // RUST_MIN_STACK must not be able to hide a regression in the decoder.
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(bundle_roundtrip_retains_collision_spawn_encounter_and_rejects_corruption)
+        .unwrap()
+        .join()
+        .unwrap();
+}
+#[test]
 fn bundle_roundtrip_retains_collision_spawn_encounter_and_rejects_corruption() {
     let g = game(true);
     let manifest = bundle::Manifest::capture(&g, serde_json::json!({"fixture":true})).unwrap();

@@ -2,17 +2,16 @@ use rc_game::map3_escape::{translated, Assets, Door};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    path::Path,
     sync::Arc,
 };
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let out = Path::new("analysis/mission22-map3-escape/delivery");
-    fs::create_dir_all(out)?;
-    let raw = fs::read("analysis/mission21-map3-planning/delivery/geo_01c.rcplay")?;
+    let out = rc_inspect::build_inputs::output()?;
+    fs::create_dir_all(&out)?;
+    let raw = fs::read(rc_inspect::build_inputs::input("map_c_planning_scene")?)?;
     let n = u32::from_le_bytes(raw[8..12].try_into()?) as usize;
     let mut map: rc_game::map_runtime::Assets = serde_json::from_slice(&raw[12..12 + n])?;
     let rows: Vec<serde_json::Value> = serde_json::from_slice(&fs::read(
-        "analysis/mission19-map3/original-map-inventory.json",
+        rc_inspect::build_inputs::input("map_c_inventory")?,
     )?)?;
     let row = |id| rows.iter().find(|r| r["original"] == id).unwrap();
     let props = |id| {
@@ -38,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sn = u32::from_le_bytes(static_base[8..12].try_into()?) as usize;
     let mut scene = rc_render::Scene::from_snapshot(&static_base[12 + sn..])?;
     let faces: BTreeMap<String, Vec<usize>> = serde_json::from_slice(&fs::read(
-        "analysis/mission19-map3/surfaces/actor-faces.json",
+        rc_inspect::build_inputs::input("map_c_actor_faces")?,
     )?)?;
     let old_removed: BTreeSet<_> = faces["WindowShatter_Test1"].iter().copied().collect();
     let mut removed = BTreeSet::new();
@@ -181,7 +180,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter(|(i, _)| !removed.contains(i))
         .map(|(_, t)| t)
         .collect();
-    let root = Path::new("D:/SteamLibrary/steamapps/common/Star Wars Republic Commando/GameData");
+    let root = &rc_inspect::build_inputs::game_data()?;
     let catalog = rc_inspect::defaults::load(root)?;
     let scalar = |class, name| -> Result<f64, Box<dyn std::error::Error>> {
         match catalog.resolve(class, name, 0)?.value {

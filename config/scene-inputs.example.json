@@ -1,0 +1,133 @@
+{
+  "schema": 1,
+  "inputs": {
+    "factory_world": {
+      "path": "assets/factory_world.rcscene",
+      "sha256": "339f950d460ec4e6257ecda50be8f085e41a40feb9a89256e8ff90c2e5563c40"
+    },
+    "map_a_handoff": {
+      "path": "assets/map_a_handoff.json",
+      "sha256": "da5796d2225836dc7aa7dc5809b1c057ee356ca8d551242fba890d0d6fcaf4dd"
+    },
+    "map_a_scene": {
+      "path": "assets/map_a_scene.rcplay",
+      "sha256": "01374c0260589c9a0961ef073ac974bbadd75172cdf698b2f14634c65fe0eef9"
+    },
+    "map_b_actor_faces": {
+      "path": "assets/map_b_actor_faces.json",
+      "sha256": "fdd3c1f0a9e83e6b51acc6cf161e19f87b43ee464a4b16040c7b0ab840457368"
+    },
+    "map_b_gameplay": {
+      "path": "assets/map_b_gameplay.json",
+      "sha256": "d5397cb3e3bf13828cdf45d6fc5f3347a76cb495bdcf1e50cf1bf221e63da6cf"
+    },
+    "map_b_inventory": {
+      "path": "assets/map_b_inventory.json",
+      "sha256": "b0ea0fd8be9fd215ca3f65ebfb1bad6d8ff6ffc76ba530ad8c01d627c9eb35a9"
+    },
+    "map_b_navigation": {
+      "path": "assets/map_b_navigation.json",
+      "sha256": "fd6f89f2738961f22a17d3026a90bd136ddb33647c19d507b7817156bf5444ae"
+    },
+    "map_b_scene": {
+      "path": "assets/map_b_scene.rcplay",
+      "sha256": "52defa7ad4655fec73b8e0afc73ca6ba4038fa713f6c117fcf04f5627aa26fc1"
+    },
+    "map_b_world": {
+      "path": "assets/map_b_world.rcscene",
+      "sha256": "38f0dc43851fd3eb7dab63aea1102a994a94279697ca6782475977367a4ae04b"
+    },
+    "map_c_actor_faces": {
+      "path": "assets/map_c_actor_faces.json",
+      "sha256": "0fa037b7e16884e585af8f844884f17d2d628a012999aec036e3023bbfe9090c"
+    },
+    "map_c_animation_inventory": {
+      "path": "assets/map_c_animation_inventory.json",
+      "sha256": "569eb21836b489b81b58d702a6dd14631b27a71ff67d456e6683d7c13e01b654"
+    },
+    "map_c_balcony_clips": {
+      "path": "assets/map_c_balcony_clips.json",
+      "sha256": "1c21a94ee1d637f90a4792cdf91bede7775683949aab70682654a868ff59effb"
+    },
+    "map_c_balcony_scene": {
+      "path": "assets/map_c_balcony_scene.rcplay",
+      "sha256": "ff9571e2093e95b6d16a8bc63a94aaed6ef5ad8f67bd5cf34d48180de5635892"
+    },
+    "map_c_base_scene": {
+      "path": "assets/map_c_base_scene.rcplay",
+      "sha256": "a6547537767bb3852c9a14af2bf63bd365c95283323b8eb9533a2c94f8f09ebc"
+    },
+    "map_c_breach_clips": {
+      "path": "assets/map_c_breach_clips.json",
+      "sha256": "a311980ad4734122897803a3cbaeb1675f4d425d204425ffb60eb34c39ed8473"
+    },
+    "map_c_breach_scene": {
+      "path": "assets/map_c_breach_scene.rcplay",
+      "sha256": "4037cc70d2110863f6a551b8131ecfbc49973dd92481c8f67a96442a7da6659f"
+    },
+    "map_c_escape_scene": {
+      "path": "assets/map_c_escape_scene.rcplay",
+      "sha256": "cd66920a6643a621869f81dadd2008e1f9ccac8a9786f8d47c6215c41bb9bea6"
+    },
+    "map_c_finale_clips": {
+      "path": "assets/map_c_finale_clips.json",
+      "sha256": "2d5a0c75cc11c178a6a188cceca0b51007a5715abf5f6540bd9ee1307aa696e6"
+    },
+    "map_c_finale_scene": {
+      "path": "assets/map_c_finale_scene.rcplay",
+      "sha256": "5a630466b138cac85bde0cc28d5432dc72774cb2ad18ee68743b9951fc6e1727"
+    },
+    "map_c_guard_assets": {
+      "path": "assets/map_c_guard_assets.json",
+      "sha256": "7baa2e6beedf2f60e9f1030c3282ed21461b2ba2728456bddb5f80d22ab99961"
+    },
+    "map_c_guard_scene": {
+      "path": "assets/map_c_guard_scene.rcplay",
+      "sha256": "a101f620012657cd0842ffbd57ca5738b97065c43e01533cbe5bee9ecf51f976"
+    },
+    "map_c_inventory": {
+      "path": "assets/map_c_inventory.json",
+      "sha256": "22fe6f0a6bcea6b7af41c19488de53c728ca8a6c646e0bd66c41eb62a60bd9cf"
+    },
+    "map_c_opening_scene": {
+      "path": "assets/map_c_opening_scene.rcplay",
+      "sha256": "c4f317f3855024bc8021836b5f4f1e14fe8ed9f9c6d799f0f7cf0944786c0dac"
+    },
+    "map_c_planning_scene": {
+      "path": "assets/map_c_planning_scene.rcplay",
+      "sha256": "e65496ad9e1c9523527659de16040a3fb62c36e4101211c70897d9dd9517e9ea"
+    },
+    "map_c_scene": {
+      "path": "assets/map_c_scene.rcplay",
+      "sha256": "f925dd58f7bc204fae5bda4a9d65c1b3fb9bd9024d8428b6145d020b9d949e15"
+    },
+    "map_c_ship_mesh": {
+      "path": "assets/map_c_ship_mesh.json",
+      "sha256": "047bde6dc6d9b8ec580e423d13ebc94fef82e9710931bb5a6c3052062d474d95"
+    },
+    "map_c_sniper_clips": {
+      "path": "assets/map_c_sniper_clips.json",
+      "sha256": "8c14b1f9608158210da18d59141d58c25e439c90ee80e80f45c8b35387b5b35d"
+    },
+    "map_c_world": {
+      "path": "assets/map_c_world.rcscene",
+      "sha256": "ab48a79970f7d8e90cd1236a03f06cb4db4482e7afc548f10553fc25fb3912e8"
+    },
+    "map_a_replay": {
+      "path": "assets/map_a_replay.bin",
+      "sha256": "34e94170ca3b08dfbd2afa051aa616684201a9bbd05e6b635bb555d5439df2e2"
+    },
+    "map_b_replay": {
+      "path": "assets/map_b_replay.bin",
+      "sha256": "7c7ed631dc56283781e711320a4498314c1c9853f10e8edfea50e96694cde560"
+    },
+    "map_c_replay": {
+      "path": "assets/map_c_replay.bin",
+      "sha256": "fd2eccbd2d4f7aee872d8e301eb310e077029ce418e9fe8c66b4bbf4561b71d8"
+    },
+    "map_c_player_mesh": {
+      "path": "assets/map_c_player_mesh.json",
+      "sha256": "487cedce73b8da6e768484a5d481b5cbbccac8bfac4de3de6b3469ebe6225c45"
+    }
+  }
+}

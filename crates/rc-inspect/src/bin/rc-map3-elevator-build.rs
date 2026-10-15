@@ -2,16 +2,15 @@ use rc_game::{map3_elevator::Assets, map3_escape::Door};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    path::Path,
 };
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let out = Path::new("analysis/mission27-map3-elevator/delivery");
-    fs::create_dir_all(out)?;
-    let raw = fs::read("analysis/mission26-map3-finale/delivery/geo_01c.rcplay")?;
+    let out = rc_inspect::build_inputs::output()?;
+    fs::create_dir_all(&out)?;
+    let raw = fs::read(rc_inspect::build_inputs::input("map_c_finale_scene")?)?;
     let n = u32::from_le_bytes(raw[8..12].try_into()?) as usize;
     let mut map: rc_game::map_runtime::Assets = serde_json::from_slice(&raw[12..12 + n])?;
     let rows: Vec<serde_json::Value> = serde_json::from_slice(&fs::read(
-        "analysis/mission19-map3/original-map-inventory.json",
+        rc_inspect::build_inputs::input("map_c_inventory")?,
     )?)?;
     let row = |id| rows.iter().find(|r| r["original"] == id).unwrap();
     let props = |id| {
@@ -36,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sn = u32::from_le_bytes(static_base[8..12].try_into()?) as usize;
     let mut scene = rc_render::Scene::from_snapshot(&static_base[12 + sn..])?;
     let faces: BTreeMap<String, Vec<usize>> = serde_json::from_slice(&fs::read(
-        "analysis/mission19-map3/surfaces/actor-faces.json",
+        rc_inspect::build_inputs::input("map_c_actor_faces")?,
     )?)?;
     let old_removed: BTreeSet<_> = [
         "WindowShatter_Test1",
@@ -107,9 +106,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter(|(i, _)| !removed.contains(i))
         .map(|(_, t)| t)
         .collect();
-    let catalog = rc_inspect::defaults::load(Path::new(
-        "D:/SteamLibrary/steamapps/common/Star Wars Republic Commando/GameData",
-    ))?;
+    let catalog = rc_inspect::defaults::load(&rc_inspect::build_inputs::game_data()?)?;
     let scalar = |class, key| -> Result<f64, Box<dyn std::error::Error>> {
         match catalog.resolve(class, key, 0)?.value {
             rc_package::properties::Value::Float(f) => Ok(f as f64),

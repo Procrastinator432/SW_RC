@@ -1,5 +1,5 @@
 use rc_game::{Game, Input, Phase, STEP};
-use std::{fs, path::Path};
+use std::fs;
 fn replay(g: &mut Game, b: &[u8]) -> Result<(), String> {
     for r in b[12..].chunks_exact(20) {
         let v = |i| f32::from_le_bytes(r[i..i + 4].try_into().unwrap()) as f64;
@@ -29,25 +29,25 @@ fn image(g: &Game) -> Result<Vec<u8>, String> {
     Ok(g.render_frame(160, 100)?.gpu_packet(&g.scene))
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let out = Path::new("analysis/mission29-checkpoints/delivery/runtime");
-    fs::create_dir_all(out)?;
+    let out = rc_inspect::build_inputs::output()?;
+    fs::create_dir_all(&out)?;
     let stages = [
         (
             "A",
-            "analysis/mission15-complete/delivery/geo_01a-first-mission.rcplay",
-            "analysis/mission15-complete/delivery/playthrough/input-replay.bin",
+            rc_inspect::build_inputs::input("map_a_scene")?,
+            rc_inspect::build_inputs::input("map_a_replay")?,
             vec![1, 600, 1930, 4000, 10000, 15000, 18730],
         ),
         (
             "B",
-            "analysis/mission18-map2-route/delivery/geo_01b.rcplay",
-            "analysis/mission18-map2-route/input-replay.bin",
+            rc_inspect::build_inputs::input("map_b_scene")?,
+            rc_inspect::build_inputs::input("map_b_replay")?,
             vec![1, 2000, 6000, 10000, 14000, 16414],
         ),
         (
             "C",
-            "analysis/mission27-map3-elevator/delivery/geo_01c.rcplay",
-            "analysis/mission27-map3-elevator/delivery/playthrough/input-replay.bin",
+            rc_inspect::build_inputs::input("map_c_scene")?,
+            rc_inspect::build_inputs::input("map_c_replay")?,
             vec![
                 1, 900, 2000, 3400, 4700, 6000, 7300, 8000, 9000, 10000, 11000, 11800,
             ],
@@ -142,9 +142,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         assert_eq!(g.state.phase, Phase::Won);
         game = Some(g);
     }
-    let mut f = game.unwrap().travel_to(&fs::read(
-        "analysis/mission28-first-mission-complete/delivery/geo_03a.rcplay",
-    )?)?;
+    let mut f = game
+        .unwrap()
+        .travel_to(&fs::read(rc_inspect::build_inputs::input(
+            "factory_scene",
+        )?)?)?;
     for _ in 0..30 {
         f.advance(STEP, Input::default())?;
     }
@@ -158,7 +160,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..Input::default()
         },
     )?;
-    let b = fs::read("analysis/mission28-first-mission-complete/delivery/geo_03a.rcplay")?;
+    let b = fs::read(rc_inspect::build_inputs::input("factory_scene")?)?;
     let identity = format!("{}:{}", b.len(), rc_game::replay::fingerprint(&b));
     let save = f.checkpoint(&identity)?;
     let mut restored = rc_game::bundle::decode(&b)?;

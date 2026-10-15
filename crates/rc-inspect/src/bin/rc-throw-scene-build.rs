@@ -55,34 +55,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let count = u32::from_le_bytes(animated[8..12].try_into()?) as usize;
     let mut visuals: visual::Assets = serde_json::from_slice(&animated[12..12 + count])?;
-    visuals.weapon = serde_json::from_slice(&fs::read(
-        "analysis/mission4-flight/throw-visual-assets.json",
-    )?)?;
+    visuals.weapon = serde_json::from_slice(&fs::read(rc_inspect::build_inputs::input(
+        "throw_visual_assets",
+    )?)?)?;
     let base = bundle::encode_animated(&animated[12 + count..], &visuals)?;
     let mut mission = source[..12 + n].to_vec();
     mission.extend(base);
     let trace: serde_json::Value = serde_json::from_slice(&fs::read(
-        "analysis/mission4-world-flight/world-flight-trace.json",
+        rc_inspect::build_inputs::input("throw_world_trace")?,
     )?)?;
     let a = throw_runtime::Assets {
-        animation: serde_json::from_slice(&fs::read(
-            "analysis/mission4-flight/throw-assets.json",
-        )?)?,
-        projectile: serde_json::from_slice(&fs::read(
-            "analysis/mission4-detonator/detonator-assets.json",
-        )?)?,
-        flight: serde_json::from_slice(&fs::read(
-            "analysis/mission4-world-flight/flight-assets.json",
-        )?)?,
-        gun: serde_json::from_slice(&fs::read("analysis/mission4-detonator/gunner-assets.json")?)?,
+        animation: serde_json::from_slice(&fs::read(rc_inspect::build_inputs::input(
+            "throw_assets",
+        )?)?)?,
+        projectile: serde_json::from_slice(&fs::read(rc_inspect::build_inputs::input(
+            "detonator_assets",
+        )?)?)?,
+        flight: serde_json::from_slice(&fs::read(rc_inspect::build_inputs::input(
+            "flight_assets",
+        )?)?)?,
+        gun: serde_json::from_slice(&fs::read(rc_inspect::build_inputs::input(
+            "gunner_assets",
+        )?)?)?,
         offset: serde_json::from_value(
             serde_json::from_slice::<serde_json::Value>(&fs::read(
-                "analysis/mission4-world-flight/world-validation.json",
+                rc_inspect::build_inputs::input("throw_world_validation")?,
             )?)?["original_release_offset"]
                 .clone(),
         )?,
         route: serde_json::from_value(trace["route"].clone())?,
-        snapshot: fs::read("analysis/mission4-detonator/detonator.rcscene")?,
+        snapshot: fs::read(rc_inspect::build_inputs::input("detonator_scene")?)?,
         foley_frames: [f32::from_bits(940614037), f32::from_bits(1064039965)],
         sounds: [
             "GEN_Sound.Foley_Movement.fol_GEN_grenadeThrow_01",

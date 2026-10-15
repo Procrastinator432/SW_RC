@@ -3,16 +3,16 @@ use rc_game::{
     map3_opening::{Action, Notify, Program},
     map3_planning::Factory,
 };
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{collections::BTreeMap, fs};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let root = Path::new("D:/SteamLibrary/steamapps/common/Star Wars Republic Commando/GameData");
-    let out = Path::new("analysis/mission23-map3-guard/delivery");
-    fs::create_dir_all(out)?;
-    let raw = fs::read("analysis/mission22-map3-escape/delivery/geo_01c.rcplay")?;
+    let root = &rc_inspect::build_inputs::game_data()?;
+    let out = rc_inspect::build_inputs::output()?;
+    fs::create_dir_all(&out)?;
+    let raw = fs::read(rc_inspect::build_inputs::input("map_c_escape_scene")?)?;
     let n = u32::from_le_bytes(raw[8..12].try_into()?) as usize;
     let mut map: rc_game::map_runtime::Assets = serde_json::from_slice(&raw[12..12 + n])?;
     let rows: Vec<serde_json::Value> = serde_json::from_slice(&fs::read(
-        "analysis/mission19-map3/original-map-inventory.json",
+        rc_inspect::build_inputs::input("map_c_inventory")?,
     )?)?;
     let row = |id| rows.iter().find(|r| r["original"] == id).unwrap();
     let props = |id| {
@@ -129,7 +129,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .push(rc_inspect::mission_assets::sound(root, "GEN_Sound.Weapons.wep_GEN_sbdGun_01")?.0);
     let mut actors = vec![];
     let original_assets: serde_json::Value = serde_json::from_slice(&fs::read(
-        "analysis/mission23-map3-guard/original-assets.json",
+        rc_inspect::build_inputs::input("map_c_guard_assets")?,
     )?)?;
     for (id, clip) in [
         (321, "IntroSBDRightPush"),

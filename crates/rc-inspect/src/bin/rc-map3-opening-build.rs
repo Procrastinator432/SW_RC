@@ -68,14 +68,14 @@ fn skin(
     Ok(())
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let root = Path::new("D:/SteamLibrary/steamapps/common/Star Wars Republic Commando/GameData");
-    let out = Path::new("analysis/mission20-map3-opening/delivery");
-    fs::create_dir_all(out)?;
-    let raw = fs::read("analysis/mission19-map3/delivery/geo_01c.rcplay")?;
+    let root = &rc_inspect::build_inputs::game_data()?;
+    let out = rc_inspect::build_inputs::output()?;
+    fs::create_dir_all(&out)?;
+    let raw = fs::read(rc_inspect::build_inputs::input("map_c_base_scene")?)?;
     let n = u32::from_le_bytes(raw[8..12].try_into()?) as usize;
     let mut map: rc_game::map_runtime::Assets = serde_json::from_slice(&raw[12..12 + n])?;
     let rows: Vec<serde_json::Value> = serde_json::from_slice(&fs::read(
-        "analysis/mission19-map3/original-map-inventory.json",
+        rc_inspect::build_inputs::input("map_c_inventory")?,
     )?)?;
     let row = |id| rows.iter().find(|x| x["original"] == id).unwrap();
     let props = |id| {
@@ -107,9 +107,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &root.join("Animations"),
         &root.join("System"),
     ])?;
-    let player: Mesh = serde_json::from_slice(&fs::read(
-        "analysis/mission20-map3-opening/player-mesh.json",
-    )?)?;
+    let player: Mesh = serde_json::from_slice(&fs::read(rc_inspect::build_inputs::input(
+        "map_c_player_mesh",
+    )?)?)?;
     let mut sev = visual_assets::load_from_animation(
         root,
         "Clone.ukx",
@@ -198,7 +198,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             sounds: vec![],
         });
     }
-    let raw_b = fs::read("analysis/mission18-map2-route/delivery/geo_01b.rcplay")?;
+    let raw_b = fs::read(rc_inspect::build_inputs::input("map_b_scene")?)?;
     let size = u32::from_le_bytes(raw_b[8..12].try_into()?) as usize;
     let b: serde_json::Value = serde_json::from_slice(&raw_b[12..12 + size])?;
     let squad_sound = map.sounds.len();
@@ -220,7 +220,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(id)
     };
     let inventory: Vec<serde_json::Value> = serde_json::from_slice(&fs::read(
-        "analysis/mission20-map3-opening/animation-inventory.json",
+        rc_inspect::build_inputs::input("map_c_animation_inventory")?,
     )?)?;
     let mut player_sounds = vec![];
     for role in 0..=actors.len() {

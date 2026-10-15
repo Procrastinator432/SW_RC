@@ -1,0 +1,198 @@
+{
+  "schema": 1,
+  "mission": [
+    "map2-route",
+    "map3",
+    "map3-opening",
+    "map3-planning",
+    "map3-escape",
+    "map3-guard",
+    "map3-breach",
+    "map3-balcony",
+    "map3-finale",
+    "map3-elevator",
+    "factory"
+  ],
+  "stages": {
+    "factory": {
+      "binary": "rc-factory-build",
+      "inputs": [
+        "factory_world",
+        "map_a_scene",
+        "map_c_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "{factory_world}",
+        "{map_a_scene}",
+        "{out}"
+      ],
+      "product": "geo_03a.rcplay",
+      "output_key": "factory_scene"
+    },
+    "map2": {
+      "binary": "rc-map2-build",
+      "inputs": [
+        "map_a_handoff",
+        "map_a_scene",
+        "map_b_world"
+      ],
+      "args": [
+        "{game_data}",
+        "{map_b_world}",
+        "{map_a_scene}",
+        "{out}"
+      ],
+      "product": "geo_01b.rcplay",
+      "output_key": "map_b_base_scene"
+    },
+    "map2-gameplay": {
+      "binary": "rc-map2-gameplay-build",
+      "inputs": [
+        "map_a_handoff",
+        "map_a_scene",
+        "map_b_actor_faces",
+        "map_b_gameplay",
+        "map_b_world"
+      ],
+      "args": [
+        "{game_data}",
+        "{map_b_world}",
+        "{map_a_scene}",
+        "{out}"
+      ],
+      "product": "geo_01b.rcplay",
+      "output_key": "map_b_gameplay_scene"
+    },
+    "map2-route": {
+      "binary": "rc-map2-route-build",
+      "inputs": [
+        "map_a_handoff",
+        "map_a_scene",
+        "map_b_actor_faces",
+        "map_b_gameplay",
+        "map_b_inventory",
+        "map_b_navigation",
+        "map_b_world"
+      ],
+      "args": [
+        "{game_data}",
+        "{map_b_world}",
+        "{map_a_scene}",
+        "{out}"
+      ],
+      "product": "geo_01b.rcplay",
+      "output_key": "map_b_scene"
+    },
+    "map3-balcony": {
+      "binary": "rc-map3-balcony-build",
+      "inputs": [
+        "map_c_balcony_clips",
+        "map_c_breach_scene",
+        "map_c_inventory"
+      ],
+      "args": [],
+      "product": "geo_01c.rcplay",
+      "output_key": "map_c_balcony_scene"
+    },
+    "map3-breach": {
+      "binary": "rc-map3-breach-build",
+      "inputs": [
+        "map_c_actor_faces",
+        "map_c_breach_clips",
+        "map_c_guard_scene",
+        "map_c_inventory"
+      ],
+      "args": [],
+      "product": "geo_01c.rcplay",
+      "output_key": "map_c_breach_scene"
+    },
+    "map3": {
+      "binary": "rc-map3-build",
+      "inputs": [
+        "map_a_scene",
+        "map_b_scene",
+        "map_c_world"
+      ],
+      "args": [
+        "{game_data}",
+        "{map_c_world}",
+        "{map_a_scene}",
+        "{out}"
+      ],
+      "product": "geo_01c.rcplay",
+      "output_key": "map_c_base_scene"
+    },
+    "map3-elevator": {
+      "binary": "rc-map3-elevator-build",
+      "inputs": [
+        "map_c_actor_faces",
+        "map_c_finale_scene",
+        "map_c_inventory"
+      ],
+      "args": [],
+      "product": "geo_01c.rcplay",
+      "output_key": "map_c_scene"
+    },
+    "map3-escape": {
+      "binary": "rc-map3-escape-build",
+      "inputs": [
+        "map_c_actor_faces",
+        "map_c_inventory",
+        "map_c_planning_scene"
+      ],
+      "args": [],
+      "product": "geo_01c.rcplay",
+      "output_key": "map_c_escape_scene"
+    },
+    "map3-finale": {
+      "binary": "rc-map3-finale-build",
+      "inputs": [
+        "map_c_balcony_scene",
+        "map_c_finale_clips",
+        "map_c_inventory",
+        "map_c_ship_mesh",
+        "map_c_sniper_clips"
+      ],
+      "args": [],
+      "product": "geo_01c.rcplay",
+      "output_key": "map_c_finale_scene"
+    },
+    "map3-guard": {
+      "binary": "rc-map3-guard-build",
+      "inputs": [
+        "map_c_escape_scene",
+        "map_c_guard_assets",
+        "map_c_inventory"
+      ],
+      "args": [],
+      "product": "geo_01c.rcplay",
+      "output_key": "map_c_guard_scene"
+    },
+    "map3-opening": {
+      "binary": "rc-map3-opening-build",
+      "inputs": [
+        "map_b_scene",
+        "map_c_animation_inventory",
+        "map_c_base_scene",
+        "map_c_inventory",
+        "map_c_player_mesh"
+      ],
+      "args": [],
+      "product": "geo_01c.rcplay",
+      "output_key": "map_c_opening_scene"
+    },
+    "map3-planning": {
+      "binary": "rc-map3-planning-build",
+      "inputs": [
+        "map_b_scene",
+        "map_c_actor_faces",
+        "map_c_inventory",
+        "map_c_opening_scene"
+      ],
+      "args": [],
+      "product": "geo_01c.rcplay",
+      "output_key": "map_c_planning_scene"
+    }
+  }
+}

@@ -4,17 +4,17 @@ use rc_game::{
     map3_planning::Factory,
     navigation::{Assets as Nav, Edge, Node},
 };
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{collections::BTreeMap, fs};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let root = Path::new("D:/SteamLibrary/steamapps/common/Star Wars Republic Commando/GameData");
-    let out = Path::new("analysis/mission25-map3-balcony/delivery");
-    fs::create_dir_all(out)?;
-    let raw = fs::read("analysis/mission24-map3-breach/delivery/geo_01c.rcplay")?;
+    let root = &rc_inspect::build_inputs::game_data()?;
+    let out = rc_inspect::build_inputs::output()?;
+    fs::create_dir_all(&out)?;
+    let raw = fs::read(rc_inspect::build_inputs::input("map_c_breach_scene")?)?;
     let n = u32::from_le_bytes(raw[8..12].try_into()?) as usize;
     let mut map: rc_game::map_runtime::Assets = serde_json::from_slice(&raw[12..12 + n])?;
     let mut game = rc_game::bundle::decode(&raw)?;
     let rows: Vec<serde_json::Value> = serde_json::from_slice(&fs::read(
-        "analysis/mission19-map3/original-map-inventory.json",
+        rc_inspect::build_inputs::input("map_c_inventory")?,
     )?)?;
     let row = |id| rows.iter().find(|r| r["original"] == id).unwrap();
     let props = |id| {
@@ -232,7 +232,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         shrink(texture, 64);
     }
     let clips: Vec<rc_game::visual::Clip> = serde_json::from_slice(&fs::read(
-        "analysis/mission25-map3-balcony/sunfac-clips.json",
+        rc_inspect::build_inputs::input("map_c_balcony_clips")?,
     )?)?;
     map.opening.as_mut().unwrap().actors[5]
         .mesh

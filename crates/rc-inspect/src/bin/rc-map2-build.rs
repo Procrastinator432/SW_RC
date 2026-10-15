@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     bytes.extend(base);
     let mut decoded = rc_game::bundle::decode(&bytes)?;
     let handoff: rc_game::transition::Handoff = serde_json::from_slice(&fs::read(
-        "analysis/mission15-complete/delivery/playthrough/map-handoff.json",
+        rc_inspect::build_inputs::input("map_a_handoff")?,
     )?)?;
     decoded.restore_handoff(&handoff)?;
     fs::write(out.join("geo_01b.rcplay"), &bytes)?;

@@ -1,4 +1,4 @@
-param([string]$OutputDirectory = 'analysis\milestone0\input-probe')
+param([string]$OutputDirectory = 'build\input-probe')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $jdk = Join-Path $root 'tools\jdk21\jdk-21.0.12.1+1'

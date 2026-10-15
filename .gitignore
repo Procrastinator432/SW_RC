@@ -1,6 +1,9 @@
 /target/
 /tools/
 /analysis/
+/build/
+/local-assets/
+/.idea/
 /android/.gradle/
 /android/local.properties
 /android/app/build/

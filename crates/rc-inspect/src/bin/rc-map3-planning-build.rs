@@ -5,20 +5,19 @@ use rc_game::{
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    path::Path,
 };
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let out = Path::new("analysis/mission21-map3-planning/delivery");
-    fs::create_dir_all(out)?;
-    let raw = fs::read("analysis/mission20-map3-opening/delivery/geo_01c.rcplay")?;
+    let out = rc_inspect::build_inputs::output()?;
+    fs::create_dir_all(&out)?;
+    let raw = fs::read(rc_inspect::build_inputs::input("map_c_opening_scene")?)?;
     let n = u32::from_le_bytes(raw[8..12].try_into()?) as usize;
     let mut map: rc_game::map_runtime::Assets = serde_json::from_slice(&raw[12..12 + n])?;
-    let b = fs::read("analysis/mission18-map2-route/delivery/geo_01b.rcplay")?;
+    let b = fs::read(rc_inspect::build_inputs::input("map_b_scene")?)?;
     let bn = u32::from_le_bytes(b[8..12].try_into()?) as usize;
     let mut bm: rc_game::map_runtime::Assets = serde_json::from_slice(&b[12..12 + bn])?;
     let bg = bm.gameplay.as_mut().unwrap();
     let rows: Vec<serde_json::Value> = serde_json::from_slice(&fs::read(
-        "analysis/mission19-map3/original-map-inventory.json",
+        rc_inspect::build_inputs::input("map_c_inventory")?,
     )?)?;
     let row = |id| rows.iter().find(|r| r["original"] == id).unwrap();
     let props = |id| {
@@ -84,7 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sn = u32::from_le_bytes(static_base[8..12].try_into()?) as usize;
     let mut scene = rc_render::Scene::from_snapshot(&static_base[12 + sn..])?;
     let faces: BTreeMap<String, Vec<usize>> = serde_json::from_slice(&fs::read(
-        "analysis/mission19-map3/surfaces/actor-faces.json",
+        rc_inspect::build_inputs::input("map_c_actor_faces")?,
     )?)?;
     let indices = faces
         .get("WindowShatter_Test1")
@@ -159,7 +158,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }));
     let mut actions = vec![];
     let mut sound_receipts = vec![];
-    let root = Path::new("D:/SteamLibrary/steamapps/common/Star Wars Republic Commando/GameData");
+    let root = &rc_inspect::build_inputs::game_data()?;
     for id in [1490, 1491, 1492, 1493, 1494] {
         let p = props(id);
         let mut a = Action {

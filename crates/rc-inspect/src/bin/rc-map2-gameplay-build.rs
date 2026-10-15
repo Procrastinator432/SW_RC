@@ -15,10 +15,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut game =
         rc_inspect::play_scene::load(root, &root.join("Maps/geo_01b.ctm"), Path::new(&a[2]))?;
     let mut gameplay: rc_game::map_gameplay::Assets = serde_json::from_slice(&fs::read(
-        "analysis/mission17-map2-gameplay/gameplay-spec.json",
+        rc_inspect::build_inputs::input("map_b_gameplay")?,
     )?)?;
     let faces: std::collections::BTreeMap<String, Vec<usize>> = serde_json::from_slice(&fs::read(
-        Path::new(&a[2]).parent().unwrap().join("actor-faces.json"),
+        rc_inspect::build_inputs::input("map_b_actor_faces")?,
     )?)?;
     let mut removed = std::collections::BTreeSet::new();
     for gate in &mut gameplay.gates {
@@ -254,7 +254,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Map2 gameplay metadata: {} bytes", metadata.len());
     let mut decoded = rc_game::bundle::decode(&bytes)?;
     let handoff: rc_game::transition::Handoff = serde_json::from_slice(&fs::read(
-        "analysis/mission15-complete/delivery/playthrough/map-handoff.json",
+        rc_inspect::build_inputs::input("map_a_handoff")?,
     )?)?;
     decoded.restore_handoff(&handoff)?;
     for _ in 0..600 {

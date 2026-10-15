@@ -39,7 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         sev_mesh: None,
         opening: None,
         fixer_mesh: Some(serde_json::from_value({
-            let b = fs::read("analysis/mission18-map2-route/delivery/geo_01b.rcplay")?;
+            let b = fs::read(rc_inspect::build_inputs::input("map_b_scene")?)?;
             let n = u32::from_le_bytes(b[8..12].try_into()?) as usize;
             let metadata: serde_json::Value = serde_json::from_slice(&b[12..12 + n])?;
             metadata["gameplay"]["fixer_mesh"].clone()
