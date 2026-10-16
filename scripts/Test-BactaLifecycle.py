@@ -18,6 +18,7 @@ def main():
     raw, replay = a.scene.read_bytes(), a.replay.read_bytes()
     opening = json.loads(raw[12:12+struct.unpack_from('<I',raw,8)[0]])
     notify_roles = {n['original']:n['role'] for n in opening['bacta']['notifies']}
+    controller = opening['bacta'].get('controller')
     assert replay[:8] == b'RCINPUT1' and (len(replay)-12) % 20 == 0
     rows = list(struct.iter_unpack('<ffffI', replay[12:]))
     api = c.CDLL(str(a.dll.resolve()))
@@ -56,7 +57,8 @@ def main():
         return json.loads(save(h)[20:])['state']
 
     def step(h, row):
-        assert api.rc_game_advance(h, 1/60, *row) == 1
+        result = api.rc_game_advance(h, 1/60, *row)
+        assert result == 1, (result, state(h)['statistics']['ticks'], state(h)['phase'])
 
     def pixels(h, width=160, height=90):
         b = (c.c_uint32 * (width*height))()
@@ -130,6 +132,9 @@ def main():
             if phase == 'Depleted':
                 assert s['mission']['completed'] and s['mission']['health'] == 100
         final = state(h)
+        if final['phase'] != 'Won':
+            a.output.parent.mkdir(parents=True, exist_ok=True)
+            a.output.with_name('incomplete-A-state.json').write_text(json.dumps(final,indent=2)+'\n',encoding='utf-8')
         assert final['phase'] == 'Won', final['phase']
         assert station_audio == [dict(tick=t, role=notify_roles[n]) for t,n in final['opening']['bacta']['notify_events']], station_audio
         assert len(station_audio) == 6
@@ -157,7 +162,22 @@ def main():
                 assert api.rc_game_restore_checkpoint(probe, data, len(bad), error, len(error)) != 0
                 assert save(probe) == probe_save, 'Invalid checkpoint changed live state'
                 checks.append('reject-' + damage)
-            for name, first in [('release', (0,0,0,0,0)), ('look-away', (0,0,3.14,0,16)), ('leave-range', (-1,0,0,0,16))]:
+            modes = [('release', (0,0,0,0,0))] if controller else [('release', (0,0,0,0,0)), ('look-away', (0,0,3.14,0,16)), ('leave-range', (-1,0,0,0,16))]
+            if controller:
+                reference = create()
+                try:
+                    restore(reference, probe_save)
+                    restore(probe, probe_save)
+                    for _ in range(40):
+                        step(reference,(0,0,0,0,16))
+                        step(probe,(1,1,3.14,2,127))
+                    assert save(probe) == save(reference), 'UsingItem must ignore movement/look/weapon/jump inputs'
+                    assert state(probe)['mission']['health'] > 25
+                    checks.append('using-item-ignores-free-controls')
+                finally:
+                    api.rc_game_release(reference)
+                modes.append(('release-leave-range',(-1,0,0,0,0)))
+            for name, first in modes:
                 restore(probe, probe_save)
                 # Pause consumes no simulation time or queued input; first
                 # released-use tick starts the original Holster animation.
@@ -166,7 +186,7 @@ def main():
                 step(probe, first)
                 interrupted_health = None
                 for _ in range(120):
-                    step(probe, first if name == 'leave-range' else (0,0,0,0,first[-1]))
+                    step(probe, first if 'leave-range' in name else (0,0,0,0,first[-1]))
                     current = state(probe)
                     if not current['mission']['using'] and interrupted_health is None:
                         interrupted_health = current['mission']['health']

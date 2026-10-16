@@ -71,6 +71,37 @@ impl VolumeWorld {
         profile: &MovementProfile,
         runtime: PawnRuntimeOptions,
     ) -> Result<PawnDiagnosticFrame, String> {
+        let direction = view
+            .world_input(MovementRatios {
+                walk: 1.,
+                back: 1.,
+                side: 1.,
+            })?
+            .direction;
+        self.pawn_acceleration_tick(
+            world,
+            state,
+            (view, direction.map(|v| v * profile.controller.acceleration)),
+            dt,
+            profile,
+            runtime,
+        )
+    }
+    /// Script ProcessMove acceleration, through the same volume/walking/falling
+    /// solver as free movement. This bypasses only the port's stick-to-accel map.
+    pub fn pawn_acceleration_tick(
+        &self,
+        world: &StaticBodyWorld,
+        state: &ControlledBody,
+        control: (ViewInput, [f64; 2]),
+        dt: f64,
+        profile: &MovementProfile,
+        runtime: PawnRuntimeOptions,
+    ) -> Result<PawnDiagnosticFrame, String> {
+        let (view, acceleration) = control;
+        if acceleration.iter().any(|v| !v.is_finite() || v.abs() > 1e6) {
+            return Err("Invalid script movement acceleration".into());
+        }
         if !dt.is_finite()
             || dt <= 0.0
             || dt > 0.05
@@ -106,14 +137,6 @@ impl VolumeWorld {
         if !friction.is_finite() || !(0.0..=1e6).contains(&friction) {
             return Err("invalid selected GroundFriction".into());
         }
-        let direction = view
-            .world_input(MovementRatios {
-                walk: 1.0,
-                back: 1.0,
-                side: 1.0,
-            })?
-            .direction;
-        let acceleration = direction.map(|v| v * profile.controller.acceleration);
         let supported = state.body.velocity[2] <= 0.0
             && world
                 .floor_contact(

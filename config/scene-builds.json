@@ -6,6 +6,7 @@
     "map-a-feedback",
     "map-a-audio",
     "map-a-bacta",
+    "map-a-bacta-replay",
     "map2-route",
     "map-b-material",
     "map-b-feedback",
@@ -304,6 +305,13 @@
       "args": ["{game_data}", "{map_a_scene}", "{out}"],
       "product": "geo_01a.rcplay",
       "output_key": "map_a_scene"
+    },
+    "map-a-bacta-replay": {
+      "binary": "rc-bacta-replay-build",
+      "inputs": ["map_a_scene", "map_a_replay"],
+      "args": ["{map_a_scene}", "{map_a_replay}", "{out}"],
+      "product": "map_a_replay.bin",
+      "output_key": "map_a_replay"
     },
     "map-a-audio": {
       "binary": "rc-opening-audio-build",

@@ -474,8 +474,10 @@ impl Game {
         let fire = self.pending_fire || input.fire;
         let reload = self.pending_reload || input.reload;
         let throw_grenade = self.pending_throw || input.throw_grenade;
-        self.state.yaw = (self.state.yaw - input.look[0]).rem_euclid(std::f64::consts::TAU);
-        self.state.pitch = (self.state.pitch - input.look[1]).clamp(-1.4, 1.4);
+        if !self.bacta_using(input.use_action) {
+            self.state.yaw = (self.state.yaw - input.look[0]).rem_euclid(std::f64::consts::TAU);
+            self.state.pitch = (self.state.pitch - input.look[1]).clamp(-1.4, 1.4);
+        }
         self.clamp_opening_view();
         self.clamp_map3_view();
         let mut ticks = 0;
@@ -565,6 +567,21 @@ impl Game {
             self.state.statistics.ticks += 1;
             return Ok(());
         }
+        let bacta_control = self.bacta_control(input.use_action)?;
+        let input = if bacta_control.is_some() {
+            Input {
+                forward: 0.,
+                strafe: 0.,
+                jump: false,
+                fire: false,
+                reload: false,
+                throw_grenade: false,
+                crouch: self.state.crouched,
+                ..input
+            }
+        } else {
+            input
+        };
         let previous = self.visuals.as_ref().map(|_| self.state.clone());
         if (self.rendezvous.is_some() || self.map.is_some()) && input.crouch != self.state.crouched
         {
@@ -610,20 +627,38 @@ impl Game {
             wants_to_crouch: input.crouch,
             current_jump_z: self.profile.controller.jump_speed,
         };
-        let moved = self.volumes.pawn_shape_tick(
-            &self.world,
-            &self.state.pawn,
-            ViewInput {
-                forward: input.forward,
-                strafe: -input.strafe,
-                yaw: (self.state.yaw * 65536. / std::f64::consts::TAU) as i32,
-                walking: input.walking,
-                jump: input.jump,
-            },
-            STEP,
-            &profile,
-            runtime,
-        )?;
+        let view = ViewInput {
+            forward: input.forward,
+            strafe: -input.strafe,
+            yaw: (self.state.yaw * 65536. / std::f64::consts::TAU) as i32,
+            walking: input.walking,
+            jump: input.jump,
+        };
+        let moved = if let Some(acceleration) = bacta_control {
+            self.volumes.pawn_acceleration_tick(
+                &self.world,
+                &self.state.pawn,
+                (view, acceleration),
+                STEP,
+                &profile,
+                runtime,
+            )?
+        } else {
+            self.volumes.pawn_shape_tick(
+                &self.world,
+                &self.state.pawn,
+                ViewInput {
+                    forward: input.forward,
+                    strafe: -input.strafe,
+                    yaw: (self.state.yaw * 65536. / std::f64::consts::TAU) as i32,
+                    walking: input.walking,
+                    jump: input.jump,
+                },
+                STEP,
+                &profile,
+                runtime,
+            )?
+        };
         self.state.pawn = moved.state;
         self.state.statistics.ticks += 1;
         self.state
@@ -657,6 +692,7 @@ impl Game {
             .is_some_and(|s| s.flow.plunger_selected || s.firing);
         self.throw_begin(input.throw_grenade && !using_plunger)?;
         let weapon_blocked = map_weapon_blocked
+            || bacta_control.is_some()
             || using_plunger
             || self
                 .state

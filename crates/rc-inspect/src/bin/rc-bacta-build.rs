@@ -55,6 +55,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let Value::Float(height) = get("CollisionHeight")? else {
         return Err("Station height".into());
     };
+    let Value::Vector(actor_location) = get("Location")? else {
+        return Err("Station actor location".into());
+    };
+    let Value::Float(offset) = get("PlayerOffset")? else {
+        return Err("Station player offset".into());
+    };
+    let Value::Float(player_range) = get("PlayerRange")? else {
+        return Err("Station player range".into());
+    };
+    let Value::Float(marker_z) = get("HUDMarkerIconZOffset")? else {
+        return Err("Station marker offset".into());
+    };
+    let Value::Bool(lock_location) = get("bLockPlayerLocation")? else {
+        return Err("Station location lock".into());
+    };
+    let facing =
+        rc_package::mesh::transform_point([offset, 0., 0.], [0.; 3], rotation, [1.; 3], [0.; 3]);
+    let controller = rc_game::bacta::Controller {
+        actor_location,
+        desired_xy: std::array::from_fn(|i| actor_location[i] + facing[i]),
+        marker_z,
+        player_range,
+        lock_location,
+    };
     let mut resolver = rc_inspect::assets::Assets::new(&[
         &root.join("Animations"),
         &root.join("Textures"),
@@ -161,6 +185,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     opening.bacta = Some(rc_game::bacta::Assets {
+        controller: Some(controller),
         mesh: Some(mesh),
         location,
         rotation,
@@ -169,6 +194,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         notifies,
     });
     opening.provenance["bacta"] = serde_json::json!({"actor":736,"source":"ctgame.BactaDispenser.Active: PlayAnim Load, FinishAnim, bActivated; EndState Holster","notifies":receipts,"transform":"Preserved legacy bottom alignment and box collision adapter","limits":"Original Eye/body particle emitters and their ambient loop are not yet hosted; station recharge/reuse after objective is outside this bounded tutorial host"});
+    opening.provenance["bacta"]["using_item"] = serde_json::json!({"source":"ctgame.CTPlayer.UsingItem.PlayerMove / engine.PlayerController.ProcessMove", "bindings":opening.bacta.as_ref().unwrap().controller, "acceleration":"15 * (DesiredLocation - Pawn.Location) - Pawn.Velocity; Z=0", "settle":"Dist <= 450 * dt: SetLocation if Dist>1, then zero velocity/acceleration", "rotator_units_per_second":45000, "boundary":"Original script controller on port collision/volume physics; quantized portable rotator math; target acquisition remains the bounded tutorial adapter; hand-signal weapon switch/network/ViewShake are not hosted"});
     let mut result = vec![];
     let mut at = 0;
     for _ in 0..16 {

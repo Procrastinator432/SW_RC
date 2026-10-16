@@ -28,6 +28,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "PlayerOffset",
         "bLockPlayerLocation",
         "ActivateDotProdMax",
+        "CollisionRadius",
+        "bCollideActors",
+        "bBlockActors",
+        "bBlockPlayers",
     ] {
         defaults.insert(
             field.into(),

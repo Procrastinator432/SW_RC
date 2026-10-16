@@ -39,6 +39,40 @@ pub struct State {
     pub audio_sequence: u64,
 }
 impl Game {
+    pub(crate) fn mission_use_candidate(&self, use_action: bool) -> bool {
+        let (Some(a), Some(s)) = (&self.mission, &self.state.mission) else {
+            return false;
+        };
+        if !use_action
+            || s.completed
+            || self.state.health == 0
+            || self.state.opening.as_ref().is_some_and(|o| !o.done)
+        {
+            return false;
+        }
+        if self.bacta_using(true) {
+            return true;
+        } // UsingItem retains its selected target until StopUse.
+        let p = self.state.pawn.body.position;
+        if self
+            .opening
+            .as_ref()
+            .and_then(|o| o.bacta.as_ref())
+            .and_then(|b| b.assets.controller.as_ref())
+            .is_some_and(|c| {
+                distance(p, c.actor_location.map(f64::from)) > f64::from(c.player_range)
+            })
+        {
+            return false;
+        }
+        let toward = [a.station[0] - p[0], a.station[1] - p[1]];
+        let len = toward[0].hypot(toward[1]);
+        let facing = len < 1.
+            || (toward[0] * self.state.yaw.cos() + toward[1] * self.state.yaw.sin()) / len > 0.5;
+        facing
+            && distance(p, *a.route.last().unwrap()) <= a.use_radius
+            && self.state.pawn.body.grounded
+    }
     pub fn attach_mission(&mut self, mut assets: Assets) -> Result<(), String> {
         if self.mission.is_some()
             || self.combat.is_some()
@@ -366,6 +400,7 @@ impl Game {
         if self.state.opening.as_ref().is_some_and(|s| !s.done) {
             return;
         }
+        let using = self.mission_use_candidate(use_action);
         let Some(a) = &self.mission else {
             return;
         };
@@ -387,16 +422,7 @@ impl Game {
         while s.waypoint + 1 < a.route.len() && distance(p, a.route[s.waypoint]) < 100. {
             s.waypoint += 1;
         }
-        let final_point = *a.route.last().unwrap();
-        let toward = [(a.station[0] - p[0]), (a.station[1] - p[1])];
-        let len = toward[0].hypot(toward[1]);
-        let facing = len < 1.
-            || (toward[0] * self.state.yaw.cos() + toward[1] * self.state.yaw.sin()) / len > 0.5;
-        s.using = use_action
-            && facing
-            && distance(p, final_point) <= a.use_radius
-            && self.state.pawn.body.grounded
-            && self.state.health > 0;
+        s.using = using;
         if s.using
             && self
                 .state

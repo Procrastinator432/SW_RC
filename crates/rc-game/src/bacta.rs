@@ -24,12 +24,28 @@ pub struct Notify {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assets {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub controller: Option<Controller>,
     pub mesh: Option<Mesh>,
     pub location: [f32; 3],
     pub rotation: [i32; 3],
     pub scale: [f32; 3],
     pub pivot: [f32; 3],
     pub notifies: Vec<Notify>,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Controller {
+    pub actor_location: [f32; 3],
+    pub desired_xy: [f32; 2],
+    pub marker_z: f32,
+    pub player_range: f32,
+    pub lock_location: bool,
+}
+fn turn_units(current: i32, desired: i32) -> i32 {
+    let delta = desired.wrapping_sub(current) & 65535;
+    let delta = if delta > 32768 { delta - 65536 } else { delta };
+    current.wrapping_add(delta.clamp(-750, 750))
 }
 pub struct Prepared {
     pub mesh: PreparedMesh,
@@ -68,6 +84,16 @@ impl Assets {
             || self.notifies.len() != 6
         {
             return Err("Invalid Bacta station bindings".into());
+        }
+        if self.controller.as_ref().is_some_and(|c| {
+            c.actor_location
+                .iter()
+                .chain(c.desired_xy.iter())
+                .chain([&c.marker_z, &c.player_range])
+                .any(|v| !v.is_finite() || v.abs() > 1e7)
+                || !(1. ..=1000.).contains(&c.player_range)
+        }) {
+            return Err("Invalid Bacta player controller".into());
         }
         let mesh = self
             .mesh
@@ -231,6 +257,80 @@ impl Prepared {
     }
 }
 impl Game {
+    pub(crate) fn bacta_using(&self, held: bool) -> bool {
+        held && self
+            .state
+            .mission
+            .as_ref()
+            .is_some_and(|m| m.using && !m.completed)
+            && self.state.health > 0
+            && self
+                .opening
+                .as_ref()
+                .and_then(|o| o.bacta.as_ref())
+                .is_some_and(|b| b.assets.controller.is_some())
+    }
+    /// CTPlayer.UsingItem.PlayerMove: target-relative placement, proportional
+    /// acceleration and bounded rotator correction. Collision/physics is the
+    /// existing port host; network replication and ViewShake remain outside it.
+    pub(crate) fn bacta_control(&mut self, held: bool) -> Result<Option<[f64; 2]>, String> {
+        if !self.mission_use_candidate(held) {
+            return Ok(None);
+        }
+        let Some(c) = self
+            .opening
+            .as_ref()
+            .and_then(|o| o.bacta.as_ref())
+            .and_then(|b| b.assets.controller.as_ref())
+        else {
+            return Ok(None);
+        };
+        let position = self.state.pawn.body.position.map(|v| v as f32);
+        let desired = if c.lock_location {
+            [c.desired_xy[0], c.desired_xy[1], position[2]]
+        } else {
+            position
+        };
+        let to: [f32; 3] = std::array::from_fn(|i| desired[i] - position[i]);
+        let dist = ((to[0] * to[0] + to[1] * to[1]) + to[2] * to[2]).sqrt();
+        let acceleration = if dist > 450. * STEP as f32 {
+            std::array::from_fn(|i| {
+                f64::from(15. * to[i] - self.state.pawn.body.velocity[i] as f32)
+            })
+        } else {
+            if dist > 1. {
+                let end = desired.map(f64::from);
+                let sweep = self.world.sweep_motion(
+                    self.state.pawn.body.position,
+                    end,
+                    self.profile.physics.extent,
+                )?;
+                if !sweep.complete {
+                    return Err("Incomplete Bacta placement sweep".into());
+                }
+                if sweep.contacts.first().is_none_or(|c| c.hit.fraction >= 1.) {
+                    self.state.pawn.body.position = end;
+                } // Native SetLocation may fail; never snap through a solid.
+            }
+            self.state.pawn.body.velocity = [0.; 3];
+            [0.; 2]
+        };
+        let eye = self.eye();
+        let target: [f64; 3] = std::array::from_fn(|i| {
+            f64::from(c.actor_location[i]) - eye[i]
+                + if i == 2 { f64::from(c.marker_z) } else { 0. }
+        });
+        let unit = 65536. / std::f64::consts::TAU;
+        let yaw = (target[1].atan2(target[0]) * unit) as i32;
+        let pitch = (target[2].atan2(target[0].hypot(target[1])) * unit) as i32;
+        let turn = |current: f64, desired: i32| {
+            let current = (current * unit) as i32;
+            f64::from(turn_units(current, desired)) / unit
+        };
+        self.state.yaw = turn(self.state.yaw, yaw).rem_euclid(std::f64::consts::TAU);
+        self.state.pitch = turn(self.state.pitch, pitch).clamp(-1.4, 1.4);
+        Ok(Some(acceleration))
+    }
     pub(crate) fn bacta_tick(&mut self) -> Result<(), String> {
         let Some(p) = self.opening.as_ref().and_then(|o| o.bacta.as_ref()) else {
             return Ok(());
@@ -309,5 +409,19 @@ impl Game {
             f.texture += p.texture_base;
         }
         Ok((scene.triangles, scene.appearance))
+    }
+}
+
+#[cfg(test)]
+mod controller_tests {
+    use super::turn_units;
+    #[test]
+    fn view_turn_takes_short_arc_across_zero_and_caps_rate() {
+        assert_eq!(turn_units(65530, 5), 65541);
+        assert_eq!(turn_units(5, 65530), -6);
+        assert_eq!(turn_units(0, 16000), 750);
+        assert_eq!(turn_units(0, 60000), -750);
+        // Source keeps the exact half turn positive (strict >32768).
+        assert_eq!(turn_units(0, 32768), 750);
     }
 }

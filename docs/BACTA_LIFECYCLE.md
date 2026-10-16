@@ -2,6 +2,8 @@
 
 Stand: 16.10.2026, weiterer Teil des zweiten Handytest-Korrekturblocks. **Keine neue Gerätefreigabe; der gesamte Inszenierungsblock bleibt offen.**
 
+Fortsetzung: Der originale `UsingItem`-Controller ist inzwischen als optionaler Szenenbaustein integriert. Blick und Bewegung werden beim Benutzen zielbezogen geführt; Loslassen gibt die Steuerung zurück. Die frühere Nähe-/Blick-Abbruchbeschreibung unten gilt für den vorherigen Stand ohne Controllerbindung. Die konservative Kollisionsgrenze bleibt ausdrücklich offen. [Originalregeln, aktualisierte Eingaben und Nachweise](BACTA_USING_ITEM.md).
+
 Die deklarierte Stufe `map-a-bacta` ersetzt die 1.896 bisher eingebrannten Stationsflächen durch eine animierte Instanz des originalen `BactaDispenserGEO` (Actor736). Der Builder reproduziert die alten Weltkoordinaten und entfernt ausschließlich exakt passende Flächen; fehlende oder doppelte Zuordnungen brechen den Bau ab. Die bisherige Bodenanpassung und Box-Kollision bleiben als Portadapter erhalten. Die gemeinsame Originalmaterial-Auflösung gilt auch für den neuen Skeletal-Import.
 
 `ctgame.BactaDispenser.Active` startet `Load`, wartet auf `FinishAnim` und setzt erst dann `bActivated`. Dieser Ablauf steuert jetzt die Heilungsfreigabe. `Load` und `Holster` haben jeweils30 Frames bei30Hz; die vorhandenen portierten Channel-Playback-/LOD-Tick-Funktionen führen sie aus. Loslassen, Wegdrehen oder Entfernen aus dem Benutzungsbereich beendet die Aktivierung und startet `Holster`. Nach einem Abbruch lässt sich die Station erneut öffnen. Die ausgewählte Tutorialstation wird nach erfülltem Heilungsziel nicht erneut benutzt; allgemeines Wiederaufladen ist weiterhin außerhalb dieses begrenzten Hosts.
