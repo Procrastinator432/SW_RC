@@ -157,7 +157,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pitch = rot[0] as f64 * std::f64::consts::TAU / 65536.;
     let yaw = rot[1] as f64 * std::f64::consts::TAU / 65536.;
     let dir = rc_game::direction(yaw, pitch);
-    let mut resolver = rc_inspect::assets::Assets::new(&[&root.join("Textures")])?;
+    let mut resolver =
+        rc_inspect::assets::Assets::new(&[&root.join("Textures"), &root.join("System")])?;
     let mut effect_texture =
         |source: &str| -> Result<rc_game::artillery::Texture, Box<dyn std::error::Error>> {
             let mut t = resolver.diffuse_at_size(source, 128)?.texture;

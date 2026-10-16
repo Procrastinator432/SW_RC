@@ -33,6 +33,8 @@ pub struct HardwareShaderInputs {
 pub struct Assets {
     files: HashMap<String, PathBuf>,
     loaded: HashMap<String, (Package, Vec<u8>)>,
+    opacity_defaults: Option<rc_package::defaults::Catalog>,
+    opacity_cache: HashMap<String, Result<bool, String>>,
 }
 #[derive(Default)]
 pub struct MaterialState {
@@ -43,6 +45,7 @@ type JitterHost<'a> = Option<(
     &'a mut dyn FnMut() -> Result<u16, String>,
 )>;
 pub struct Diffuse {
+    pub opacity: Result<bool, String>,
     pub jitter: Option<TexJitter>,
     pub jitter_state: Option<JitterState>,
     pub directional_panner: Option<TexPanner>,
@@ -56,6 +59,76 @@ pub struct Diffuse {
     pub source_mip: [usize; 2],
 }
 impl Assets {
+    pub fn opacity_decisions(&self) -> &HashMap<String, Result<bool, String>> {
+        &self.opacity_cache
+    }
+    /// Only original, resolved material states may discard texture alpha.
+    pub fn opaque(&mut self, path: &str) -> Result<bool, String> {
+        if let Some(result) = self.opacity_cache.get(path) {
+            return result.clone();
+        }
+        let result = self.resolve_opaque(path, &mut HashSet::new());
+        self.opacity_cache.insert(path.into(), result.clone());
+        result
+    }
+    fn resolve_opaque(
+        &mut self,
+        path: &str,
+        visited: &mut HashSet<String>,
+    ) -> Result<bool, String> {
+        if visited.len() >= 16 || !visited.insert(path.to_lowercase()) {
+            return Err("Opacity material cycle/depth".into());
+        }
+        let (class, props) = self.material_properties(path)?;
+        if self.opacity_defaults.is_none() {
+            let root = self
+                .files
+                .get("engine")
+                .and_then(|p| p.parent())
+                .and_then(|p| p.parent())
+                .ok_or("Missing original material defaults")?;
+            self.opacity_defaults = Some(crate::defaults::load(root)?);
+        }
+        let value = |field| {
+            self.opacity_defaults
+                .as_ref()
+                .unwrap()
+                .instance(&class, &props, field, 0, path)
+                .map(|r| r.value)
+        };
+        match class.as_str() {
+            "Engine.Shader" => Ok(matches!(value("OutputBlending")?, Value::Byte(0))
+                && matches!(value("Opacity")?, Value::Object { index: 0, .. })),
+            "Engine.FinalBlend" => Ok(matches!(value("FrameBufferBlending")?, Value::Byte(0))
+                && matches!(value("AlphaTest")?, Value::Bool(false))),
+            "Engine.Texture" => Ok(matches!(value("bMasked")?, Value::Bool(false))
+                && matches!(value("bAlphaTexture")?, Value::Bool(false))),
+            "Engine.HsBumpDiff"
+            | "Engine.HsBumpDiffSpec"
+            | "Engine.HsBumpDiffSpecMask"
+            | "Engine.HsBumpIllumSpecMask"
+            | "Engine.HsBumpDiffBlend"
+            | "Engine.HsBumpDiffBlendMask"
+            | "Engine.HsBumpDiffBlendMaskIllum" => {
+                Ok(matches!(value("OutputBlending")?, Value::Byte(0)))
+            }
+            "Engine.TexPanner"
+            | "Engine.TexPanner2D"
+            | "Engine.TexOscillator"
+            | "Engine.TexCoordSource" => {
+                let Value::Object { index, path: next } = value("Material")? else {
+                    return Err("Invalid opacity material reference".into());
+                };
+                if index == 0 {
+                    return Err("Empty opacity material reference".into());
+                }
+                let package = path.split_once('.').ok_or("Invalid material path")?.0;
+                let next = self.qualify(package, &next);
+                self.resolve_opaque(&next, visited)
+            }
+            _ => Err(format!("Unresolved opacity class {class}")),
+        }
+    }
     /// Explicit serialized inputs only; no wrapper overrides or sampler/state defaults.
     pub fn hardware_shader_inputs(&mut self, path: &str) -> Result<HardwareShaderInputs, String> {
         let (class, props) = self.material_properties(path)?;
@@ -281,13 +354,15 @@ impl Assets {
         Ok(Self {
             files,
             loaded: HashMap::new(),
+            opacity_defaults: None,
+            opacity_cache: HashMap::new(),
         })
     }
     pub fn diffuse(&mut self, path: &str) -> Result<Diffuse, String> {
         self.diffuse_at_size(path, 64)
     }
     pub fn diffuse_at_size(&mut self, path: &str, limit: usize) -> Result<Diffuse, String> {
-        self.resolve_diffuse(path, limit, None, None)
+        self.resolve_diffuse(path, limit, None, None, None)
     }
     /// Explicit time-sampled path. Legacy scalar-only consumers keep rejecting panners.
     pub fn diffuse_at_time(
@@ -296,7 +371,18 @@ impl Assets {
         limit: usize,
         time: f32,
     ) -> Result<Diffuse, String> {
-        self.sampled_diffuse(path, limit, time, None)
+        self.sampled_diffuse(path, limit, time, None, None)
+    }
+    /// Custom UV/composition adapters must retain the enclosing material's alpha state.
+    pub fn diffuse_layer_at_time(
+        &mut self,
+        layer: &str,
+        material: &str,
+        limit: usize,
+        time: f32,
+    ) -> Result<Diffuse, String> {
+        let opacity = self.opaque(material);
+        self.sampled_diffuse(layer, limit, time, None, Some(opacity))
     }
     /// Retain oscillator state by qualified material object; host owns shared rand order.
     pub fn diffuse_with_jitter(
@@ -307,7 +393,7 @@ impl Assets {
         state: &mut MaterialState,
         random: &mut dyn FnMut() -> Result<u16, String>,
     ) -> Result<Diffuse, String> {
-        self.sampled_diffuse(path, limit, time, Some((state, random)))
+        self.sampled_diffuse(path, limit, time, Some((state, random)), None)
     }
     fn sampled_diffuse(
         &mut self,
@@ -315,6 +401,7 @@ impl Assets {
         limit: usize,
         time: f32,
         jitter: JitterHost<'_>,
+        opacity: Option<Result<bool, String>>,
     ) -> Result<Diffuse, String> {
         if !time.is_finite() {
             return Err("Nonfinite material time".into());
@@ -353,6 +440,7 @@ impl Assets {
             limit,
             Some((time, defaults, directional_defaults, oscillator_defaults)),
             jitter,
+            opacity,
         )
     }
     fn resolve_diffuse(
@@ -366,10 +454,12 @@ impl Assets {
             properties::Properties,
         )>,
         mut jitter_host: JitterHost<'_>,
+        opacity: Option<Result<bool, String>>,
     ) -> Result<Diffuse, String> {
         if limit == 0 || limit > 1024 {
             return Err("Diffuse preview size outside 1..1024".into());
         }
+        let opacity = opacity.unwrap_or_else(|| self.opaque(path));
         let mut path = path.to_owned();
         let mut visited = HashSet::new();
         let mut scale = 1.0;
@@ -435,7 +525,7 @@ impl Assets {
                 // Bound snapshot size; use original mips when available, nearest sampling otherwise.
                 let width = mip.width.min(limit);
                 let height = mip.height.min(limit);
-                let resized = (0..height)
+                let mut resized: Vec<u32> = (0..height)
                     .flat_map(|y| {
                         (0..width).map(move |x| {
                             (y * mip.height / height) * mip.width + x * mip.width / width
@@ -443,7 +533,13 @@ impl Assets {
                     })
                     .map(|i| pixels[i])
                     .collect();
+                if opacity == Ok(true) {
+                    for pixel in &mut resized {
+                        *pixel |= 0xff000000;
+                    }
+                }
                 return Ok(Diffuse {
+                    opacity,
                     jitter,
                     jitter_state,
                     uv_transform,

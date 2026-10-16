@@ -463,7 +463,11 @@ impl Game {
             } else {
                 a.frame
             };
-            let mut geometry = mesh.geometry(&mesh.channel(clip, frame)?)?;
+            // intro_tick already consumes the animated root translation through
+            // GetMoveCoords and collision. Skinning it again displaces the body
+            // a second time, visibly lifting the clone away from its actor.
+            let mut geometry = mesh
+                .geometry_with_root(&mesh.channel(clip, frame)?, !a.playback.channels.is_empty())?;
             let m = a.matrix.map(f32::from_bits);
             for t in &mut geometry.triangles {
                 t.points = t.points.map(|v| {

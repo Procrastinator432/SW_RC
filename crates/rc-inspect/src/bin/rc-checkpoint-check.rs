@@ -28,6 +28,31 @@ fn replay(g: &mut Game, b: &[u8]) -> Result<(), String> {
 fn image(g: &Game) -> Result<Vec<u8>, String> {
     Ok(g.render_frame(160, 100)?.gpu_packet(&g.scene))
 }
+fn player_view(
+    g: &Game,
+    out: &std::path::Path,
+    label: &str,
+    tick: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if std::env::var("RC_CAPTURE_VIEWS").as_deref() != Ok("1") {
+        return Ok(());
+    }
+    let directory = out.join("player-views");
+    fs::create_dir_all(&directory)?;
+    let mut ppm = b"P6\n720 405\n255\n".to_vec();
+    for p in g.render(720, 405)? {
+        ppm.extend([(p >> 16) as u8, (p >> 8) as u8, p as u8]);
+    }
+    fs::write(directory.join(format!("{label}-{tick:05}.ppm")), ppm)?;
+    let frame = g.render_frame(720, 405)?;
+    fs::write(
+        directory.join(format!("{label}-{tick:05}.json")),
+        serde_json::to_vec_pretty(
+            &serde_json::json!({"state":g.state,"camera_basis":rc_render::gpu::basis(&g.scene,frame.view),"scope":"Ordinary recorded inputs and runtime player camera; no position/health/aim fixture"}),
+        )?,
+    )?;
+    Ok(())
+}
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out = rc_inspect::build_inputs::output()?;
     fs::create_dir_all(&out)?;
@@ -68,6 +93,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let rows = fs::read(recording)?;
         let count = (rows.len() - 12) / 20;
         let mut i = 0;
+        player_view(&g, &out, label, 0)?;
+        let mut previous_marker = g.checkpoint_marker();
         while i < count {
             replay(
                 &mut g,
@@ -79,6 +106,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .concat(),
             )?;
             i += 1;
+            let marker = g.checkpoint_marker();
+            if marker != previous_marker
+                || samples.contains(&i)
+                || (label == "A" && [120, 210, 240, 300, 420, 900].contains(&i))
+            {
+                player_view(&g, &out, label, i)?;
+                previous_marker = marker;
+            }
             if !samples.contains(&i) {
                 continue;
             }

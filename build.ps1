@@ -45,6 +45,7 @@ try {
         Step 'format' {Native cargo @('fmt','--all','--','--check')}
         Step 'debug-tests' {Native cargo (@('test','--workspace','--lib')+$cargoOptions)}
         Step 'release-tests' {Native cargo (@('test','--workspace','--lib','--release')+$cargoOptions)}
+        Step 'material-import-tests' {Native cargo (@('test','-p','rc-inspect','--bin','rc-scene-material-build')+$cargoOptions)}
         Step 'doc-tests' {Native cargo (@('test','--workspace','--doc')+$cargoOptions)}
         Step 'clippy' {Native cargo (@('clippy','--workspace','--all-targets')+$cargoOptions+@('--','-D','warnings'))}
         Step 'native-build' {Native cargo (@('build','-p','rc-native','--release')+$cargoOptions)}

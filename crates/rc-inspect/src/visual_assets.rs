@@ -6,7 +6,7 @@ use rc_package::{
     skeletal_mesh::read_skeletal_mesh_prefix,
 };
 use std::{fs, path::Path};
-fn opacity(
+fn opacity_inputs(
     game: &Path,
     path: &str,
 ) -> Result<(bool, serde_json::Value), Box<dyn std::error::Error>> {
@@ -48,7 +48,7 @@ fn opacity(
         })
     };
     if class == "Engine.TexPanner2D" {
-        return opacity(game, &reference("Material").ok_or("Panner lacks material")?);
+        return opacity_inputs(game, &reference("Material").ok_or("Panner lacks material")?);
     }
     let opacity = reference("Opacity");
     let relevant: Vec<_> = props
@@ -124,13 +124,11 @@ pub fn load_from_animation(
     let mut materials = vec![];
     for &index in &prefix.materials {
         let path = qualify(index)?;
-        let mut diffuse = assets.diffuse_at_time(&path, 256, 0.)?;
-        let (opaque, opacity) = opacity(game, &path)?;
-        if opaque {
-            for p in &mut diffuse.texture.pixels {
-                *p |= 0xff000000;
-            }
-        }
+        // Preserve the existing rejection of separate opacity samplers;
+        // only the shared resolver decides whether pixels are opaque.
+        opacity_inputs(game, &path)?;
+        let diffuse = assets.diffuse_at_time(&path, 256, 0.)?;
+        let opacity = serde_json::json!({"material": path, "original_opaque": diffuse.opacity});
         materials.push(Material {
             source: path,
             chain: diffuse.chain,

@@ -42,6 +42,10 @@ pub struct Program {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assets {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enemy_fire_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sound_bindings: Vec<SoundBinding>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub stop_at_transition: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -56,6 +60,14 @@ pub struct Assets {
     pub camera_origin: [f64; 3],
     pub explosion: [f64; 3],
     pub provenance: serde_json::Value,
+}
+/// Identity of a cue before later import stages extend the sound bank.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SoundBinding {
+    pub role: usize,
+    pub source: String,
+    pub pcm: String,
 }
 #[derive(Clone, Debug, Default, Serialize, serde::Deserialize)]
 pub struct Lane {
@@ -92,6 +104,75 @@ pub struct Prepared {
     pub sound_base: usize,
 }
 impl Assets {
+    pub fn sound_roles(&self) -> Vec<usize> {
+        let mut roles = Vec::new();
+        for p in &self.programs {
+            for a in &p.actions {
+                if let Op::Sound { role, .. } = a.op {
+                    roles.push(role);
+                }
+            }
+        }
+        if let Some(i) = &self.intro {
+            roles.extend(i.sounds);
+        }
+        if let Some(r) = &self.rappel {
+            roles.extend(r.notifies.iter().filter_map(|n| n.role));
+        }
+        roles.sort_unstable();
+        roles.dedup();
+        roles
+    }
+    fn bind_sounds(&mut self, base: &[crate::combat::Sound]) -> Result<(), String> {
+        if self.sound_bindings.len() > 128
+            || self
+                .sound_bindings
+                .iter()
+                .any(|b| b.role >= 128 || b.source.len() > 512 || b.pcm.len() != 16)
+        {
+            return Err("Invalid opening cue identity manifest".into());
+        }
+        if self.sound_bindings.is_empty() {
+            return Ok(()); // Legacy scene packages have no identity manifest.
+        }
+        let bank: Vec<_> = base.iter().chain(self.sounds.iter()).collect();
+        let mut mapping = std::collections::BTreeMap::new();
+        for b in &self.sound_bindings {
+            let matches = |s: &&crate::combat::Sound| {
+                s.source == b.source && crate::replay::fingerprint(&s.wave) == b.pcm
+            };
+            let role = bank
+                .get(b.role)
+                .filter(|s| matches(s))
+                .map(|_| b.role)
+                .or_else(|| bank.iter().position(matches))
+                .ok_or_else(|| format!("Opening cue identity missing: {}", b.source))?;
+            if mapping.insert(b.role, role).is_some() {
+                return Err("Duplicate opening cue identity".into());
+            }
+        }
+        if self.sound_roles().iter().any(|r| !mapping.contains_key(r)) {
+            return Err("Incomplete opening cue identities".into());
+        }
+        for p in &mut self.programs {
+            for a in &mut p.actions {
+                if let Op::Sound { role, .. } = &mut a.op {
+                    *role = mapping[role];
+                }
+            }
+        }
+        if let Some(i) = &mut self.intro {
+            for role in &mut i.sounds {
+                *role = mapping[role];
+            }
+        }
+        if let Some(r) = &mut self.rappel {
+            for role in r.notifies.iter_mut().filter_map(|n| n.role.as_mut()) {
+                *role = mapping[role];
+            }
+        }
+        Ok(())
+    }
     pub fn validate(&self, base: usize) -> Result<(), String> {
         if let Some(r) = &self.rappel {
             r.validate(base + self.sounds.len())?;
@@ -197,7 +278,22 @@ impl Game {
             return Err("Opening requires selected mission/squad scene".into());
         }
         let base = self.mission.as_ref().unwrap().sounds.len();
+        a.bind_sounds(&self.mission.as_ref().unwrap().sounds)?;
         a.validate(base)?;
+        let enemy_fire = a
+            .enemy_fire_source
+            .as_ref()
+            .map(|source| {
+                self.mission
+                    .as_ref()
+                    .unwrap()
+                    .sounds
+                    .iter()
+                    .chain(a.sounds.iter())
+                    .position(|s| &s.source == source)
+                    .ok_or("Missing opening enemy fire cue")
+            })
+            .transpose()?;
         let mesh = a
             .gunship
             .take()
@@ -231,6 +327,9 @@ impl Game {
                 source: s.source.clone(),
                 wave: s.wave.clone(),
             }));
+        if let Some(role) = enemy_fire {
+            self.mission.as_mut().unwrap().enemy_fire_sound = Some(role);
+        }
         self.state.health = a.initial_health.ceil() as u32;
         self.state.mission.as_mut().unwrap().health = a.initial_health;
         self.state.mission.as_mut().unwrap().objective_mode = 0;
@@ -513,6 +612,8 @@ mod tests {
     use super::*;
     fn assets() -> Assets {
         Assets {
+            enemy_fire_source: None,
+            sound_bindings: vec![],
             stop_at_transition: false,
             intro: None,
             rappel: None,
@@ -557,6 +658,50 @@ mod tests {
             text: String::new(),
         };
         assert!(a.validate(65).is_err());
+    }
+    #[test]
+    fn cue_identities_survive_bank_insertion_and_reject_pcm_changes() {
+        let sound = |source: &str, wave: &[u8]| crate::combat::Sound {
+            source: source.into(),
+            wave: wave.to_vec(),
+        };
+        let base = vec![sound("base0", &[0]), sound("base1", &[1])];
+        let mut a = assets();
+        a.sounds.push(sound("dialogue", &[2, 3, 4]));
+        a.programs[0].actions = (0..3)
+            .map(|role| Action {
+                original: role as u32,
+                op: Op::Sound {
+                    role,
+                    caption_seconds: 1.,
+                    seconds: 1.,
+                    text: String::new(),
+                },
+            })
+            .collect();
+        a.sound_bindings = base
+            .iter()
+            .chain(a.sounds.iter())
+            .enumerate()
+            .map(|(role, s)| SoundBinding {
+                role,
+                source: s.source.clone(),
+                pcm: crate::replay::fingerprint(&s.wave),
+            })
+            .collect();
+        let mut extended = base;
+        extended.push(sound("enemy", &[9]));
+        a.bind_sounds(&extended).unwrap();
+        assert_eq!(a.sound_roles(), vec![0, 1, 3]);
+        // A matching source name with different PCM must fail closed.
+        a.programs[0].actions[2].op = Op::Sound {
+            role: 2,
+            caption_seconds: 1.,
+            seconds: 1.,
+            text: String::new(),
+        };
+        a.sounds[0].wave.push(5);
+        assert!(a.bind_sounds(&extended).is_err());
     }
     #[test]
     fn signals_selected_lanes_without_restarting_them() {

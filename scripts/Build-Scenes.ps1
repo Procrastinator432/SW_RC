@@ -52,6 +52,7 @@ try {
             if($argument -eq '{game_data}'){$env:RC_GAME_DATA}
             elseif($argument -eq '{out}'){$stageOut}
             elseif($argument -match '^\{([a-z0-9_]+)\}$'){$resolved[$Matches[1]].path}
+            elseif($argument -match '^geo_(01[abc]|03a)$'){$argument}
             else {throw "Invalid recipe argument $argument"}
         })
         Write-Host "Building scene stage $name"

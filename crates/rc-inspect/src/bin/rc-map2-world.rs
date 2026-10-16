@@ -69,7 +69,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parent()
         .ok_or("Mesh directory has no parent")?
         .join("Textures");
-    let mut assets = assets::Assets::new(&[Path::new(&args[2]), &texture_dir])?;
+    let system_dir = texture_dir
+        .parent()
+        .ok_or("Missing GameData")?
+        .join("System");
+    let mut assets = assets::Assets::new(&[Path::new(&args[2]), &texture_dir, &system_dir])?;
     let mut texture_cache: HashMap<String, Option<(usize, f32)>> = HashMap::new();
     let mut texture_report = Vec::new();
     let mut scene = rc_render::Scene::from_map(&data)?;
@@ -221,7 +225,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             Ok(diffuse) => {
                                 let texture = diffuse.texture;
                                 let index = scene.textures.len();
-                                texture_report.push(serde_json::json!({"material":path,"texture":diffuse.source,"format":diffuse.format,"source_mip":diffuse.source_mip,"width":texture.width,"height":texture.height,"uv_scale":diffuse.scale,"chain":diffuse.chain,"mode":"base diffuse preview; no shader effects"}));
+                                texture_report.push(serde_json::json!({"material":path,"texture":diffuse.source,"format":diffuse.format,"source_mip":diffuse.source_mip,"width":texture.width,"height":texture.height,"uv_scale":diffuse.scale,"chain":diffuse.chain,"original_opaque":diffuse.opacity,"mode":"base diffuse preview; no shader effects"}));
                                 scene.textures.push(texture);
                                 texture_cache.insert(path.clone(), Some((index, diffuse.scale)));
                             }

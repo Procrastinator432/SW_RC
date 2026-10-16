@@ -2,8 +2,10 @@
   "schema": 1,
   "mission": [
     "map-a-opacity",
+    "map-a-material",
     "map-a-feedback",
     "map2-route",
+    "map-b-material",
     "map-b-feedback",
     "map3",
     "map3-opening",
@@ -14,27 +16,47 @@
     "map3-balcony",
     "map3-finale",
     "map3-elevator",
-    "factory"
+    "map-c-material",
+    "factory",
+    "factory-material"
   ],
   "stages": {
     "map-a-feedback": {
       "binary": "rc-enemy-feedback-build",
-      "inputs": ["map_a_scene"],
-      "args": ["{game_data}", "{map_a_scene}", "{out}"],
+      "inputs": [
+        "map_a_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "{map_a_scene}",
+        "{out}"
+      ],
       "product": "geo_01a.rcplay",
       "output_key": "map_a_scene"
     },
     "map-b-feedback": {
       "binary": "rc-enemy-feedback-build",
-      "inputs": ["map_b_scene"],
-      "args": ["{game_data}", "{map_b_scene}", "{out}"],
+      "inputs": [
+        "map_b_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "{map_b_scene}",
+        "{out}"
+      ],
       "product": "geo_01b.rcplay",
       "output_key": "map_b_scene"
     },
     "map-a-opacity": {
       "binary": "rc-bsp-opacity-build",
-      "inputs": ["map_a_scene"],
-      "args": ["{game_data}", "{map_a_scene}", "{out}"],
+      "inputs": [
+        "map_a_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "{map_a_scene}",
+        "{out}"
+      ],
       "product": "geo_01a.rcplay",
       "output_key": "map_a_scene"
     },
@@ -217,6 +239,62 @@
       "args": [],
       "product": "geo_01c.rcplay",
       "output_key": "map_c_planning_scene"
+    },
+    "map-a-material": {
+      "binary": "rc-scene-material-build",
+      "inputs": [
+        "map_a_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "geo_01a",
+        "{map_a_scene}",
+        "{out}"
+      ],
+      "product": "geo_01a.rcplay",
+      "output_key": "map_a_scene"
+    },
+    "map-b-material": {
+      "binary": "rc-scene-material-build",
+      "inputs": [
+        "map_b_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "geo_01b",
+        "{map_b_scene}",
+        "{out}"
+      ],
+      "product": "geo_01b.rcplay",
+      "output_key": "map_b_scene"
+    },
+    "map-c-material": {
+      "binary": "rc-scene-material-build",
+      "inputs": [
+        "map_c_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "geo_01c",
+        "{map_c_scene}",
+        "{out}"
+      ],
+      "product": "geo_01c.rcplay",
+      "output_key": "map_c_scene"
+    },
+    "factory-material": {
+      "binary": "rc-scene-material-build",
+      "inputs": [
+        "factory_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "geo_03a",
+        "{factory_scene}",
+        "{out}"
+      ],
+      "product": "geo_03a.rcplay",
+      "output_key": "factory_scene"
     }
   }
 }

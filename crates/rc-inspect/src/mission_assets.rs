@@ -193,9 +193,9 @@ pub fn mesh_scene_skinned(
     let mut bindings = vec![];
     for m in &mesh.materials {
         let original = resolver.qualify(package, m.as_ref().ok_or("No wall material")?);
-        let mut source = skin.map_or_else(|| original.clone(), str::to_owned);
+        let material = skin.map_or_else(|| original.clone(), str::to_owned);
+        let mut source = material.clone();
         let mut channel = 0;
-        let mut opaque = false;
         let mut chain = vec![];
         for _ in 0..16 {
             let (class, props) = resolver.material_properties(&source)?;
@@ -212,14 +212,6 @@ pub fn mesh_scene_skinned(
                     "Material"
                 }
                 "Engine.Shader" => {
-                    let opacity = catalog
-                        .instance(&class, &props, "Opacity", 0, &source)?
-                        .value;
-                    let blend = catalog
-                        .instance(&class, &props, "OutputBlending", 0, &source)?
-                        .value;
-                    opaque = matches!(opacity, Value::Object { index: 0, .. })
-                        && matches!(blend, Value::Byte(0));
                     // The original DC17m sniper scope has no Diffuse; its
                     // SelfIllumination and Opacity reference the same texture.
                     if matches!(
@@ -254,12 +246,8 @@ pub fn mesh_scene_skinned(
             let package = source.split_once('.').ok_or("Bad layer path")?.0;
             source = resolver.qualify(package, &path);
         }
-        let mut d = resolver.diffuse_at_time(&source, 256, 0.)?;
-        if opaque {
-            for p in &mut d.texture.pixels {
-                *p |= 0xff000000;
-            }
-        }
+        let d = resolver.diffuse_layer_at_time(&source, &material, 256, 0.)?;
+        let opaque = &d.opacity;
         receipts.push(serde_json::json!({"mesh":path,"material":original,"diffuse":d.source,"channel":channel,"opaque":opaque,"chain":chain}));
         bindings.push((channel, d.scale));
         scene.textures.push(d.texture);

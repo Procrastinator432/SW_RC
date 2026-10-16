@@ -8,14 +8,16 @@ checks=[]
 with zipfile.ZipFile(a.package) as z:
  props=dict(line.split('=',1) for line in z.read('campaign.properties').decode().splitlines() if '=' in line)
  for name,target in [('GEO_01A',b'RCPLAY04'),('GEO_01B',b'RCPLAY14')]:
-  raw=z.read(props[name+'.file']);assert hashlib.sha256(raw).hexdigest()==props[name+'.sha256'];at=0;metadata=None
+  raw=z.read(props[name+'.file']);assert hashlib.sha256(raw).hexdigest()==props[name+'.sha256'];at=0;metadata=None;opening=None
   while raw[at:at+6]==b'RCPLAY':
    magic=raw[at:at+8];n=struct.unpack_from('<I',raw,at+8)[0]
    if magic==target:metadata=json.loads(raw[at+12:at+12+n])
+   if magic==b'RCPLAY13':opening=json.loads(raw[at+12:at+12+n])
    at+=12+n
    if magic==b'RCPLAY01':break
-  assert metadata is not None and 'enemy_fire_sound' in metadata,'Missing production enemy fire binding'
-  index=metadata['enemy_fire_sound'];sound=metadata['sounds'][index];assert sound['source']=='GEN_Sound.Weapons.wep_GEN_sbdGun_01'
+  outer=opening is not None and opening.get('enemy_fire_source') is not None
+  assert metadata is not None and (outer or 'enemy_fire_sound' in metadata),'Missing production enemy fire binding'
+  index=metadata.get('enemy_fire_sound');sound=next(s for s in opening['sounds'] if s['source']==opening['enemy_fire_source']) if outer else metadata['sounds'][index];assert sound['source']=='GEN_Sound.Weapons.wep_GEN_sbdGun_01'
   wave=sound['wave'];expected=base64.b64decode(wave[7:]) if isinstance(wave,str) else bytes(wave)
   buf=c.create_string_buffer(raw);err=c.create_string_buffer(1024);handle=api.rc_game_create(buf,len(raw),err,1024);assert handle,err.value
   try:
@@ -23,6 +25,7 @@ with zipfile.ZipFile(a.package) as z:
    b=bank.raw;assert b[:8]==b'RCSND001';samples=[];pos=12
    for _ in range(struct.unpack_from('<I',b,8)[0]):
     size=struct.unpack_from('<I',b,pos)[0];pos+=4;samples.append(b[pos:pos+size]);pos+=size
+   if outer:index=len(samples)-1
    assert pos==len(b) and samples[index]==expected,'Native sound-bank index does not select the original cue'
   finally:api.rc_game_release(handle)
   if name=='GEO_01A':

@@ -136,7 +136,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => return Err("Invalid material input".into()),
                 };
             }
-            let d = assets.diffuse_at_time(&source, 128, 0.)?;
+            let d = assets.diffuse_layer_at_time(&source, path, 128, 0.)?;
             if d.uv_transform.is_some() {
                 return Err("Animated UV transform needs separate host".into());
             }
