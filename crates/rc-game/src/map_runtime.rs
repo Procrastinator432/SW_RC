@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 #[serde(deny_unknown_fields)]
 pub struct Assets {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enemy_fire_sound: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gameplay: Option<Box<crate::map_gameplay::Assets>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub opening: Option<Box<crate::map3_opening::Assets>>,
@@ -86,6 +88,9 @@ impl Game {
             || assets.pitch.abs() > 1.4
             || assets.sounds.is_empty()
             || assets.sounds.len() > 128
+            || assets
+                .enemy_fire_sound
+                .is_some_and(|i| i >= assets.sounds.len())
         {
             return Err("Invalid campaign-map bindings".into());
         }

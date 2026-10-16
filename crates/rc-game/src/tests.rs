@@ -9,6 +9,41 @@ use rc_package::{
 };
 use std::{collections::BTreeMap, sync::Arc};
 #[test]
+fn stable_checkpoint_rejects_combat_falling_low_health_and_projectiles() {
+    let mut g = game(false);
+    g.state.enemies.clear();
+    g.state.pawn.body.grounded = true;
+    assert!(g.checkpoint_safe());
+    g.state.health = 49;
+    assert!(!g.checkpoint_safe());
+    g.state.health = 100;
+    g.state.pawn.body.grounded = false;
+    assert!(!g.checkpoint_safe());
+    g.state.pawn.body.grounded = true;
+    g.state.damage_flash = 0.2;
+    assert!(!g.checkpoint_safe());
+    g.state.damage_flash = 0.;
+    let hostile = game(false).state.enemies[0].clone();
+    g.state.enemies.push(hostile);
+    g.state.enemies[0].position = g.state.pawn.body.position;
+    assert!(!g.checkpoint_safe());
+    g.state.enemies[0].health = 0;
+    assert!(g.checkpoint_safe());
+    g.state.combat = Some(combat::State {
+        projectiles: vec![combat::Projectile {
+            velocity: None,
+            position: [0.; 3],
+            direction: [1., 0., 0.],
+            speed: 100.,
+            age: 0.,
+        }],
+        ..Default::default()
+    });
+    assert!(!g.checkpoint_safe());
+    g.state.phase = Phase::Lost;
+    assert!(!g.checkpoint_safe());
+}
+#[test]
 fn legacy_scene_throw_input_is_inert_and_legacy_replay_shape_is_preserved() {
     let mut a = game(false);
     let mut b = game(false);
@@ -397,6 +432,7 @@ fn mission_audio_assets() -> mission::Assets {
     wave.extend(2u32.to_le_bytes());
     wave.extend(0i16.to_le_bytes());
     mission::Assets {
+        enemy_fire_sound: None,
         weapon_fire_sound: Some(3),
         grenades: None,
         crash: None,
@@ -415,6 +451,65 @@ fn mission_audio_assets() -> mission::Assets {
             })
             .collect(),
     }
+}
+#[test]
+fn accepted_enemy_shot_has_one_damage_trace_and_original_sound_binding() {
+    let mut g = game(false);
+    let mut assets = mission_audio_assets();
+    let cue = assets.sounds[0].wave.clone();
+    assets.enemy_fire_sound = Some(4);
+    assets.sounds.push(combat::Sound {
+        source: "original-enemy-cue".into(),
+        wave: cue,
+    });
+    g.attach_mission(assets).unwrap();
+    g.set_encounter(&[[400., 0., -24.]], [800., 0., 0.])
+        .unwrap();
+    g.state.enemies[0].cooldown = 0.;
+    let hp = g.state.health;
+    g.enemy_tick().unwrap();
+    assert_eq!(g.state.health, hp - 5);
+    assert_eq!(g.state.statistics.enemy_shots, 1);
+    assert_eq!(g.state.enemy_traces.len(), 1);
+    assert!(g.state.enemy_traces[0].ranged);
+    let events = &g.state.mission.as_ref().unwrap().events;
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| e.sound == 4 && e.owner == 0)
+            .count(),
+        1
+    );
+    assert_eq!(events.last().unwrap().tick, g.state.enemy_traces[0].tick);
+    g.enemy_tick().unwrap();
+    assert_eq!(g.state.statistics.enemy_shots, 1);
+    g.suspend();
+    assert!(g.state.enemy_traces.is_empty());
+    assert!(g.state.mission.as_ref().unwrap().events.is_empty());
+    g.state.enemies[0].health = 0;
+    g.state.enemies[0].cooldown = 0.;
+    g.enemy_tick().unwrap();
+    assert_eq!(g.state.statistics.enemy_shots, 1);
+    g.state.enemies[0].health = 100;
+    g.state.phase = Phase::Lost;
+    assert!(!g
+        .state
+        .accept_enemy_attack(0, [0.; 3], [1.; 3], 5, Some(4), true));
+    assert!(g.state.enemy_traces.is_empty());
+}
+#[test]
+fn enemy_cover_prevents_damage_trace_and_audio_together() {
+    let mut g = game(true);
+    g.attach_mission(mission_audio_assets()).unwrap();
+    g.set_encounter(&[[400., 0., -24.]], [800., 0., 0.])
+        .unwrap();
+    g.state.enemies[0].cooldown = 0.;
+    let health = g.state.health;
+    g.enemy_tick().unwrap();
+    assert_eq!(g.state.health, health);
+    assert_eq!(g.state.statistics.enemy_shots, 0);
+    assert!(g.state.enemy_traces.is_empty());
+    assert!(g.state.mission.as_ref().unwrap().events.is_empty());
 }
 #[test]
 fn mission_weapon_audio_follows_accepted_shots_and_restart() {

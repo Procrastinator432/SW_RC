@@ -18,8 +18,42 @@ final class CheckpointStore {
         }
     }
     CheckpointStore(File files) {root=new File(files,"checkpoints");scenes=new File(root,"scenes");}
-    boolean hasSave() {return slot(false).isFile() || slot(true).isFile();}
+    boolean hasSave() {return slot(false).isFile() || slot(true).isFile() || has(SAFE) || has(SAFE_PREVIOUS) || has(MANUAL) || has(ENTRY);}
     boolean hasPrevious() {return slot(true).isFile();}
+    static final String SAFE="safe.save",SAFE_PREVIOUS="safe-previous.save",MANUAL="manual.save",ENTRY="entry.save";
+    private File named(String name) throws IOException {
+        if(!Arrays.asList(SAFE,SAFE_PREVIOUS,MANUAL,ENTRY,"resume.save","previous.save").contains(name))throw new IOException("Unbekannter Speicherplatz");
+        return new File(root,name);
+    }
+    boolean has(String name) {try{return named(name).isFile();}catch(IOException e){return false;}}
+    Record load(String name) throws IOException {return decode(read(named(name),LIMIT+8192));}
+    void saveNamed(String name,String scene,String title,byte[] state) throws IOException {
+        synchronized(CheckpointStore.class) {
+            File target=named(name);byte[] bytes=encode(scene,title,state);byte[] previous=null;
+            if(target.isFile()) {
+                try {byte[] old=read(target,LIMIT+8192);Record r=decode(old);
+                    if(r.scene.equals(scene)&&Arrays.equals(r.state,state))return;
+                    if(name.equals(SAFE))previous=old;
+                }catch(IOException e){
+                    // Replacing an invalid explicit/manual slot must remain usable;
+                    // invalid safe bytes must never rotate over the valid fallback.
+                    quarantine(target);
+                }
+            }
+            File temp=stage(target,bytes);
+            try {if(previous!=null)atomic(named(SAFE_PREVIOUS),previous);commit(temp,target);}
+            finally {Files.deleteIfExists(temp.toPath());}
+        }
+    }
+    static String identity(Record record) throws IOException {return hex(digest((record.scene+hex(digest(record.state))).getBytes(java.nio.charset.StandardCharsets.US_ASCII)));}
+    int quickDeaths(Record record,boolean increment) throws IOException {
+        synchronized(CheckpointStore.class) {
+            String key=identity(record);File ledger=new File(root,"quick-deaths");int count=0;
+            if(ledger.isFile())try {String[] fields=new String(read(ledger,128),java.nio.charset.StandardCharsets.US_ASCII).split(":");if(fields.length==2 && fields[0].equals(key))count=Math.max(0,Math.min(99,Integer.parseInt(fields[1])));}catch(IOException|NumberFormatException ignored){}
+            if(increment){count=Math.min(99,count+1);atomic(ledger,(key+":"+count).getBytes(java.nio.charset.StandardCharsets.US_ASCII));}
+            return count;
+        }
+    }
     private File slot(boolean previous) {return new File(root,previous?"previous.save":"resume.save");}
     private static byte[] digest(byte[] b) throws IOException {
         try{return MessageDigest.getInstance("SHA-256").digest(b);}catch(NoSuchAlgorithmException e){throw new IOException(e);}
@@ -90,16 +124,20 @@ final class CheckpointStore {
         // Never rotate a corrupt primary over a valid previous generation.
         byte[] old=null;
         if(slot(false).isFile()) {try {byte[] b=read(slot(false),LIMIT+8192);Record r=decode(b);if(r.scene.equals(scene)&&Arrays.equals(r.state,state))return;old=b;}catch(IOException ignored){quarantine(slot(false));}}
-        ByteArrayOutputStream payload=new ByteArrayOutputStream();try(DataOutputStream data=new DataOutputStream(payload)){data.writeUTF(scene);data.writeLong(System.currentTimeMillis());data.writeUTF(title);data.writeInt(state.length);data.write(state);}
-        byte[] body=payload.toByteArray();ByteArrayOutputStream encoded=new ByteArrayOutputStream();try(DataOutputStream data=new DataOutputStream(encoded)){data.writeLong(0x5243534c4f543031L);data.writeInt(body.length);data.write(digest(body));data.write(body);}
         // Finish the new payload before touching either committed generation. In
         // particular, disk-full/write failures must not discard the older backup.
-        File temp=stage(slot(false),encoded.toByteArray());
+        File temp=stage(slot(false),encode(scene,title,state));
         try {
             if(old!=null)atomic(slot(true),old);
             commit(temp,slot(false));
         } finally {Files.deleteIfExists(temp.toPath());}
         markScene(scene);
+    }
+    private byte[] encode(String scene,String title,byte[] state) throws IOException {
+        sceneFile(scene);if(state.length<20 || state.length>LIMIT || title.length()>4096)throw new IOException("Checkpoint ist zu groß");
+        ByteArrayOutputStream payload=new ByteArrayOutputStream();try(DataOutputStream data=new DataOutputStream(payload)){data.writeUTF(scene);data.writeLong(System.currentTimeMillis());data.writeUTF(title);data.writeInt(state.length);data.write(state);}
+        byte[] body=payload.toByteArray();ByteArrayOutputStream encoded=new ByteArrayOutputStream();try(DataOutputStream data=new DataOutputStream(encoded)){data.writeLong(0x5243534c4f543031L);data.writeInt(body.length);data.write(digest(body));data.write(body);}
+        return encoded.toByteArray();
     }
     void quarantine(boolean previous) throws IOException {quarantine(slot(previous));}
     static void quarantine(File file) throws IOException {

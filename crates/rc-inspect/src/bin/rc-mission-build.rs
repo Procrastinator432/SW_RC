@@ -291,6 +291,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|n| advisor(&voice, n))
         .collect::<Result<Vec<_>, _>>()?;
     let assets = mission::Assets {
+        enemy_fire_sound: None,
         weapon_fire_sound: None,
         grenades: None,
         crash: None,

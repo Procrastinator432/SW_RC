@@ -521,6 +521,16 @@ pub unsafe extern "C" fn rc_game_status(id: u64, output: *mut u32, capacity: usi
     std::ptr::copy_nonoverlapping(words.as_ptr(), output, words.len());
     10
 }
+/// Stable-checkpoint eligibility; -1 for an invalid session.
+#[no_mangle]
+pub extern "C" fn rc_game_checkpoint_safe(id: u64) -> i32 {
+    let Ok(registry) = games().lock() else {
+        return -1;
+    };
+    registry
+        .get(&id)
+        .map_or(-1, |game| i32::from(game.checkpoint_safe()))
+}
 /// Read-only defensive-jump counters and first four owner phases (0 idle,
 /// 1 start, 2 flight, 3 land, 4 sleep). Short buffers remain untouched.
 /// # Safety

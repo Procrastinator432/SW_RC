@@ -1,7 +1,10 @@
 {
   "schema": 1,
   "mission": [
+    "map-a-opacity",
+    "map-a-feedback",
     "map2-route",
+    "map-b-feedback",
     "map3",
     "map3-opening",
     "map3-planning",
@@ -14,6 +17,27 @@
     "factory"
   ],
   "stages": {
+    "map-a-feedback": {
+      "binary": "rc-enemy-feedback-build",
+      "inputs": ["map_a_scene"],
+      "args": ["{game_data}", "{map_a_scene}", "{out}"],
+      "product": "geo_01a.rcplay",
+      "output_key": "map_a_scene"
+    },
+    "map-b-feedback": {
+      "binary": "rc-enemy-feedback-build",
+      "inputs": ["map_b_scene"],
+      "args": ["{game_data}", "{map_b_scene}", "{out}"],
+      "product": "geo_01b.rcplay",
+      "output_key": "map_b_scene"
+    },
+    "map-a-opacity": {
+      "binary": "rc-bsp-opacity-build",
+      "inputs": ["map_a_scene"],
+      "args": ["{game_data}", "{map_a_scene}", "{out}"],
+      "product": "geo_01a.rcplay",
+      "output_key": "map_a_scene"
+    },
     "factory": {
       "binary": "rc-factory-build",
       "inputs": [

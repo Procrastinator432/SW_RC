@@ -12,6 +12,7 @@ pub mod demolition_runtime;
 pub mod detonator;
 pub mod detonator_flight;
 pub mod dynamic;
+pub mod enemy_feedback;
 pub mod game_rules;
 pub mod grenade_pickup;
 pub mod grenade_runtime;
@@ -111,6 +112,8 @@ pub struct Statistics {
 }
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct State {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub enemy_traces: Vec<enemy_feedback::Trace>,
     pub pawn: ControlledBody,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub crouched: bool,
@@ -228,6 +231,7 @@ impl Game {
             )?
             .is_some();
         let state = State {
+            enemy_traces: vec![],
             pawn: ControlledBody {
                 body: BodyState {
                     position: spawn,
@@ -399,6 +403,7 @@ impl Game {
     }
     /// Clear queued input/time on focus loss or pause; no background catch-up on resume.
     pub fn suspend(&mut self) {
+        self.state.enemy_traces.clear();
         self.accumulator = 0.;
         self.pending_jump = false;
         self.pending_fire = false;
@@ -617,6 +622,9 @@ impl Game {
         )?;
         self.state.pawn = moved.state;
         self.state.statistics.ticks += 1;
+        self.state
+            .enemy_traces
+            .retain(|t| self.state.statistics.ticks.saturating_sub(t.tick) <= 8);
         self.state.statistics.jumps += u32::from(moved.jump_started);
         for timer in [
             &mut self.state.hit_flash,
@@ -866,11 +874,14 @@ impl Game {
                 }
             }
             if visible && e.cooldown == 0. {
-                self.state.health = self.state.health.saturating_sub(5);
-                self.state.damage_flash = 0.2;
-                self.state.statistics.enemy_shots += 1;
-                e.cooldown = 1.4;
-                e.flash = 0.12;
+                let sound = self.mission.as_ref().and_then(|m| m.enemy_fire_sound);
+                if self
+                    .state
+                    .accept_enemy_attack(i, muzzle, eye, 5, sound, true)
+                {
+                    e.cooldown = 1.4;
+                    e.flash = 0.12;
+                }
             }
             self.state.enemies[i] = e;
         }

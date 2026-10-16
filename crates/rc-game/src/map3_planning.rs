@@ -334,16 +334,21 @@ impl Game {
                         }
                     }
                 }
-                if visible && e.cooldown == 0. && (!f.warrior || d < 180.) {
-                    self.state.health =
-                        self.state
-                            .health
-                            .saturating_sub(if f.warrior { 10 } else { 5 });
-                    self.state.statistics.enemy_shots += 1;
+                if visible
+                    && e.cooldown == 0.
+                    && (!f.warrior || d < 180.)
+                    && self.state.accept_enemy_attack(
+                        i,
+                        from,
+                        eye,
+                        if f.warrior { 10 } else { 5 },
+                        None,
+                        !f.warrior,
+                    )
+                {
                     if let Some(sound) = f.fire_sound {
                         enemy_sounds.push((i, sound));
                     }
-                    self.state.damage_flash = 0.2;
                     e.cooldown = if f.warrior { 1.2 } else { 1.4 };
                 }
                 if can_assist && assist.is_none() {

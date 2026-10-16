@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 #[serde(deny_unknown_fields)]
 pub struct Assets {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enemy_fire_sound: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub weapon_fire_sound: Option<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grenades: Option<crate::grenade_runtime::Assets>,
@@ -67,7 +69,11 @@ impl Game {
             != advisor_count
                 + usize::from(assets.weapon_fire_sound.is_some())
                 + if assets.grenades.is_some() { 8 } else { 0 }
+                + usize::from(assets.enemy_fire_sound.is_some())
             || assets.weapon_fire_sound.is_some_and(|i| i != advisor_count)
+            || assets
+                .enemy_fire_sound
+                .is_some_and(|i| i + 1 != assets.sounds.len())
         {
             return Err("Invalid mission advisor/weapon sound bank".into());
         }

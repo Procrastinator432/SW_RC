@@ -1,0 +1,44 @@
+# Handytest: Mission 1 bleibt eine Alpha
+
+Stand: 16.10.2026. Die Rückmeldung zum Stand 0.49.0 ersetzt die frühere Einschätzung einer abgeschlossenen Mission: Die vorbereiteten A/B/C-Läufe erreichen den Kartenübergang, belegen aber keinen unabhängig verständlichen und vollständig sicht-/hörbaren Handy-Durchlauf. Neue Missionsinhalte und Touch-Feinschliff folgen nach den gemeldeten Blockern.
+
+## Änderungen in 0.50.0
+
+**Wiederaufnahme und sichere Rückfallpunkte sind getrennt.** `resume.save` und `previous.save` bleiben kurzfristige Prozess-Snapshots. `safe.save` und `safe-previous.save` werden ausschließlich nach fünf ruhigen Simulationssekunden geschrieben: mindestens 50 HP, Bodenkontakt, kein sichtbarer Schadensimpuls, kein Nachladen/Schießen, keine nahen lebenden Gegner, keine aktiven Geschosse/Granaten, keine laufende Geschützzerstörung, Artilleriekampfphase oder gesperrte Kamerasequenz. Schaden sowie Spieler- und Gegnerangriffe setzen die Ruhezeit zurück. Wandzeit während Pause zählt nicht. Innerhalb desselben Ziels wird höchstens alle 30 Simulationssekunden ein weiterer sicherer Punkt erzeugt. Das ist eine konservative Zulassung, keine Garantie gegen zukünftige geskriptete Gefahren.
+
+`manual.save` gehört ausschließlich der ausdrücklichen Speichertaste. Ein unsicherer manueller Save ist erlaubt und ersetzt keinen sicheren Punkt. Pause/Hintergrund überschreiben weder diesen manuellen Slot noch die sicheren Generationen. `entry.save` bewahrt zusätzlich den letzten Karteneinstieg. Bei Niederlage öffnet sich die reguläre Auswahl mit sicheren Punkten, manuellem Stand, Prozess-Snapshots und Karteneinstieg; dieselbe Auswahl ist im Pausenmenü erreichbar. Kartenhinweis und Speicherzeit stehen unter den Einträgen. Nach zweimaliger Niederlage innerhalb von 900 Simulationsticks desselben geladenen Saves weist die Auswahl ausdrücklich auf den früheren Rückfallpunkt hin. Die Zählung bleibt nach Prozessneustart erhalten; eine andere Save-Identität übernimmt sie nicht.
+
+Alle Slots verwenden das vorhandene prüfsummengeschützte Dateiformat. Sichere Generationen werden erst nach vollständig geschriebener und synchronisierter neuer Datei rotiert. Beschädigte sichere Primärdateien verdrängen keine gültige Sicherung. Der bisherige native Snapshot-ABI bleibt lesbar; neue, optionale Schussspuren werden bei alten Saves leer vorbelegt.
+
+**Die bestätigte unsichtbare Rampe ist im neuen Szenenpaket repariert.** Der Szenenbauer gleicht 557 BSP-Dreiecke mit der Originalkarte und deren Material-/Klassenvorgaben ab. 21 deckende Flächen benutzen eine private Kopie von `Arena_Textures.Unique.NeautralMetal`, deren Alpha auf deckend gesetzt ist. Dazu gehören die Rampendreiecke 292/293, Oberfläche 9. RGB, UV, Dreiecke, Kollision, Skripte und alle ursprünglichen Texturen bleiben erhalten. Eine maskierte oder unbekannte Verwendung derselben Textur würde weiter das Original verwenden. In der isolierten CPU-Renderprobe wächst die Rampenabdeckung von 272 auf 40.993 Pixel. Das ist kein vollständiger Sichtbarkeitsnachweis aller statischen Meshes oder des frei spielbaren Geschützabschnitts.
+
+**Droidenangriffe geben jetzt zusammenhängendes Feedback.** Die normalen Schusspfade in A und B koppeln den akzeptierten Treffer an Schaden, Zähler, kurze Mündungs-/Schussspur und Originalton. Der Ton stammt aus `Properties.BattleDroidBlasterDefaults.FireSound`, aufgelöst zu `GEN_Sound.Weapons.wep_GEN_sbdGun_01`. Die neuen A/B-Szenen besitzen dafür eine explizite Bankbindung. C nutzt dieselbe akzeptierte Schadens-/Spuraktion und seine vorhandene Originaltonbindung. Die Spuren sind ein zeitlich begrenztes Hitscan-Feedback, keine rekonstruierte native Laserflugphysik. Deckung, Cooldown, tote Gegner und beendete Spielsitzungen verhindern die Aktion. Pause verwirft alte Spuren und wartende Audioereignisse; dadurch werden diese beim Fortsetzen nicht nachgespielt. Die spezialisierten Warrior-, Nahkampf-, Artillerie- und Geschützpfade benötigen weiterhin eine gemeinsame Sicht-/Hörabnahme pro Typ.
+
+**Verzögertes Tonladen bündelt Ereignisse nicht mehr absichtlich.** Vor Beginn der laufenden Simulation wartet die App auf die Soundbank; ein Ladefehler wird sichtbar gemeldet. Zusätzlich hält die Audiowiedergabe den Abstand der Simulationsticks zwischen wartenden Ereignissen ein. Ein deterministischer Zeitsteuerungstest gibt drei wartende Ereignisse erst bei Wandzeit acht Sekunden frei und prüft, dass ihre ursprünglichen Tickabstände erhalten bleiben. Er prüft den Rückstau-Fall der Zeitsteuerung; er verzögert keinen echten SoundPool auf einem physischen Gerät. Es beweist nicht, dass dies die einzige Ursache der gemeldeten Intro-Überlagerung war. Unterbrochene PCM-Wiedergabepositionen werden weiterhin nicht gespeichert.
+
+## Ausprobieren
+
+Die neue APK als Update installieren und das neue `mission1-scenes.rcpack.zip` einmal importieren. Für die Material- und A/B-Tonkorrekturen **eine neue Mission über das Hauptmenü starten**: Ein alter Checkpoint verweist absichtlich weiterhin auf seine unveränderte alte Szene. Er bleibt ladbar, erhält aber nicht automatisch andere Material-/Soundbank-IDs. Die neuen Checkpoint-Schutzregeln gelten auch beim Laden alter Szenen.
+
+Ein Schreibfehler beim Karteneinstieg wird sichtbar gemeldet, ohne die bereits gültig geladene Szene unbenutzbar zu machen. Der gezielte Android-Test blockiert dafür die temporäre Einstiegsdatei durch ein nichtleeres Verzeichnis und prüft den erhaltenen alten Einstieg sowie das weiter bedienbare Spiel.
+
+Die zentralen Quellenprüfungen laufen über `./build.ps1`. Materialregression: `scripts/Test-BspOpacity.py` mit expliziter alter und reparierter Szene. Android: erst `scripts/Test-CampaignAndroid.py` mit neuer APK, Paket und passenden Snapshots, anschließend `scripts/Test-SafeCheckpointsAndroid.py` mit denselben Eingaben. Letzterer verändert in einem echten B-Snapshot gezielt HP und die Position eines vorhandenen Droiden; die normale native Kampfaktion muss die beiden Niederlagen auslösen. Kein vollständiger manueller Touch-Lauf wird dadurch ersetzt.
+
+## Automatisierte Nachweise der Korrekturlieferung
+
+- Je 1.127 Debug-/Release-Bibliothekstests, Doc-Tests, Clippy und Java-Prüfungen unter dem zentralen Prüfbefehl; der normale Test-Stack bleibt unverändert.
+- Vollständige Pipeline mit 14 Szenenstufen. Alle vier erzeugten Karten sind SHA-256-identisch mit den im geprüften ZIP gelieferten Karten. 25 A/B/C-Zwischenstände prüfen exakten Zustand/Renderframe, 90 Folgeschritte, Neustart und echten Missionsabschluss bis zur Fabrikübergabe.
+- Vier echte alte A/B/C-/Fabrik-Snapshots werden weiterhin von der neuen nativen Laufzeit geladen. Das endgültige ZIP wird zusätzlich auf Original-PCM an den tatsächlichen nativen Bankindizes und auf die deckenden Rampenflächen geprüft.
+- Android x86_64: Paketimport, Kaltstart, Wiederaufnahme nach Hintergrundkill, alle drei automatischen Übergänge, vorhandene Touch-Regressionsprüfungen, manuelle und sichere Slots, reale schnelle Niederlagen mit Prozessneustart dazwischen, beschädigtes Resume und ein tatsächlicher Fehler beim Schreiben des Karteneinstiegs. Das ersetzt keinen vollständigen manuellen Handy-Durchlauf.
+
+Die Lieferung liegt unter `build/releases/0.50.0`; die Prüfsummen stehen in `validation-manifest.json`. Die Scripts `Test-PhoneFixesPackage.py`, `Test-CampaignAndroid.py` und `Test-SafeCheckpointsAndroid.py` nehmen explizite Paket-/APK-/Snapshotpfade. Der letzte Test bietet zusätzlich `--entry-failure-only` für den Einstiegs-Schreibfehler. `Summarize-PhoneFixes.py` friert nur einen sauberen, mit `v0.50.0` markierten Quellstand ein und verweigert das Überschreiben einer vorhandenen Lieferung.
+
+## Noch offene Abnahme, in dieser Reihenfolge
+
+1. Schutz und Auswahldialog am physischen Gerät mit Beschuss, Hintergrundverlust, manuellem Save und früherem sicheren Punkt prüfen.
+2. Granatenkiste → sichtbare Rampe → tatsächliches Geschützziel ohne Replaykenntnis spielen. Kollidierende Böden/Wände und statische Mesh-Materialien entlang des ganzen Bereichs prüfen; Angriffsverhalten, Treffer und freigegebenen Weg aus normaler Spieleransicht abnehmen.
+3. Jeden aktiven Gegnertyp auf sichtbare Aktion, Originalton, Treffer und Abbruch prüfen; die begrenzten Hosts nicht mit Originalengine-Parität gleichsetzen.
+4. Intro mit Originalkamera, Platzierung, sichtbarer Geometrie, Animationswechseln und tatsächlich abgespielten Dialogen gemeinsam abnehmen. Fehlende Assets, ausgelassene Geometrie, Alpha-Verwerfen und falsche Skripttaktung getrennt dokumentieren.
+5. Danach ein explizites Auflösungs-/Speicherprofil und vollständige Materialprüfung für Umgebung, Charaktere und Waffe einführen. Die bisherigen 64/128/256/512-Grenzen werden in dieser Korrektur nicht pauschal erhöht.
+
+Der Meilenstein „Mission 1 auf dem Handy abgenommen“ bleibt offen, bis dieser frei gespielte Durchlauf mit brauchbarer Wiederaufnahme gelingt.

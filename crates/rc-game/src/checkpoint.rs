@@ -4,6 +4,40 @@ use serde::{Deserialize, Serialize};
 
 pub const LIMIT: usize = 8 * 1024 * 1024;
 const ABI: &str = "rcport-state-0.46.0-1";
+impl Game {
+    /// Conservative eligibility for a stable fallback, never a guarantee of
+    /// future survival. The host additionally requires five quiet seconds.
+    /// Resume snapshots and explicitly requested manual saves bypass this gate.
+    pub fn checkpoint_safe(&self) -> bool {
+        let s = &self.state;
+        s.phase == crate::Phase::Playing
+            && s.health >= 50
+            && s.pawn.body.grounded
+            && s.damage_flash == 0.
+            && s.reload_remaining == 0.
+            && s.fire_remaining == 0.
+            && !s
+                .enemies
+                .iter()
+                .any(|e| e.health > 0 && crate::distance(e.position, s.pawn.body.position) < 2500.)
+            && s.combat.as_ref().is_none_or(|c| c.projectiles.is_empty())
+            && s.thermal.as_ref().is_none_or(|t| t.projectiles.is_empty())
+            && s.bunker
+                .as_ref()
+                .is_none_or(|b| b.health == 0 || b.contact_tick.is_none())
+            && s.artillery.as_ref().is_none_or(|a| {
+                a.missiles.is_empty()
+                    && !a.warriors.iter().any(|w| w.health > 0)
+                    && (a.attack_tick.is_none() || a.destroyed_tick.is_some())
+            })
+            && s.demolition.as_ref().is_none_or(|d| !d.firing)
+            && s.opening.as_ref().is_none_or(|o| !o.locked)
+            && s.map
+                .as_ref()
+                .and_then(|m| m.opening.as_ref())
+                .is_none_or(|o| !o.locked)
+    }
+}
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Snapshot {
@@ -167,6 +201,12 @@ impl Game {
                 || state.ammo > crate::MAGAZINE
                 || state.reserve > 100000
                 || state.enemies.len() > 4096
+                || state.enemy_traces.len() > 64
+                || state.enemy_traces.iter().any(|t| {
+                    t.owner >= state.enemies.len()
+                        || t.tick > state.statistics.ticks
+                        || t.from.iter().chain(t.to.iter()).any(|v| v.abs() > 1e8)
+                })
                 || state.statistics.ticks > 20000000
                 || state.pawn.body.position.iter().any(|v| v.abs() > 1e8)
             {

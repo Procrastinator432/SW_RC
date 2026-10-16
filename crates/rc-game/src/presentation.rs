@@ -212,6 +212,43 @@ impl Game {
                 cube(&mut extra, tail, [0.6; 3], 0x306faa);
             }
         }
+        for trace in &self.state.enemy_traces {
+            if self.state.phase != Phase::Playing
+                || self
+                    .state
+                    .enemies
+                    .get(trace.owner)
+                    .is_none_or(|e| e.health == 0)
+            {
+                continue;
+            }
+            if !trace.ranged {
+                continue;
+            }
+            cube(&mut extra, trace.from, [5.; 3], 0xff8040);
+            let d: Point = std::array::from_fn(|i| trace.to[i] - trace.from[i]);
+            let length = d.iter().map(|v| v * v).sum::<f64>().sqrt();
+            if length <= 80. {
+                continue;
+            }
+            let end: Point = std::array::from_fn(|i| trace.to[i] - d[i] / length * 60.);
+            let horizontal = d[0].hypot(d[1]).max(0.001);
+            let side = [-d[1] / horizontal * 1.5, d[0] / horizontal * 1.5, 0.];
+            let points: [[f32; 3]; 4] = std::array::from_fn(|n| {
+                std::array::from_fn(|i| {
+                    ((if n < 2 { trace.from[i] } else { end[i] })
+                        + if n % 2 == 0 { -side[i] } else { side[i] }) as f32
+                })
+            });
+            extra.push(Triangle {
+                points: [points[0], points[1], points[2]],
+                surface: 0xff4020,
+            });
+            extra.push(Triangle {
+                points: [points[1], points[3], points[2]],
+                surface: 0xff4020,
+            });
+        }
         let rappel_eye = self.rappel_eye();
         let eye = if let Some(eye) = rappel_eye {
             eye

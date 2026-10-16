@@ -35,11 +35,16 @@ public final class PlayActivity extends Activity {
     private static native long checkpointMarker(long id);
     private static native int[] gameStatus(long id) throws IOException;
     private static native int gameMap(long id);
+    private static native boolean checkpointSafe(long id);
     private static String campaignMap(long id){int n=gameMap(id);return n>=1 && n<=4?CampaignStore.MAPS[n-1]:"";}
     private static String guidance(long id)throws IOException {String text=missionStatus(id),map=campaignMap(id);return map.isEmpty() || text.startsWith(map)?text:map+" · "+text;}
     private CheckpointStore checkpoints;
     private String currentScene; // worker-owned immutable cache key
     private long savedTick=-1,savedMarker,nextSaveAttempt; // worker-owned
+    private final CheckpointPolicy checkpointPolicy=new CheckpointPolicy();
+    private CheckpointStore.Record restoredRecord;
+    private int restoredTick;
+    private boolean defeatRecorded;
     private String lastJumpState=""; // worker-owned observation only
     private static native void releaseGame(long id);
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
@@ -130,7 +135,7 @@ public final class PlayActivity extends Activity {
         ScrollView scroll=new ScrollView(this);scroll.addView(list);
         android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this).setTitle("Pause").setView(scroll).setNegativeButton("Schließen",null).create();
         String[] labels={"Fortsetzen","Checkpoint speichern","Checkpoint laden","Steuerung","Karte neu starten","Hauptmenü","Szene manuell öffnen",useGpu?"Softwaregrafik verwenden":"GPU verwenden"};
-        Runnable[] actions={()->{if(paused)togglePause();},this::saveManually,()->loadCheckpoint(false),()->ControlSettings.show(this),()->new android.app.AlertDialog.Builder(this).setTitle("Karte neu starten?").setMessage("Fortschritt seit dem Karteneinstieg wird zurückgesetzt.").setPositiveButton("Neustart",(d,w)->restart()).setNegativeButton("Abbrechen",null).show(),this::finish,this::chooseScene,()->switchBackend(!useGpu)};
+        Runnable[] actions={()->{if(paused)togglePause();},this::saveManually,()->showCheckpointChoices("Spielstand auswählen"),()->ControlSettings.show(this),()->new android.app.AlertDialog.Builder(this).setTitle("Karte neu starten?").setMessage("Fortschritt seit dem Karteneinstieg wird zurückgesetzt.").setPositiveButton("Neustart",(d,w)->restart()).setNegativeButton("Abbrechen",null).show(),this::finish,this::chooseScene,()->switchBackend(!useGpu)};
         for(int i=0;i<labels.length;i++){final int n=i;Button item=new Button(this);item.setText(labels[i]);item.setMinHeight(Math.round(48*getResources().getDisplayMetrics().density));item.setOnClickListener(v->{dialog.dismiss();actions[n].run();});list.addView(item);}
         dialog.show();
     }
@@ -158,7 +163,7 @@ public final class PlayActivity extends Activity {
         pause.setText("Pause"); status.setText("Neustart …");
         if(sceneAudio!=null) sceneAudio.reset();
         worker.execute(() -> {
-            try { gameCommand(game,1);saveCheckpointWorker(true); runOnUiThread(() -> {
+            try { gameCommand(game,1);checkpointPolicy.reset();restoredRecord=null;defeatRecorded=false;saveCheckpointWorker(true); runOnUiThread(() -> {
                 if(isDestroyed()) return; lastShots=0; lastHP=100; lastPhase=0; lastEnemies=3; lastAmmo=20;
                 status.setText(lastGuidance); queueFrame(true);
             }); } catch(Exception e) {failure(e.getMessage());}
@@ -174,9 +179,17 @@ public final class PlayActivity extends Activity {
         if(game==0 || currentScene==null)return;
         try {
             int[] values=gameStatus(game);long marker=checkpointMarker(game);
-            if(values[4]==2 || values[0]==0) {if(announce)runOnUiThread(() -> Toast.makeText(this,"Der letzte spielbare Checkpoint bleibt erhalten.",Toast.LENGTH_LONG).show());return;} // Keep the last playable checkpoint after defeat.
-            if(!force && (System.nanoTime()<nextSaveAttempt || (savedTick>=0 && values[5]-savedTick<600 && marker==savedMarker)))return;
-            checkpoints.save(currentScene,guidance(game),gameCheckpoint(game));
+            if(values[4]==2 || values[0]==0) {
+                if(!defeatRecorded){defeatRecorded=true;int failures=restoredRecord!=null && values[5]-restoredTick<=900?checkpoints.quickDeaths(restoredRecord,true):0;
+                    runOnUiThread(()->showCheckpointChoices(failures>=2?"Wiederholt kurz nach dem Laden gefallen · früheren Spielstand wählen":"Gefallen · Spielstand auswählen"));}
+                if(announce)runOnUiThread(() -> Toast.makeText(this,"Der letzte spielbare Checkpoint bleibt erhalten.",Toast.LENGTH_LONG).show());return;
+            }
+            boolean stable=checkpointPolicy.observe(values,checkpointSafe(game),marker);
+            if(!force && (System.nanoTime()<nextSaveAttempt || (!stable && savedTick>=0 && values[5]-savedTick<600 && marker==savedMarker)))return;
+            byte[] state=gameCheckpoint(game);String title=guidance(game);
+            checkpoints.save(currentScene,title,state);
+            if(announce)checkpoints.saveNamed(CheckpointStore.MANUAL,currentScene,title,state);
+            if(stable){checkpoints.saveNamed(CheckpointStore.SAFE,currentScene,title,state);checkpointPolicy.saved(values[5],marker);}
             savedTick=values[5];savedMarker=marker;nextSaveAttempt=0;
             Log.i("RCCheckpoint","saved ticks="+savedTick+" scene="+currentScene);
             if(announce)runOnUiThread(() -> {if(!isDestroyed())Toast.makeText(this,"Checkpoint gespeichert",Toast.LENGTH_SHORT).show();});
@@ -190,11 +203,26 @@ public final class PlayActivity extends Activity {
         worker.execute(() -> {try {gameCommand(game,0);saveCheckpointWorker(true,true);}catch(Exception e){failure(e.getMessage());}});
     }
     private void loadCheckpoint(boolean previous) {
+        loadCheckpoint(previous?"previous.save":"resume.save");
+    }
+    private void showCheckpointChoices(String title) {
+        if(isDestroyed() || loading)return;
+        String[] slots={CheckpointStore.SAFE,CheckpointStore.SAFE_PREVIOUS,CheckpointStore.MANUAL,"resume.save","previous.save",CheckpointStore.ENTRY};
+        String[] names={"Sicherer Checkpoint","Früherer sicherer Checkpoint","Manuell gespeichert","Letzte Sitzung (kann im Kampf sein)","Vorherige Sitzung (kann im Kampf sein)","Karteneinstieg"};
+        LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);ScrollView scroll=new ScrollView(this);scroll.addView(list);
+        android.app.AlertDialog dialog=new android.app.AlertDialog.Builder(this).setTitle(title).setView(scroll).setNegativeButton("Abbrechen",null).create();
+        for(int i=0;i<slots.length;i++)if(checkpoints.has(slots[i])){final String slot=slots[i];Button b=new Button(this);b.setText(names[i]);b.setMinHeight(Math.round(48*getResources().getDisplayMetrics().density));b.setOnClickListener(v->{dialog.dismiss();loadCheckpoint(slot);});list.addView(b);
+            TextView detail=new TextView(this);detail.setText("Spielstand wird geprüft …");list.addView(detail);
+            worker.execute(()->{String text;try{CheckpointStore.Record r=checkpoints.load(slot);text=r.title+" · "+new java.text.SimpleDateFormat("dd.MM. HH:mm",Locale.GERMAN).format(new Date(r.savedAt));}catch(IOException e){text="Beschädigt · andere Sicherung wählen";}final String description=text;runOnUiThread(()->{if(!isDestroyed())detail.setText(description);});});
+        }
+        Button restart=new Button(this);restart.setText("Karte neu starten");restart.setEnabled(loaded);restart.setOnClickListener(v->{dialog.dismiss();restart();});list.addView(restart);dialog.show();
+    }
+    private void loadCheckpoint(String slot) {
         if(loading)return;
-        if(!checkpoints.hasSave()) {status.setText("Noch kein Checkpoint vorhanden. Zuerst eine Szene öffnen.");return;}
+        if(!checkpoints.has(slot)) {showCheckpointChoices("Verfügbare Spielstände");return;}
         prepareLoad();
         worker.execute(() -> {
-            try {CheckpointStore.Record record=checkpoints.load(previous);if(loadSceneWorker(null,record,false,false) && previous)saveCheckpointWorker(true);}
+            try {CheckpointStore.Record record=checkpoints.load(slot);if(loadSceneWorker(null,record,false,false) && !slot.equals("resume.save"))saveCheckpointWorker(true);}
             catch(Exception e) {runOnUiThread(() -> recovery("Checkpoint konnte nicht geladen werden: "+e.getMessage(),null,true));}
         });
     }
@@ -238,9 +266,14 @@ public final class PlayActivity extends Activity {
             // Rejected scenes/checkpoints must not replace the recovery scene.
             checkpoints.markScene(cached);
             if(candidate!=game){releaseGame(game);game=candidate;}created=false;
-            currentScene=cached;savedTick=-1;savedMarker=0;
+            currentScene=cached;savedTick=-1;savedMarker=0;checkpointPolicy.reset();restoredRecord=record;defeatRecorded=false;
+            restoredTick=gameStatus(game)[5];
             // A previous-generation recovery leaves the rejected primary intact for diagnostics.
-            if(record==null)saveCheckpointWorker(true);
+            if(record==null){
+                try{checkpoints.saveNamed(CheckpointStore.ENTRY,cached,guidance,gameCheckpoint(game));}
+                catch(IOException e){Log.e("RCCheckpoint","entry save failed",e);runOnUiThread(()->{if(!isDestroyed())Toast.makeText(this,"Karteneinstieg konnte nicht gespeichert werden: "+e.getMessage(),Toast.LENGTH_LONG).show();});}
+                saveCheckpointWorker(true);
+            }
             else {int[] values=gameStatus(game);savedTick=values[5];savedMarker=checkpointMarker(game);}
             Log.i("RCPlay","loaded "+(CampaignRoutes.map(guidance).isEmpty()?"geo_01a":CampaignRoutes.map(guidance).toLowerCase(Locale.ROOT))+" game="+game);
             final boolean restoring=record!=null;
@@ -265,6 +298,7 @@ public final class PlayActivity extends Activity {
         if(isDestroyed())return;
         loading=false;paused=true;open.setEnabled(true);pause.setText("Fortsetzen");status.setText(message);
         ArrayList<String> labels=new ArrayList<>();ArrayList<Runnable> actions=new ArrayList<>();
+        labels.add("Sichere und manuelle Spielstände auswählen");actions.add(()->showCheckpointChoices("Wiederherstellung"));
         if(checkpoints.hasPrevious()) {
             labels.add("Vorherigen Checkpoint laden");actions.add(() -> {worker.execute(() -> {try {checkpoints.quarantine(false);}catch(IOException e){Log.e("RCCheckpoint","quarantine",e);}});loadCheckpoint(true);});
         }
@@ -294,6 +328,9 @@ public final class PlayActivity extends Activity {
     }
     private void queueFrame(boolean still) {
         if(loading || !loaded || !resumed || isDestroyed() || drawing || (!still && (paused || finished))) return;
+        if(!still && sceneAudio!=null)try {
+            if(!sceneAudio.ready()){lastFrame=0;handler.removeCallbacks(pump);handler.postDelayed(pump,16);status.setText("Originalton wird vorbereitet …");return;}
+        }catch(IOException e){failure(e.getMessage());return;}
         drawing=true;
         long now=System.nanoTime(); final long interval=lastFrame==0 ? 0 : now-lastFrame; double elapsed=still || lastFrame==0 ? 0 : Math.min(0.25,(now-lastFrame)/1e9); lastFrame=now;
         final int requestedGeneration=generation; final int requestedAudioGeneration=audioGeneration; final boolean renderGpu=useGpu;

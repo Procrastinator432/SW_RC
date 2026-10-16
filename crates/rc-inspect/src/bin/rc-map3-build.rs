@@ -36,6 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     )?;
     let assets = rc_game::map_runtime::Assets {
+        enemy_fire_sound: None,
         sev_mesh: None,
         opening: None,
         fixer_mesh: Some(serde_json::from_value({

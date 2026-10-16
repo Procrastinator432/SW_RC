@@ -65,8 +65,10 @@ try {
         $resolved[$recipe.output_key]=@{path=$product;sha256=$hash}
         $results.Add(@{stage=$name;path=$product;sha256=$hash;bytes=(Get-Item -LiteralPath $product).Length})
     }
+    # Standalone stages must publish their produced identities too, so their
+    # resolved manifest can be consumed by a subsequent stage or package build.
+    @{schema=1;inputs=$resolved} | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $active -Encoding utf8NoBOM
     if($Stage -eq 'mission'){
-        @{schema=1;inputs=$resolved} | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $active -Encoding utf8NoBOM
         $env:RC_BUILD_OUTPUT=Join-Path $out 'runtime-validation'
         & cargo build -p rc-inspect --bin rc-checkpoint-check @options
         if($LASTEXITCODE -ne 0){throw 'Mission checkpoint validator compilation failed'}

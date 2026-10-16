@@ -1,6 +1,10 @@
 # Republic Commando → natives Android / Rust
 
-Aktuelle Lieferung: **0.49.0 – Kampagnenbedienung**, lokaler Tag `v0.49.0`, unter `build/releases/0.49.0`. APK als Update installieren, Szenenpaket einmal als ZIP importieren; danach Mission starten/fortsetzen und automatische Kartenwechsel ohne Dateidialog. Kompakte Touch-Oberfläche und gespeicherte Empfindlichkeit bei640×360dp geprüft. [Starten und Grenzen](docs/CAMPAIGN_MENU.md).
+**Aktueller Missionsstatus: Alpha mit offenen Handytest-Blockern.** Vorbereitete A/B/C-Replays belegen den Ablauf bis zum Kartenübergang, ersetzen aber keine vollständige Sicht-/Hör- und Spielbarkeitsabnahme am Gerät. Korrekturstand **0.50.0**: getrennte sichere/manuelle/prozessbezogene Spielstände, korrigierte Rampen-Deckkraft, gekoppeltes Droiden-Schussfeedback und zeitlich geordnete Audiowiedergabe. [Änderungen, Ausprobieren und verbleibende Abnahme](docs/PHONE_TEST_BLOCKERS.md). Historische Abschlussangaben weiter unten beziehen sich auf die jeweils beschriebenen vorbereiteten Läufe.
+
+Aktuelle Korrekturlieferung: **0.50.0**, lokaler Tag `v0.50.0`, unter `build/releases/0.50.0`. APK aktualisieren, neues Szenenpaket importieren und für Material-/Tonkorrekturen eine neue Mission im Hauptmenü starten. Alte Spielstände bleiben mit ihren unveränderten alten Szenen verwendbar.
+
+Vorherige Lieferung: **0.49.0 – Kampagnenbedienung**, lokaler Tag `v0.49.0`, unter `build/releases/0.49.0`. APK als Update installieren, Szenenpaket einmal als ZIP importieren; danach Mission starten/fortsetzen und automatische Kartenwechsel ohne Dateidialog. Kompakte Touch-Oberfläche und gespeicherte Empfindlichkeit bei640×360dp geprüft. [Starten und Grenzen](docs/CAMPAIGN_MENU.md).
 
 Vorheriger konsolidierter Quell-/Buildstand: **0.48.0 – konsolidiert**, lokaler Tag `v0.48.0`. Zentral prüfen: `./build.ps1`; APK bauen: `./build.ps1 -Target Android`. Debug-Stackfehler behoben, vorbereitete Szeneneingaben explizit gepinnt, lokale IDE-/Build-/Assetdateien getrennt. [Build, Voraussetzungen und Nachweise](docs/BUILD.md).
 

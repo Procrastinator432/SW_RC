@@ -800,14 +800,20 @@ impl Game {
                 }
             }
             if visible && e.cooldown == 0. && (!is_warrior || d < 130.) {
-                self.state.health =
-                    self.state
-                        .health
-                        .saturating_sub(if is_warrior { 10 } else { 5 });
-                self.state.damage_flash = 0.2;
-                self.state.statistics.enemy_shots += 1;
-                e.cooldown = if is_warrior { 1.2 } else { 1.4 };
-                e.flash = 0.12;
+                let sound = (!is_warrior)
+                    .then(|| self.map.as_ref().unwrap().assets.enemy_fire_sound)
+                    .flatten();
+                if self.state.accept_enemy_attack(
+                    i,
+                    muzzle,
+                    eye,
+                    if is_warrior { 10 } else { 5 },
+                    sound,
+                    !is_warrior,
+                ) {
+                    e.cooldown = if is_warrior { 1.2 } else { 1.4 };
+                    e.flash = 0.12;
+                }
             }
             self.state.enemies[i] = e;
         }

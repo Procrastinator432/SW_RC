@@ -18,6 +18,10 @@ final class SceneAudio implements AutoCloseable {
     private final ArrayDeque<Event> pending=new ArrayDeque<>();
     private final ArrayDeque<Integer> streams=new ArrayDeque<>();
     private boolean closed,suspended;
+    private String loadFailure;
+    private final android.os.Handler handler=new android.os.Handler(android.os.Looper.getMainLooper());
+    private final AudioTimeline timeline=new AudioTimeline();
+    private final Runnable flushTask=this::flush;
     private long lastSequence;
     private static final class Event {
         final long sequence,tick; final int sound,owner;
@@ -37,7 +41,7 @@ final class SceneAudio implements AutoCloseable {
             File file=files.remove(id);if(file!=null) file.delete();
             if(closed) return;
             if(status==0) {ready.add(id);Log.i("RCAudio","loaded sample="+id);flush();}
-            else {Log.e("RCAudio","sample load failed="+status);pending.clear();}
+            else {loadFailure="Originalton konnte nicht geladen werden ("+status+")";Log.e("RCAudio",loadFailure);pending.clear();}
         });
         try {
             for(int i=0;i<count;i++) {
@@ -55,6 +59,7 @@ final class SceneAudio implements AutoCloseable {
         } catch(IOException|RuntimeException e) {close();throw e;}
     }
     boolean hasOriginalSounds() {return sounds.length>0;}
+    boolean ready() throws IOException {if(loadFailure!=null)throw new IOException(loadFailure);return !closed && ready.size()==sounds.length;}
     void events(byte[] bytes) throws IOException {
         ByteBuffer b=packet(bytes,"RCAUD001");int count=b.getInt();
         if(count<0 || count>256 || b.remaining()!=count*24) throw new IOException("Invalid sound events");
@@ -62,24 +67,28 @@ final class SceneAudio implements AutoCloseable {
             Event e=new Event(b.getLong(),b.getLong(),b.getInt(),b.getInt());
             if(e.sequence<=lastSequence || e.sound<0 || e.sound>=sounds.length) throw new IOException("Invalid sound event identity");
             lastSequence=e.sequence;
-            if(pending.size()==256) pending.removeFirst();pending.add(e);
+            if(!suspended){if(pending.size()==256) pending.removeFirst();pending.add(e);}
         }
         flush();
     }
     private void flush() {
+        handler.removeCallbacks(flushTask);
         if(closed || suspended || ready.size()!=sounds.length) return;
         while(!pending.isEmpty()) {
+            long now=android.os.SystemClock.uptimeMillis();long delay=timeline.delay(pending.peekFirst().tick,now);
+            if(delay>0){handler.postDelayed(flushTask,delay);return;}
             Event e=pending.removeFirst();
             int stream=pool.play(sounds[e.sound],0.35f,0.35f,1,0,1f);
             if(stream==0) {Log.e("RCAudio","play failed sequence="+e.sequence);continue;}
+            timeline.played(e.tick,now);
             if(streams.size()==64) streams.removeFirst();streams.add(stream);
-            Log.i("RCAudio","event sequence="+e.sequence+" tick="+e.tick+" sound="+e.sound+" owner="+e.owner);
+            Log.i("RCAudio","event sequence="+e.sequence+" tick="+e.tick+" sound="+e.sound+" owner="+e.owner+" played_ms="+now);
         }
     }
     private void stopStreams() {for(int id:streams) pool.stop(id);streams.clear();}
-    void suspend() {suspended=true;stopStreams();}
+    void suspend() {suspended=true;handler.removeCallbacks(flushTask);pending.clear();timeline.reset();stopStreams();}
     void resume() {suspended=false;flush();}
-    void stop() {pending.clear();stopStreams();}
+    void stop() {handler.removeCallbacks(flushTask);pending.clear();timeline.reset();stopStreams();}
     void reset() {stop();suspended=false;lastSequence=0;}
     @Override public void close() {
         if(closed) return;closed=true;stop();pool.release();

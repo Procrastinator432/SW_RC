@@ -39,6 +39,29 @@ public final class CheckpointStoreCheck {
         Files.write(primary.toPath(),Arrays.copyOf(corrupt,10));reject(() -> store.load(false));
         store.quarantine(false);if(!Arrays.equals(store.load(true).state,a))throw new AssertionError();
         if(!store.lastScene().equals(name))throw new AssertionError();
+        store.saveNamed(CheckpointStore.SAFE,name,"quiet",a);
+        store.saveNamed(CheckpointStore.MANUAL,name,"manual combat",b);
+        store.saveNamed(CheckpointStore.ENTRY,name,"map entry",c);
+        store.save(name,"unsafe pause",b);store.save(name,"unsafe background",c);
+        CheckpointStore reopened=new CheckpointStore(run);
+        if(!Arrays.equals(reopened.load(CheckpointStore.SAFE).state,a)||!Arrays.equals(reopened.load(CheckpointStore.MANUAL).state,b))throw new AssertionError("Resume displaced stable/manual slots");
+        store.saveNamed(CheckpointStore.SAFE,name,"next quiet",b);
+        if(!Arrays.equals(store.load(CheckpointStore.SAFE_PREVIOUS).state,a))throw new AssertionError();
+        byte[] goodSafe=Files.readAllBytes(new File(root,CheckpointStore.SAFE).toPath());
+        File blockedSafe=new File(root,"safe.save.tmp");blockedSafe.mkdir();File childSafe=new File(blockedSafe,"keep");Files.write(childSafe.toPath(),a);
+        reject(()->store.saveNamed(CheckpointStore.SAFE,name,"disk full",c));
+        if(!Arrays.equals(goodSafe,Files.readAllBytes(new File(root,CheckpointStore.SAFE).toPath()))||!Arrays.equals(store.load(CheckpointStore.SAFE_PREVIOUS).state,a))throw new AssertionError("Failed safe write rotated history");
+        Files.delete(childSafe.toPath());Files.delete(blockedSafe.toPath());
+        goodSafe[goodSafe.length-1]^=1;Files.write(new File(root,CheckpointStore.SAFE).toPath(),goodSafe);
+        store.saveNamed(CheckpointStore.SAFE,name,"repair",c);
+        if(!Arrays.equals(store.load(CheckpointStore.SAFE_PREVIOUS).state,a))throw new AssertionError("Corrupt safe replaced fallback");
+        CheckpointStore.Record origin=store.load(CheckpointStore.MANUAL);
+        if(store.quickDeaths(origin,true)!=1||new CheckpointStore(run).quickDeaths(origin,true)!=2||store.quickDeaths(origin,false)!=2)throw new AssertionError("Death loop not persistent");
+        if(store.quickDeaths(store.load(CheckpointStore.ENTRY),false)!=0)throw new AssertionError("Different save inherited death loop");
+        reject(()->store.load("../safe.save"));
+        File manualFile=new File(root,CheckpointStore.MANUAL);Files.write(manualFile.toPath(),new byte[]{1});
+        store.saveNamed(CheckpointStore.MANUAL,name,"manual repair",b);
+        if(!Arrays.equals(store.load(CheckpointStore.MANUAL).state,b))throw new AssertionError("Explicit save could not replace corrupt manual slot");
         System.out.println("{\"passed\":true,\"two_generations\":true,\"corrupt_primary_preserves_previous\":true,\"interrupted_temp_ignored\":true,\"scene_integrity_and_repair\":true,\"truncation_and_path_escape_rejected\":true,\"primary_and_backup_write_failures_preserve_both_generations\":true,\"staged_payload_cleanup\":true,\"retry_after_write_failure\":true,\"duplicate_preserves_previous\":true}");
     }
 }

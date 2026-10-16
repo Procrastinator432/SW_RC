@@ -166,6 +166,10 @@ try:
  (OUT/'validation.json').write_text(json.dumps(dict(passed=True,apk_sha256=hashlib.sha256(args.apk.read_bytes()).hexdigest(),package_sha256=hashlib.sha256(args.package.read_bytes()).hexdigest(),actual_package_picker_and_native_import=True,import_preserves_checkpoint=True,invalid_import_preserves_package_and_save=True,cold_start_keeps_package=True,new_game_without_picker=True,android_background_kill_recreates_original_intent_exactly=True,logical_display=[640,360],viewport_dp=[640,312],all_touch_targets_min_48dp=True,touch_movement_fire_jump=True,sensitivity_saved_and_density_independent=True,both_look_axes_verified=True,high_sensitivity_yaw_delta=delta_fast,normal_sensitivity_yaw_delta=delta_normal,automatic_transitions=transitions,limits=['Android x86_64 emulator; physical small-screen comfort remains for device testing','Map-end and factory checkpoints are genuine replay states inserted into private test storage, not a full manual touch playthrough']),indent=2))
  print('Package import, compact small-screen controls, saved sensitivity and all three automatic map transitions passed')
 except Exception:
+ import traceback
+ (OUT/'failure.txt').write_text(traceback.format_exc())
+ try:(OUT/'failure.log').write_text(adb('logcat','-d','-s','RCPlay:I','RCCheckpoint:I','RCAudio:I','AndroidRuntime:E','*:S'))
+ except Exception:pass
  try:capture('failure')
  except Exception:pass
  raise
