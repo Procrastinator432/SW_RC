@@ -43,6 +43,8 @@ def main():
                 for i, r in enumerate(opening['intro']['sounds']))
     refs.extend(dict(kind='rappel-notify', original=n['original'], role=n['role'])
                 for n in opening['rappel']['notifies'] if n['role'] is not None)
+    refs.extend(dict(kind='bacta-notify', original=n['original'], role=n['role'])
+                for n in opening.get('bacta', {}).get('notifies', []))
     identities = {b['role']: b for b in expected}
     assert len(identities) == len(expected)
     assert set(identities) == {r['role'] for r in refs}, 'Incomplete cue manifest'
@@ -86,7 +88,7 @@ def main():
         enemy = next(s for s in opening['sounds'] if s['source'] == opening['enemy_fire_source'])
         encoded = enemy['wave']
         enemy_pcm = base64.b64decode(encoded[7:]) if isinstance(encoded, str) else bytes(encoded)
-        assert sounds[-1] == enemy_pcm, 'Enemy cue must be appended after all original cues'
+        assert sounds.count(enemy_pcm) == 1, 'Enemy cue must remain uniquely bound in the native bank'
         if a.ticks:
             api.rc_game_advance.argtypes = [c.c_uint64, c.c_double, c.c_float,
                                           c.c_float, c.c_float, c.c_float, c.c_uint32]

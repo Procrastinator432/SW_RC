@@ -40,6 +40,8 @@ Geprüft unter `build/presentation-flow`: jeweils1.130 Debug-/Release-Bibliothek
 
 ## Grenzen und anschließender Bacta-Abschnitt
 
+Fortsetzung: Animation, originale Geräusch-Notifies und Heilungsfreigabe nach `FinishAnim` sind inzwischen integriert. Der folgende Absatz dokumentiert die vorausgehende Extraktion. Effekt-/Loop-Lebensdauer bleibt offen; siehe [Bacta-Laufzeit](BACTA_LIFECYCLE.md).
+
 Diese Umsetzung betrifft die ausgewählten Opening-Skripte. Vollständige räumliche Abstrahlung, zufällige Pitch-/Volumeparameter, alle SoundMultiple-Auswahlregeln und die gesamte native Kanal-/Prioritätsverwaltung sind nicht rekonstruiert.
 
 `rc-bacta-assets GAME_DATA OUT` erzeugt inzwischen die Originaldaten für den nächsten Laufzeitabschnitt: Actor736, Mesh `BactaDispenserGEO`, Clips `Load`/`Holster` mit je30 Frames bei30Hz, sechs originale Sound-Notifies und Knochen `eye`. Die drei Notify-Cues sind `fol_GEN_trapFiddle_01`, `mach_GEN_Bdroid_Dispense_open` und `mach_GEN_Bdroid_Dispense_close`. Die Effekte heißen `CTEffects.BactaZap_Dispenser` und `CTEffects.BactaZap_Dispenser_Body`; der erste verwendet den originalen Ambient-Loop `GEO_Sound.GEO_03.ele_GEO_genEnrgy_lp_01`. Diese Daten sind geprüft, aber die Bacta-Animation, Effekt-/Loop-Lebensdauer und Heilungsfreigabe nach FinishAnim sind noch nicht in die A-Laufzeit integriert. Die zusammengesetzten Emitterdefaults müssen dabei ausdrücklich aufgelöst werden.

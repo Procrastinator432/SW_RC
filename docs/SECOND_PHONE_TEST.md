@@ -2,6 +2,8 @@
 
 Stand: 16.10.2026. Grundlage ist der Gerätebericht zu 0.50.0. Der gesamte angeforderte Inszenierungsblock ist **noch nicht abgeschlossen**. Die veröffentlichte 0.50.0 bleibt als Vergleich eingefroren; dieser Zwischenstand ist keine neue Gerätefreigabe.
 
+**Bacta-Fortsetzung:** Die Station öffnet/schließt sich jetzt animiert, spielt ihre sechs originalen Sound-Notifies und heilt erst nach `FinishAnim`. Abbruch, erneutes Benutzen und Checkpoints aller Stationsphasen sind nativ geprüft. Originale Eye-/Körpereffekte und deren Dauerton fehlen noch. [Umsetzung und Nachweise](BACTA_LIFECYCLE.md).
+
 **Fortsetzung:** Die im Folgenden als offen beschriebene Opening-Dialogregel ist inzwischen im Quellstand ergänzt: Originalwartezeit inklusive0,1 Sekunden, akteurbezogener Schutz/Ersetzung und Unterdrückung verworfener Untertitel. Der folgende historische Zwischenstand bleibt als Vergleich erhalten. [Originalnachweis, Umsetzung und verbleibender Bacta-Abschnitt](OWNED_AUDIO.md).
 
 ## Umgesetzte Korrekturen

@@ -24,6 +24,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "DrawScale3D",
         "PrePivot",
         "CollisionHeight",
+        "PlayerRange",
+        "PlayerOffset",
+        "bLockPlayerLocation",
+        "ActivateDotProdMax",
     ] {
         defaults.insert(
             field.into(),
@@ -70,10 +74,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     fs::write(out.join("bacta-mesh.json"), serde_json::to_vec(&mesh)?)?;
+    let prepared = mesh.prepare_reference()?;
+    let mut poses = vec![];
+    for name in ["Load", "Holster"] {
+        let clip = prepared.clip(name)?;
+        for frame in [0., 0.5, 29. / 30.] {
+            let scene = prepared.geometry_with_root(&prepared.channel(clip, frame)?, true)?;
+            let bounds: [[f32; 3]; 2] = std::array::from_fn(|side| {
+                std::array::from_fn(|axis| {
+                    scene
+                        .triangles
+                        .iter()
+                        .flat_map(|t| t.points.iter().map(|p| p[axis]))
+                        .fold(
+                            if side == 0 {
+                                f32::INFINITY
+                            } else {
+                                f32::NEG_INFINITY
+                            },
+                            |a, b| if side == 0 { a.min(b) } else { a.max(b) },
+                        )
+                })
+            });
+            poses.push(serde_json::json!({"clip":name,"frame":frame,"root_matrix":prepared.root_matrix(clip,frame)?.map(f32::from_bits),"bounds":bounds}));
+        }
+    }
+    fs::write(out.join("poses.json"), serde_json::to_vec_pretty(&poses)?)?;
     fs::write(
         out.join("original-bindings.json"),
         serde_json::to_vec_pretty(
-            &serde_json::json!({"actor":736,"class":class,"defaults":defaults,"notifies":notifies,"effects":effects,"bones":mesh.bones.iter().map(|b|&b.name.name).collect::<Vec<_>>()}),
+            &serde_json::json!({"actor":736,"class":class,"defaults":defaults,"notifies":notifies,"effects":effects,"bones":prepared.mesh.bones.iter().map(|b|&b.name.name).collect::<Vec<_>>()}),
         )?,
     )?;
     Ok(())

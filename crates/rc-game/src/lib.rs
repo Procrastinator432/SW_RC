@@ -1,6 +1,7 @@
 //! First playable vertical slice. Combat/encounter rules are explicit port policies,
 //! not a claim of reconstructed CTGame combat or campaign-script equivalence.
 pub mod artillery;
+pub mod bacta;
 pub mod bot;
 pub mod bundle;
 pub mod checkpoint;
@@ -726,6 +727,7 @@ impl Game {
         }
         if self.state.phase == Phase::Playing {
             self.mission_tick(input.use_action);
+            self.bacta_tick()?;
             self.crash_tick()?;
             self.grenade_tick()?;
             self.throw_tick()?;

@@ -25,7 +25,9 @@ with zipfile.ZipFile(a.package) as z:
    b=bank.raw;assert b[:8]==b'RCSND001';samples=[];pos=12
    for _ in range(struct.unpack_from('<I',b,8)[0]):
     size=struct.unpack_from('<I',b,pos)[0];pos+=4;samples.append(b[pos:pos+size]);pos+=size
-   if outer:index=len(samples)-1
+   if outer:
+    assert samples.count(expected)==1,'Enemy cue must be uniquely bound'
+    index=samples.index(expected)
    assert pos==len(b) and samples[index]==expected,'Native sound-bank index does not select the original cue'
   finally:api.rc_game_release(handle)
   if name=='GEO_01A':

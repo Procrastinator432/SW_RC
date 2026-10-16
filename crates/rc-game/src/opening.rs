@@ -42,6 +42,8 @@ pub struct Program {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assets {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bacta: Option<crate::bacta::Assets>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sound_policies: Vec<SoundPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -115,6 +117,8 @@ pub struct Lane {
 }
 #[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct State {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bacta: Option<crate::bacta::State>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub owned_voices: Vec<OwnedVoice>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -137,6 +141,7 @@ pub struct State {
     pub ready_tick: Option<u64>,
 }
 pub struct Prepared {
+    pub bacta: Option<crate::bacta::Prepared>,
     pub intro: Option<crate::intro::Prepared>,
     pub rappel: Option<crate::rappel::Prepared>,
     pub assets: Assets,
@@ -163,6 +168,9 @@ impl Assets {
         }
         if let Some(r) = &self.rappel {
             roles.extend(r.notifies.iter().filter_map(|n| n.role));
+        }
+        if let Some(b) = &self.bacta {
+            roles.extend(b.notifies.iter().map(|n| n.role));
         }
         roles.sort_unstable();
         roles.dedup();
@@ -208,6 +216,11 @@ impl Assets {
         }
         for p in &mut self.sound_policies {
             p.role = *mapping.get(&p.role).ok_or("Missing owned sound identity")?;
+        }
+        if let Some(b) = &mut self.bacta {
+            for n in &mut b.notifies {
+                n.role = mapping[&n.role];
+            }
         }
         if let Some(i) = &mut self.intro {
             for role in &mut i.sounds {
@@ -307,6 +320,7 @@ impl Assets {
 impl State {
     fn new(a: &Assets) -> Self {
         Self {
+            bacta: None,
             owned_voices: vec![],
             intro: None,
             rappel: a.rappel.as_ref().map(|_| crate::rappel::State::default()),
@@ -396,6 +410,12 @@ impl Game {
         self.state.mission.as_mut().unwrap().health = a.initial_health;
         self.state.mission.as_mut().unwrap().objective_mode = 0;
         let mut s = State::new(&a);
+        let bacta = if let Some(b) = a.bacta.take() {
+            s.bacta = Some(crate::bacta::State::default());
+            Some(b.prepare(&mut self.scene, base + a.sounds.len())?)
+        } else {
+            None
+        };
         let rappel = if let Some(r) = a.rappel.take() {
             if self
                 .world
@@ -423,6 +443,7 @@ impl Game {
         s.signal(&a, "levelstart");
         self.state.opening = Some(s);
         self.opening = Some(Prepared {
+            bacta,
             intro,
             rappel,
             assets: a,
@@ -755,6 +776,7 @@ mod tests {
     }
     fn assets() -> Assets {
         Assets {
+            bacta: None,
             sound_policies: vec![],
             enemy_fire_source: None,
             sound_bindings: vec![],

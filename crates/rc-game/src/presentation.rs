@@ -370,6 +370,9 @@ impl Game {
             let (opening, opening_faces) = self.opening_geometry()?;
             extra.extend(opening);
             faces.extend(opening_faces);
+            let (bacta, bacta_faces) = self.bacta_geometry()?;
+            extra.extend(bacta);
+            faces.extend(bacta_faces);
             let (encounters, encounter_faces) = self.map_encounter_geometry()?;
             extra.extend(encounters);
             faces.extend(encounter_faces);

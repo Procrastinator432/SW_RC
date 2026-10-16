@@ -98,6 +98,7 @@ fn topology(base: &serde_json::Value, saved: &serde_json::Value) -> Result<(), S
                 "artillery",
                 "squad",
                 "opening",
+                "bacta",
                 "map",
                 "planning",
                 "escape",
@@ -197,6 +198,20 @@ impl Game {
         }
         let base = serde_json::to_value(&self.initial).map_err(|e| e.to_string())?;
         for state in [&s.state, &s.initial] {
+            if state
+                .opening
+                .as_ref()
+                .and_then(|o| o.bacta.as_ref())
+                .is_some()
+                != self
+                    .initial
+                    .opening
+                    .as_ref()
+                    .and_then(|o| o.bacta.as_ref())
+                    .is_some()
+            {
+                return Err("Checkpoint Bacta module does not match scene".into());
+            }
             if state.health > 1000
                 || state.ammo > crate::MAGAZINE
                 || state.reserve > 100000
@@ -216,6 +231,33 @@ impl Game {
                         || t.tick > state.statistics.ticks
                         || t.from.iter().chain(t.to.iter()).any(|v| v.abs() > 1e8)
                 })
+                || state
+                    .opening
+                    .as_ref()
+                    .and_then(|o| o.bacta.as_ref())
+                    .is_some_and(|b| {
+                        b.notify_events.len() > 64
+                            || b.notify_events
+                                .iter()
+                                .any(|(t, _)| *t > state.statistics.ticks)
+                            || b.activated_tick.is_some_and(|t| t > state.statistics.ticks)
+                            || b.playback.as_ref().is_some_and(|p| {
+                                p.channels.len() != 1
+                                    || p.channels[0].words[0] != 1
+                                    || p.channels[0].words[3] != 0
+                                    || [4, 5, 6, 7, 8, 9, 10, 11, 14].iter().any(|i| {
+                                        !f32::from_bits(p.channels[0].words[*i]).is_finite()
+                                    })
+                                    || !f32::from_bits(p.channels[0].words[7]).is_finite()
+                                    || !(0. ..=1.).contains(&f32::from_bits(p.channels[0].words[7]))
+                            })
+                            || matches!(
+                                b.phase,
+                                crate::bacta::Phase::Loading
+                                    | crate::bacta::Phase::Active
+                                    | crate::bacta::Phase::Holstering
+                            ) && b.playback.is_none()
+                    })
                 || state.statistics.ticks > 20000000
                 || state.pawn.body.position.iter().any(|v| v.abs() > 1e8)
             {

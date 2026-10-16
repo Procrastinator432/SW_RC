@@ -1,6 +1,6 @@
 # Republic Commando → natives Android / Rust
 
-**Aktuelle Fortsetzung:** Die originale Regel für geschützte Opening-Stimmen und die0,1-Sekunden-Wartezugabe sind umgesetzt; verworfene Dialoge erzeugen auch keinen Untertitel. Android erhält dafür akteurbezogene Voice-Metadaten. Bacta-Originalclips, Sound-Notifies und Effektbindungen sind ermittelt, ihre Laufzeitintegration bleibt der nächste Abschnitt. [Nachweis und Grenzen](docs/OWNED_AUDIO.md).
+**Aktuelle Fortsetzung:** Die Bactastation ist animiert, spielt ihre sechs originalen Geräusch-Notifies und heilt erst nach `FinishAnim`. Abbruch/erneutes Benutzen und Checkpoints aller Phasen sind nativ geprüft; der20-Stufen-Neubau und A/B/C→Fabrik bestehen. Originale Spieler-Ausrichtung/Positionssperre, die nahe Stationsansicht sowie Eye-/Körpereffekte und ihr Dauerton bleiben offen. Noch keine neue Gerätefreigabe. [Nachweise und nächste Schritte](docs/BACTA_LIFECYCLE.md). Die zuvor korrigierten [Opening-Stimmen](docs/OWNED_AUDIO.md) bleiben geprüft.
 
 **Zweiter Handytest, Korrekturblock in Arbeit (16.10.2026):** Soundbank-Verschiebung behoben, Intro-/Abseil-Cues an Quellen und PCM gebunden, gemeinsame Materialentscheidung und vier Materialstufen für vorhandene Szenen ergänzt. Intro-Root-Translation wird beim Zeichnen nicht erneut angewendet. Noch keine neue Gerätefreigabe: Dialog-Slot-Semantik, Verwundungs-/Bacta-/Barriereninszenierung und abschließende Sicht-/Hörprüfung bleiben offen. [Stand, Nachweise und nächste Schritte](docs/SECOND_PHONE_TEST.md).
 

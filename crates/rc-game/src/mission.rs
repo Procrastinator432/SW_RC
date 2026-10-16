@@ -397,7 +397,14 @@ impl Game {
             && distance(p, final_point) <= a.use_radius
             && self.state.pawn.body.grounded
             && self.state.health > 0;
-        if s.using {
+        if s.using
+            && self
+                .state
+                .opening
+                .as_ref()
+                .and_then(|o| o.bacta.as_ref())
+                .is_none_or(|b| b.phase == crate::bacta::Phase::Active)
+        {
             // BactaDispenser.BeginActivating: deltaTime * MaxHealth / BactaRate,
             // clamped to missing health. Release/range/facing interrupt the hold.
             let delta = (STEP as f32 * a.max_health / a.bacta_rate).min(a.max_health - s.health);

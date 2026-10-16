@@ -212,7 +212,9 @@ pub fn validate_wave(b: &[u8]) -> Result<(), String> {
         let len = u32::from_le_bytes(header[4..8].try_into().unwrap()) as usize;
         let chunk = b.get(pos + 8..pos + 8 + len).ok_or("Truncated WAV data")?;
         if &header[..4] == b"fmt " {
-            if format || chunk.len() != 16 {
+            // WAVEFORMATEX PCM may carry cbSize=0 (18 bytes). The dispenser's
+            // original mechanical cues use this form; samples remain unchanged.
+            if format || !(chunk.len() == 16 || chunk.len() == 18 && chunk[16..18] == [0, 0]) {
                 return Err("Unsupported WAV format".into());
             }
             let u16at = |i| u16::from_le_bytes(chunk[i..i + 2].try_into().unwrap());
@@ -240,6 +242,7 @@ pub fn validate_wave(b: &[u8]) -> Result<(), String> {
     }
     Ok(())
 }
+
 impl Game {
     pub fn attach_combat(&mut self, assets: Assets) -> Result<(), String> {
         assets.validate()?;
@@ -490,5 +493,29 @@ impl Game {
         }
         self.state.combat.as_mut().unwrap().projectiles = live;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod wave_format_tests {
+    use super::validate_wave;
+    #[test]
+    fn pcm_waveformatex_zero_extension_preserves_samples_and_rejects_unknown_extensions() {
+        let mut wave = b"RIFF".to_vec();
+        wave.extend(40u32.to_le_bytes());
+        wave.extend(b"WAVEfmt ");
+        wave.extend(18u32.to_le_bytes());
+        wave.extend([
+            1, 0, 1, 0, 0x22, 0x56, 0, 0, 0x44, 0xac, 0, 0, 2, 0, 16, 0, 0, 0,
+        ]);
+        wave.extend(b"data");
+        wave.extend(2u32.to_le_bytes());
+        wave.extend([0x34, 0x12]);
+        assert!(validate_wave(&wave).is_ok());
+        wave[36] = 1; // cbSize requests an unsupported extension.
+        assert!(validate_wave(&wave).is_err());
+        wave[36] = 0;
+        wave[20] = 2; // ADPCM must not enter the PCM-only host.
+        assert!(validate_wave(&wave).is_err());
     }
 }
