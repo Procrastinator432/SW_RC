@@ -56,6 +56,8 @@ def main():
     handle = api.rc_game_create(buf, len(raw), err, len(err))
     assert handle, err.value
     timeline = []
+    owned = bool(opening.get('sound_policies'))
+    suppressed_caption_checked = False
     try:
         n = api.rc_game_audio(handle, 0, None, 0)
         assert n > 12
@@ -77,7 +79,8 @@ def main():
                 seconds = f.getnframes() / f.getframerate()
             if ref['kind'] == 'script':
                 assert abs(ref['caption_seconds'] - seconds) < 1e-6, (ref, seconds)
-                assert ref['seconds'] == 0 or abs(ref['seconds'] - seconds) < 1e-6
+                padding = 0.1 if opening.get('sound_policies') else 0
+                assert ref['seconds'] == 0 or abs(ref['seconds'] - seconds - padding) < 1e-6
             ref.update(source=identity['source'], pcm_seconds=seconds,
                        sha256=hashlib.sha256(pcm).hexdigest())
         enemy = next(s for s in opening['sounds'] if s['source'] == opening['enemy_fire_source'])
@@ -90,20 +93,52 @@ def main():
             names = {b['pcm']: b['source'] for b in expected}
             for _ in range(a.ticks):
                 assert api.rc_game_advance(handle, 1 / 60, 0, 0, 0, 0, 0) == 1
-                n = api.rc_game_audio(handle, 1, None, 0)
+                kind = 2 if owned else 1
+                legacy_size = api.rc_game_audio(handle, 1, None, 0)
+                n = api.rc_game_audio(handle, kind, None, 0)
+                if owned:
+                    assert n == 12 + ((legacy_size - 12) // 24) * 32
+                    tiny = c.create_string_buffer(1)
+                    assert api.rc_game_audio(handle, kind, tiny, 1) == n
+                    assert api.rc_game_audio(handle, 1, None, 0) == legacy_size
                 events = c.create_string_buffer(n)
-                assert api.rc_game_audio(handle, 1, events, n) == n
-                for at in range(12, n, 24):
+                assert api.rc_game_audio(handle, kind, events, n) == n
+                assert api.rc_game_audio(handle, 1, None, 0) == 12, 'Full copy must consume both views'
+                assert events.raw[:8] == (b'RCAUD002' if owned else b'RCAUD001')
+                for at in range(12, n, 32 if owned else 24):
                     seq, tick, role, owner = struct.unpack_from('<QQIi', events.raw, at)
+                    category, protected = struct.unpack_from('<II', events.raw, at+24) if owned else (2, 0)
                     pcm = sounds[role]
                     with wave.open(io.BytesIO(pcm), 'rb') as f:
                         seconds = f.getnframes() / f.getframerate()
-                    timeline.append(dict(sequence=seq, tick=tick, role=role, owner=owner,
+                    timeline.append(dict(sequence=seq, tick=tick, role=role, owner=owner, category=category, protected=bool(protected),
                                          source=names.get(fingerprint(pcm), 'other'), seconds=seconds))
+                    if owned and names.get(fingerprint(pcm), '').endswith('.CA1G1541'):
+                        api.rc_game_checkpoint.argtypes = [c.c_uint64, c.c_void_p, c.c_size_t]
+                        api.rc_game_checkpoint.restype = c.c_ssize_t
+                        size = api.rc_game_checkpoint(handle, None, 0)
+                        saved = c.create_string_buffer(size)
+                        assert api.rc_game_checkpoint(handle, saved, size) == size
+                        state = json.loads(saved.raw[20:])['state']['opening']
+                        assert any('BlockedByOwnedVoice' in e[2] for e in state['events'])
+                        assert not any('still scanning' in caption[0] for caption in state['captions'])
+                        assert 'primary target' in state['subtitle']
+                        suppressed_caption_checked = True
+            if owned and a.ticks >= 1800:
+                assert suppressed_caption_checked
+                assert not any(e['source'].endswith('.CA1G1545') for e in timeline)
+                last = {}
+                for event in timeline:
+                    if event['category'] != 1: continue
+                    previous = last.get(event['owner'])
+                    if previous:
+                        assert event['tick'] / 60 >= previous['tick'] / 60 + previous['seconds'], (previous, event)
+                    last[event['owner']] = event
     finally:
         api.rc_game_release(handle)
     report = dict(passed=True, scene_sha256=hashlib.sha256(raw).hexdigest(),
-                  cue_references=len(refs), unique_cues=len(identities), cues=refs, timeline=timeline)
+                  cue_references=len(refs), unique_cues=len(identities), owned_voice_semantics=owned,
+                  suppressed_caption_checked=suppressed_caption_checked, cues=refs, timeline=timeline)
     a.output.parent.mkdir(parents=True, exist_ok=True)
     a.output.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     print(json.dumps({k: v for k, v in report.items() if k not in ['cues', 'timeline']}))

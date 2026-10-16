@@ -4,6 +4,7 @@
     "map-a-opacity",
     "map-a-material",
     "map-a-feedback",
+    "map-a-audio",
     "map2-route",
     "map-b-material",
     "map-b-feedback",
@@ -295,6 +296,19 @@
       ],
       "product": "geo_03a.rcplay",
       "output_key": "factory_scene"
+    },
+    "map-a-audio": {
+      "binary": "rc-opening-audio-build",
+      "inputs": [
+        "map_a_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "{map_a_scene}",
+        "{out}"
+      ],
+      "product": "geo_01a.rcplay",
+      "output_key": "map_a_scene"
     }
   }
 }

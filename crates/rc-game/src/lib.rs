@@ -420,6 +420,9 @@ impl Game {
             m.events.clear();
             m.using = false;
         }
+        if let Some(o) = &mut self.state.opening {
+            o.owned_voices.clear();
+        }
     }
     pub fn eye(&self) -> Point {
         let mut p = self.state.pawn.body.position;

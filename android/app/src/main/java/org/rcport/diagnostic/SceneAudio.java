@@ -21,11 +21,12 @@ final class SceneAudio implements AutoCloseable {
     private String loadFailure;
     private final android.os.Handler handler=new android.os.Handler(android.os.Looper.getMainLooper());
     private final AudioTimeline timeline=new AudioTimeline();
+    private final SoundOwnership ownership=new SoundOwnership();
     private final Runnable flushTask=this::flush;
     private long lastSequence;
     private static final class Event {
-        final long sequence,tick; final int sound,owner;
-        Event(long s,long t,int i,int o) {sequence=s;tick=t;sound=i;owner=o;}
+        final long sequence,tick; final int sound,owner,category;
+        Event(long s,long t,int i,int o,int c) {sequence=s;tick=t;sound=i;owner=o;category=c;}
     }
     private static ByteBuffer packet(byte[] bytes,String magic) throws IOException {
         if(bytes.length<12 || !new String(bytes,0,8,StandardCharsets.US_ASCII).equals(magic)) throw new IOException("Invalid sound packet");
@@ -61,10 +62,14 @@ final class SceneAudio implements AutoCloseable {
     boolean hasOriginalSounds() {return sounds.length>0;}
     boolean ready() throws IOException {if(loadFailure!=null)throw new IOException(loadFailure);return !closed && ready.size()==sounds.length;}
     void events(byte[] bytes) throws IOException {
-        ByteBuffer b=packet(bytes,"RCAUD001");int count=b.getInt();
-        if(count<0 || count>256 || b.remaining()!=count*24) throw new IOException("Invalid sound events");
+        boolean enriched=bytes.length>=8 && new String(bytes,0,8,StandardCharsets.US_ASCII).equals("RCAUD002");
+        ByteBuffer b=packet(bytes,enriched?"RCAUD002":"RCAUD001");int count=b.getInt();
+        if(count<0 || count>256 || b.remaining()!=count*(enriched?32:24)) throw new IOException("Invalid sound events");
         for(int i=0;i<count;i++) {
-            Event e=new Event(b.getLong(),b.getLong(),b.getInt(),b.getInt());
+            long sequence=b.getLong(),tick=b.getLong();int sound=b.getInt(),owner=b.getInt();
+            int category=enriched?b.getInt():2;int flags=enriched?b.getInt():0;
+            if(category<0 || category>2 || (flags&~1)!=0) throw new IOException("Invalid sound ownership");
+            Event e=new Event(sequence,tick,sound,owner,category);
             if(e.sequence<=lastSequence || e.sound<0 || e.sound>=sounds.length) throw new IOException("Invalid sound event identity");
             lastSequence=e.sequence;
             if(!suspended){if(pending.size()==256) pending.removeFirst();pending.add(e);}
@@ -78,14 +83,16 @@ final class SceneAudio implements AutoCloseable {
             long now=android.os.SystemClock.uptimeMillis();long delay=timeline.delay(pending.peekFirst().tick,now);
             if(delay>0){handler.postDelayed(flushTask,delay);return;}
             Event e=pending.removeFirst();
+            int previous=ownership.replaced(e.owner,e.category);if(previous!=0) pool.stop(previous);
             int stream=pool.play(sounds[e.sound],0.35f,0.35f,1,0,1f);
             if(stream==0) {Log.e("RCAudio","play failed sequence="+e.sequence);continue;}
             timeline.played(e.tick,now);
+            ownership.played(e.owner,e.category,stream);
             if(streams.size()==64) streams.removeFirst();streams.add(stream);
             Log.i("RCAudio","event sequence="+e.sequence+" tick="+e.tick+" sound="+e.sound+" owner="+e.owner+" played_ms="+now);
         }
     }
-    private void stopStreams() {for(int id:streams) pool.stop(id);streams.clear();}
+    private void stopStreams() {for(int id:ownership.activeStreams()) pool.stop(id);for(int id:streams) pool.stop(id);streams.clear();ownership.clear();}
     void suspend() {suspended=true;handler.removeCallbacks(flushTask);pending.clear();timeline.reset();stopStreams();}
     void resume() {suspended=false;flush();}
     void stop() {handler.removeCallbacks(flushTask);pending.clear();timeline.reset();stopStreams();}

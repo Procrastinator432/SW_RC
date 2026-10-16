@@ -1,5 +1,7 @@
 # Republic Commando → natives Android / Rust
 
+**Aktuelle Fortsetzung:** Die originale Regel für geschützte Opening-Stimmen und die0,1-Sekunden-Wartezugabe sind umgesetzt; verworfene Dialoge erzeugen auch keinen Untertitel. Android erhält dafür akteurbezogene Voice-Metadaten. Bacta-Originalclips, Sound-Notifies und Effektbindungen sind ermittelt, ihre Laufzeitintegration bleibt der nächste Abschnitt. [Nachweis und Grenzen](docs/OWNED_AUDIO.md).
+
 **Zweiter Handytest, Korrekturblock in Arbeit (16.10.2026):** Soundbank-Verschiebung behoben, Intro-/Abseil-Cues an Quellen und PCM gebunden, gemeinsame Materialentscheidung und vier Materialstufen für vorhandene Szenen ergänzt. Intro-Root-Translation wird beim Zeichnen nicht erneut angewendet. Noch keine neue Gerätefreigabe: Dialog-Slot-Semantik, Verwundungs-/Bacta-/Barriereninszenierung und abschließende Sicht-/Hörprüfung bleiben offen. [Stand, Nachweise und nächste Schritte](docs/SECOND_PHONE_TEST.md).
 
 **Aktueller Missionsstatus: Alpha mit offenen Handytest-Blockern.** Vorbereitete A/B/C-Replays belegen den Ablauf bis zum Kartenübergang, ersetzen aber keine vollständige Sicht-/Hör- und Spielbarkeitsabnahme am Gerät. Korrekturstand **0.50.0**: getrennte sichere/manuelle/prozessbezogene Spielstände, korrigierte Rampen-Deckkraft, gekoppeltes Droiden-Schussfeedback und zeitlich geordnete Audiowiedergabe. [Änderungen, Ausprobieren und verbleibende Abnahme](docs/PHONE_TEST_BLOCKERS.md). Historische Abschlussangaben weiter unten beziehen sich auf die jeweils beschriebenen vorbereiteten Läufe.

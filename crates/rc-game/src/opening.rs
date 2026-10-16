@@ -42,6 +42,8 @@ pub struct Program {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assets {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sound_policies: Vec<SoundPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enemy_fire_source: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -69,6 +71,41 @@ pub struct SoundBinding {
     pub source: String,
     pub pcm: String,
 }
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SoundPolicy {
+    pub role: usize,
+    pub owner: i32,
+    pub category: u8,
+    pub no_override: bool,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OwnedVoice {
+    pub owner: i32,
+    pub until: f64,
+    pub protected: bool,
+}
+/// UAudioSubsystem::FindSource 103d0d10 compares IDs excluding bit0, then
+/// rejects the incoming source if the EXISTING matching source has bit0 set.
+fn admit_voice(active: &mut Vec<OwnedVoice>, policy: SoundPolicy, now: f64, duration: f64) -> bool {
+    active.retain(|v| v.until > now + 1e-10);
+    if policy.category != 1 {
+        return true;
+    } // Music/SFX use generated unique IDs.
+    if active
+        .iter()
+        .any(|v| v.owner == policy.owner && v.protected)
+    {
+        return false;
+    }
+    active.retain(|v| v.owner != policy.owner);
+    active.push(OwnedVoice {
+        owner: policy.owner,
+        until: now + duration,
+        protected: policy.no_override,
+    });
+    true
+}
 #[derive(Clone, Debug, Default, Serialize, serde::Deserialize)]
 pub struct Lane {
     pub started: bool,
@@ -78,6 +115,8 @@ pub struct Lane {
 }
 #[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct State {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub owned_voices: Vec<OwnedVoice>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub intro: Option<crate::intro::State>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -104,6 +143,12 @@ pub struct Prepared {
     pub sound_base: usize,
 }
 impl Assets {
+    pub fn sound_policy(&self, role: usize, owner: i32) -> Option<SoundPolicy> {
+        self.sound_policies
+            .iter()
+            .find(|p| p.role == role && p.owner == owner)
+            .copied()
+    }
     pub fn sound_roles(&self) -> Vec<usize> {
         let mut roles = Vec::new();
         for p in &self.programs {
@@ -161,6 +206,9 @@ impl Assets {
                 }
             }
         }
+        for p in &mut self.sound_policies {
+            p.role = *mapping.get(&p.role).ok_or("Missing owned sound identity")?;
+        }
         if let Some(i) = &mut self.intro {
             for role in &mut i.sounds {
                 *role = mapping[role];
@@ -174,6 +222,19 @@ impl Assets {
         Ok(())
     }
     pub fn validate(&self, base: usize) -> Result<(), String> {
+        if self.sound_policies.len() > 128
+            || self
+                .sound_policies
+                .iter()
+                .any(|p| p.role >= base + self.sounds.len() || p.owner < 1 || p.category > 2)
+        {
+            return Err("Invalid opening owned sound policy".into());
+        }
+        let unique: std::collections::BTreeSet<_> =
+            self.sound_policies.iter().map(|p| p.role).collect();
+        if unique.len() != self.sound_policies.len() {
+            return Err("Duplicate opening sound policy".into());
+        }
         if let Some(r) = &self.rappel {
             r.validate(base + self.sounds.len())?;
         }
@@ -246,6 +307,7 @@ impl Assets {
 impl State {
     fn new(a: &Assets) -> Self {
         Self {
+            owned_voices: vec![],
             intro: None,
             rappel: a.rappel.as_ref().map(|_| crate::rappel::State::default()),
             clock: 0.,
@@ -375,6 +437,7 @@ impl Game {
         };
         let a = &p.assets;
         let mut s = self.state.opening.take().unwrap();
+        s.owned_voices.retain(|v| v.until > s.clock + 1e-10);
         let tick = self.state.statistics.ticks + 1;
         let result = (|| -> Result<(), String> {
             let mut budget = STEP;
@@ -403,6 +466,25 @@ impl Game {
                                 caption_seconds,
                                 text,
                             } => {
+                                let policy =
+                                    a.sound_policies.iter().find(|p| p.role == *role).copied();
+                                s.lanes[i].remaining = *seconds;
+                                let admitted = policy.is_none_or(|policy| {
+                                    admit_voice(
+                                        &mut s.owned_voices,
+                                        policy,
+                                        s.clock,
+                                        *caption_seconds,
+                                    )
+                                });
+                                if !admitted {
+                                    s.events.push((
+                                        tick,
+                                        action.original,
+                                        format!("Sound{role}BlockedByOwnedVoice"),
+                                    ));
+                                    continue;
+                                }
                                 let m = self.state.mission.as_mut().unwrap();
                                 m.audio_sequence += 1;
                                 if m.events.len() >= 256 {
@@ -412,7 +494,7 @@ impl Game {
                                     sequence: m.audio_sequence,
                                     tick,
                                     sound: *role,
-                                    owner: -1,
+                                    owner: policy.map_or(-1, |p| p.owner),
                                 });
                                 s.lanes[i].remaining = *seconds;
                                 s.subtitle = text.clone();
@@ -610,8 +692,70 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn protected_existing_voice_rejects_same_owner_but_not_other_owners_or_sfx() {
+        let mut voices = vec![];
+        let p = SoundPolicy {
+            role: 0,
+            owner: 523,
+            category: 1,
+            no_override: true,
+        };
+        assert!(admit_voice(&mut voices, p, 0., 3.));
+        assert!(!admit_voice(
+            &mut voices,
+            SoundPolicy {
+                no_override: false,
+                ..p
+            },
+            0.,
+            2.6
+        ));
+        assert_eq!(voices[0].until, 3.);
+        assert!(admit_voice(
+            &mut voices,
+            SoundPolicy { owner: 530, ..p },
+            0.,
+            1.
+        ));
+        assert!(admit_voice(
+            &mut voices,
+            SoundPolicy { category: 2, ..p },
+            0.,
+            1.
+        ));
+        assert!(admit_voice(&mut voices, p, 3., 1.));
+    }
+    #[test]
+    fn unprotected_voice_is_replaced_not_queued_and_protection_belongs_to_existing_source() {
+        let mut voices = vec![];
+        let p = SoundPolicy {
+            role: 0,
+            owner: 523,
+            category: 1,
+            no_override: false,
+        };
+        assert!(admit_voice(&mut voices, p, 0., 3.));
+        assert!(admit_voice(
+            &mut voices,
+            SoundPolicy {
+                no_override: true,
+                ..p
+            },
+            1.,
+            1.
+        ));
+        assert_eq!(voices.len(), 1);
+        assert_eq!(voices[0].until, 2.);
+        assert!(voices[0].protected);
+        let restored: Vec<OwnedVoice> =
+            serde_json::from_slice(&serde_json::to_vec(&voices).unwrap()).unwrap();
+        assert!(!admit_voice(&mut restored.clone(), p, 1.5, 3.));
+        assert!(admit_voice(&mut voices, p, 2., 1.));
+    }
     fn assets() -> Assets {
         Assets {
+            sound_policies: vec![],
             enemy_fire_source: None,
             sound_bindings: vec![],
             stop_at_transition: false,

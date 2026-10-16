@@ -2,6 +2,8 @@
 
 Stand: 16.10.2026. Grundlage ist der Gerätebericht zu 0.50.0. Der gesamte angeforderte Inszenierungsblock ist **noch nicht abgeschlossen**. Die veröffentlichte 0.50.0 bleibt als Vergleich eingefroren; dieser Zwischenstand ist keine neue Gerätefreigabe.
 
+**Fortsetzung:** Die im Folgenden als offen beschriebene Opening-Dialogregel ist inzwischen im Quellstand ergänzt: Originalwartezeit inklusive0,1 Sekunden, akteurbezogener Schutz/Ersetzung und Unterdrückung verworfener Untertitel. Der folgende historische Zwischenstand bleibt als Vergleich erhalten. [Originalnachweis, Umsetzung und verbleibender Bacta-Abschnitt](OWNED_AUDIO.md).
+
 ## Umgesetzte Korrekturen
 
 ### Soundidentitäten
@@ -49,7 +51,7 @@ Das Arbeits-ZIP benötigt den dazugehörigen neuen nativen Loader; es ist **kein
 
 ## Nächster notwendiger Abschnitt
 
-1. Die fehlende PlayOwnedSound-/Slot-/Wartesemantik anhand der Originalquellen umsetzen und die komplette Dialogfolge erneut hören und zeitlich prüfen.
+1. PlayOwnedSound-/Wartesemantik ist im Quellstand ergänzt und nativ zeitlich geprüft; die Audio-Hörprüfung am Gerät folgt mit der Gesamtlieferung. Siehe [OWNED_AUDIO.md](OWNED_AUDIO.md).
 2. Introverankerung und Abseilkamera an festen Zeitpunkten prüfen; Wrack-Mips und Speicherbudget gemeinsam festlegen.
 3. Originale Verwundungskette ab `PlayerExplosionFactory` sichtbar und hörbar anbinden; der gegenwärtige generische Sprite am Spieler reicht nicht aus.
 4. Bacta: `Load → FinishAnim → Eye-Attachment/PawnEffect → Heilung → Holster/Entfernen/FadeOut` implementieren und Sounds aus Defaults/Notifies beziehen. Die vorhandene Heilungsformel ist hierfür nur die Grundlage.

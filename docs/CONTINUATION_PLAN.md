@@ -1,5 +1,7 @@
 # Fortsetzungsplan nach dem ersten spielbaren Abschnitt
 
+2026-10-16: **Originale Opening-Dialogregeln im Quellstand umgesetzt.** Originalwartezeit inklusive0,1Sekunden, Schutz/Ersetzung anhand der laufenden Stimme desselben Actors und Unterdrückung verworfener Untertitel. Original-x86-Instruktionen geprüft; Androidhost verarbeitet erweiterte Voice-Metadaten und stoppt ersetzte Streams gezielt. Je1.130Debug-/Release-Bibliothekstests,19Szenenstufen,25Checkpointproben bis zurFabrik,vier alteRestores,finalesZIP undAndroid-Kompilation beiderABIs bestehen. Bacta-Originalmesh, sechsSound-Notifies, eye-Anbindung und originalerAmbient-Loop sind ermittelt; Animation/Effekt-/Loop-Lebensdauer undHeilungsfreigabe nachFinishAnim bleiben nächsterLaufzeitabschnitt. Keine neueGerätefreigabe. [Nachweise undGrenzen](OWNED_AUDIO.md).
+
 2026-10-16: **Zweiter Handytest – Korrekturblock in Arbeit.** Soundbank-Verschiebung in GEO_01A korrigiert, alle24 Intro-/Abseil-Cuereferenzen an Originalquelle/PCM gebunden, gemeinsame Materialentscheidung und vier zusätzliche Stufen für vorhandene A/B/C/Fabrik-Szenen umgesetzt. Doppelte Intro-Root-Translation beim Zeichnen entfernt. Der gesamte Inszenierungsblock und die Geräteabnahme sind offen; keine neue Releasefreigabe. [Umfang, Belege und konkret offene Schritte](SECOND_PHONE_TEST.md).
 
 

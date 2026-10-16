@@ -56,7 +56,7 @@ try {
                  else {throw 'JDK missing: set JAVA_HOME or provide -ToolsDirectory (see docs/BUILD.md)'}
             $classes=Join-Path $out 'java/classes';$cache=Join-Path $out 'java/cache'
             New-Item -ItemType Directory -Force -Path $classes,$cache | Out-Null
-            $sources=@('CampaignRoutes','CheckpointStore','CheckpointPolicy','AudioTimeline','SceneBytes','CampaignStore','TouchLayout') | ForEach-Object {Join-Path $root "android/app/src/main/java/org/rcport/diagnostic/$_.java";Join-Path $root "scripts/java/${_}Check.java"}
+            $sources=@('CampaignRoutes','CheckpointStore','CheckpointPolicy','AudioTimeline','SoundOwnership','SceneBytes','CampaignStore','TouchLayout') | ForEach-Object {Join-Path $root "android/app/src/main/java/org/rcport/diagnostic/$_.java";Join-Path $root "scripts/java/${_}Check.java"}
             Native (Join-Path $jdk 'bin/javac.exe') (@('-d',$classes)+$sources)
             $java=Join-Path $jdk 'bin/java.exe'
             Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.CampaignRoutesCheck')
@@ -65,6 +65,7 @@ try {
             Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.TouchLayoutCheck')
             Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.CheckpointPolicyCheck')
             Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.AudioTimelineCheck')
+            Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.SoundOwnershipCheck')
             # Synthetic 64 MiB payload: the reader is format-agnostic. Two full
             # copies cannot coexist under this heap; no copyrighted scene needed.
             $fixture=Join-Path $out 'java/reader-fixture.bin'

@@ -202,6 +202,15 @@ impl Game {
                 || state.reserve > 100000
                 || state.enemies.len() > 4096
                 || state.enemy_traces.len() > 64
+                || state.opening.as_ref().is_some_and(|o| {
+                    o.owned_voices.len() > 64
+                        || o.owned_voices.iter().any(|v| {
+                            v.owner < 1
+                                || !v.until.is_finite()
+                                || v.until < 0.
+                                || v.until > o.clock + 120.
+                        })
+                })
                 || state.enemy_traces.iter().any(|t| {
                     t.owner >= state.enemies.len()
                         || t.tick > state.statistics.ticks

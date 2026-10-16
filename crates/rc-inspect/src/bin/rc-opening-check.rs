@@ -117,6 +117,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let at = |id| opening_events.iter().find(|(_, a, _)| *a == id).unwrap().0;
     assert_eq!(at(2502), at(2503));
+    let owned_voice_admission = !g.opening.as_ref().unwrap().assets.sound_policies.is_empty();
+    if owned_voice_admission {
+        assert!(opening_events
+            .iter()
+            .any(|(_, id, label)| *id == 2503 && label.ends_with("BlockedByOwnedVoice")));
+        let rejected_role = g
+            .opening
+            .as_ref()
+            .unwrap()
+            .assets
+            .programs
+            .iter()
+            .flat_map(|p| &p.actions)
+            .find_map(|a| {
+                if a.original == 2503 {
+                    if let rc_game::opening::Op::Sound { role, .. } = a.op {
+                        return Some(role);
+                    }
+                }
+                None
+            })
+            .unwrap();
+        assert!(!g
+            .state
+            .mission
+            .as_ref()
+            .unwrap()
+            .events
+            .iter()
+            .any(|e| e.sound == rejected_role));
+    }
     assert!(at(2506) < at(2397));
     assert!(at(2397) < at(2407));
     assert_eq!(g.state.mission.as_ref().unwrap().objective_mode, 1);
@@ -154,7 +185,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::write(
         out.join("validation.json"),
         serde_json::to_vec_pretty(
-            &serde_json::json!({"passed":true,"normal_inputs_only":true,"opening_ticks":opening_ticks,"injury_tick":injury,"opening":opening,"complete_state":complete,"locked_controls_tested":true,"non_waiting_sound_overlap":true,"restart_exact_state_frame":true,"opening_144hz_events_equal":true,"scope":"Original selected briefing/injury scripts plus Gunship poses; prepared post-rappel player placement, no full rope camera/intro Warrior/decorative troop parity"}),
+            &serde_json::json!({"passed":true,"normal_inputs_only":true,"opening_ticks":opening_ticks,"injury_tick":injury,"opening":opening,"complete_state":complete,"locked_controls_tested":true,"non_waiting_actions_share_tick":true,"owned_voice_admission":owned_voice_admission,"restart_exact_state_frame":true,"opening_144hz_events_equal":true,"scope":"Original selected briefing/injury scripts plus Gunship poses; prepared post-rappel player placement, no full rope camera/intro Warrior/decorative troop parity"}),
         )?,
     )?;
     println!(

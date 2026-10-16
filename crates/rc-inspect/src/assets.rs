@@ -341,7 +341,7 @@ impl Assets {
             for entry in fs::read_dir(directory).map_err(|e| e.to_string())? {
                 let path = entry.map_err(|e| e.to_string())?.path();
                 if path.extension().is_some_and(|e| {
-                    ["utx", "usx", "ukx", "u"]
+                    ["utx", "usx", "ukx", "u", "uax"]
                         .iter()
                         .any(|ext| e.eq_ignore_ascii_case(ext))
                 }) {

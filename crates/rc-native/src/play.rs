@@ -140,7 +140,8 @@ pub unsafe extern "C" fn rc_game_mission_status(id: u64, out: *mut u8, capacity:
     std::ptr::copy_nonoverlapping(text.as_ptr(), out, text.len());
     text.len() as isize
 }
-/// Original WAV bank (kind 0) or consumable simulation sound events (kind 1).
+/// WAV bank (0), legacy 24-byte RCAUD001 events (1), or 32-byte RCAUD002
+/// events with original category/no-override metadata (2).
 /// Versioned UTF-8 map handoff JSON; zero bytes before the original exit.
 /// Queries and copies are repeatable and do not consume the handoff.
 /// # Safety
@@ -214,8 +215,12 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
             },
             |c| c.sound_packet(),
         ),
-        1 => {
-            let mut b = b"RCAUD001".to_vec();
+        1 | 2 => {
+            let mut b = if kind == 2 {
+                b"RCAUD002".to_vec()
+            } else {
+                b"RCAUD001".to_vec()
+            };
             let events = game
                 .state
                 .combat
@@ -235,6 +240,16 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
                 b.extend_from_slice(&e.tick.to_le_bytes());
                 b.extend_from_slice(&(e.sound as u32).to_le_bytes());
                 b.extend_from_slice(&e.owner.to_le_bytes());
+                if kind == 2 {
+                    let policy = game
+                        .opening
+                        .as_ref()
+                        .and_then(|a| a.assets.sound_policy(e.sound, e.owner));
+                    b.extend_from_slice(&policy.map_or(2, |p| u32::from(p.category)).to_le_bytes());
+                    b.extend_from_slice(
+                        &policy.map_or(0, |p| u32::from(p.no_override)).to_le_bytes(),
+                    );
+                }
             }
             b
         }
@@ -251,7 +266,7 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
         return packet.len() as isize;
     }
     std::ptr::copy_nonoverlapping(packet.as_ptr(), out, packet.len());
-    if kind == 1 {
+    if kind == 1 || kind == 2 {
         if let Some(m) = &mut game.state.map {
             m.events.clear();
         }

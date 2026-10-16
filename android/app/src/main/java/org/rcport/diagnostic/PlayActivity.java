@@ -343,7 +343,7 @@ public final class PlayActivity extends Activity {
             try {
                 if(renderGpu) {graphics=new GpuSceneView.Frame(gpuFrame(game,elapsed,forward,strafe,lookX,lookY,buttons,metrics),still);pixels=graphics.status;}
                 else pixels=gameFrame(game,elapsed,forward,strafe,lookX,lookY,buttons,640,400,metrics);
-                soundEvents=gameAudio(game,1);
+                soundEvents=gameAudio(game,2);
                 missionText=guidance(game);
                 if(pixels[4]==1 && !still) {
                     byte[] handoff=mapHandoff(game);
