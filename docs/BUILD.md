@@ -10,6 +10,8 @@ Standard ist `-Target Check`: Format, sämtliche Debug- und Release-Bibliothekst
 
 Ergebnisse: `build/validation.json`, einzelne Protokolle unter `build/logs`. `-OutputDirectory` erlaubt getrennte Prüfläufe. Der Bericht nennt Commit, Dirty-Status, Toolversionen und jeden Prüfschritt. Abhängigkeiten werden mit `--locked` und standardmäßig offline aufgelöst; `-Online` erlaubt die normale Cargo-/Gradle-Auflösung. Das installiert noch keine Android-Toolchain.
 
+`-Target Check` enthält auch die Regeln für transparente Framepasses. `-Target Android` prüft nach dem APK-Build zusätzlich den tatsächlichen Android-Frameparser auf der JVM mit dem lokalen Android35-JAR (`gpu-frame-contract`); dabei werden neue Effektpakete, Legacyframes und ungültige Daten geprüft. Einzelaufruf: `scripts/Test-GpuFrame.ps1`. Dies erzeugt keinen GLES-Kontext und ersetzt keinen Geräte-Bildvergleich.
+
 ## Voraussetzungen
 
 - Rust/Cargo, hier geprüft mit Rust 1.92.0 (`stable-x86_64-pc-windows-msvc`), sowie die MSVC-Linkerwerkzeuge. `Cargo.lock` ist versioniert. Andere Toolversionen werden im Bericht erfasst; eine rustup-Toolchain wird nicht heimlich nachinstalliert.

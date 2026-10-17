@@ -1,0 +1,16 @@
+param(
+    [string]$ToolsDirectory=(Join-Path (Split-Path $PSScriptRoot -Parent) 'tools'),
+    [string]$OutputDirectory=(Join-Path (Split-Path $PSScriptRoot -Parent) 'build/gpu-frame-java')
+)
+$ErrorActionPreference='Stop'
+$root=Split-Path $PSScriptRoot -Parent
+$tools=[IO.Path]::GetFullPath($ToolsDirectory)
+$classes=[IO.Path]::GetFullPath($OutputDirectory)
+$jdk=(Get-ChildItem (Join-Path $tools 'jdk21') -Directory | Select-Object -First 1).FullName
+$androidJar=Join-Path $tools 'android-sdk/platforms/android-35/android.jar'
+New-Item -ItemType Directory -Force -Path $classes | Out-Null
+$sources=@('android/app/src/main/java/org/rcport/diagnostic/GpuSceneView.java','android/app/src/main/java/org/rcport/diagnostic/FramePass.java','scripts/java/GpuFrameCheck.java') | ForEach-Object {Join-Path $root $_}
+& (Join-Path $jdk 'bin/javac.exe') -cp $androidJar -d $classes @sources
+if($LASTEXITCODE -ne 0){throw 'GPU frame check compilation failed'}
+& (Join-Path $jdk 'bin/java.exe') -Xmx96m -cp "$classes;$androidJar" org.rcport.diagnostic.GpuFrameCheck
+if($LASTEXITCODE -ne 0){throw 'GPU frame reader check failed'}

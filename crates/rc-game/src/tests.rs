@@ -186,6 +186,75 @@ fn grenade_radius_includes_instigator_respects_cover_and_skips_dead_victims() {
         .is_empty());
 }
 #[test]
+fn transparent_frame_preserves_effect_order_color_and_weapon_pass() {
+    use rc_render::{
+        effects::{Blend, TriangleEffect},
+        FaceTexture,
+    };
+    let game = game(false);
+    let mut frame = game.render_frame(160, 100).unwrap();
+    frame.hud.clear();
+    frame.triangles = vec![
+        Triangle {
+            points: [[0.; 3]; 3],
+            surface: 0
+        };
+        2
+    ];
+    frame.weapon_start = 1;
+    let before = replay::state_fingerprint(&game).unwrap();
+    for (texture, blend) in [
+        (0, Blend::Alpha),
+        (1, Blend::SourceAlphaAdditive),
+        (0, Blend::Alpha),
+    ] {
+        frame.effects.push(TriangleEffect {
+            triangle: Triangle {
+                points: [[1., 2., 3.]; 3],
+                surface: 0,
+            },
+            face: FaceTexture {
+                texture,
+                uv: [[0.25, 0.75]; 3],
+            },
+            color: [0.2, 0.4, 0.6, 0.3],
+            blend,
+        });
+    }
+    let packet = frame.gpu_packet(&game.scene);
+    assert_eq!(&packet[..8], b"RCFRA003");
+    let word = |i| u32::from_le_bytes(packet[i..i + 4].try_into().unwrap());
+    assert_eq!(word(64), 5);
+    assert_eq!(word(68), 0);
+    let mut offset = 72;
+    for (pass, texture, blend, vertices) in [
+        (0, -1, 0, 3),
+        (1, 0, 1, 3),
+        (1, 1, 2, 3),
+        (1, 0, 1, 3),
+        (2, -1, 0, 3),
+    ] {
+        assert_eq!(word(offset), pass);
+        assert_eq!(word(offset + 4) as i32, texture);
+        assert_eq!(word(offset + 8), blend);
+        assert_eq!(word(offset + 12), vertices);
+        if pass == 1 {
+            for (i, value) in [1_f32, 2., 3., 0.25, 0.75, 0.2, 0.4, 0.6, 0.3]
+                .into_iter()
+                .enumerate()
+            {
+                assert_eq!(word(offset + 16 + i * 4), value.to_bits());
+            }
+        }
+        offset += 16 + vertices as usize * 36;
+    }
+    assert_eq!(offset, packet.len());
+    assert_eq!(before, replay::state_fingerprint(&game).unwrap());
+    frame.effects.clear();
+    frame.appearance = Some(vec![None; 2]);
+    assert_eq!(&frame.gpu_packet(&game.scene)[..8], b"RCFRA002");
+}
+#[test]
 fn presentation_snapshot_survives_simulation_and_rejects_bad_dimensions() {
     let mut game = game(false);
     let before = replay::state_fingerprint(&game).unwrap();

@@ -45,6 +45,7 @@ pub struct RenderFrame {
     pub triangles: Vec<Triangle>,
     pub appearance: Option<Vec<Option<rc_render::FaceTexture>>>,
     pub weapon_start: usize,
+    pub effects: Vec<rc_render::effects::TriangleEffect>,
     pub hud: Vec<HudRect>,
     pub width: usize,
     pub height: usize,
@@ -55,6 +56,9 @@ impl RenderFrame {
     pub fn gpu_packet(&self, scene: &rc_render::Scene) -> Vec<u8> {
         if let Some(appearance) = &self.appearance {
             return self.animated_packet(scene, appearance);
+        }
+        if !self.effects.is_empty() {
+            return self.animated_packet(scene, &vec![None; self.triangles.len()]);
         }
         let mut out = b"RCFRA001".to_vec();
         out.extend_from_slice(&(self.width as u32).to_le_bytes());
@@ -81,7 +85,8 @@ impl RenderFrame {
         scene: &rc_render::Scene,
         appearance: &[Option<rc_render::FaceTexture>],
     ) -> Vec<u8> {
-        let mut out = b"RCFRA002".to_vec();
+        let extended = !self.effects.is_empty();
+        let mut out = if extended { b"RCFRA003" } else { b"RCFRA002" }.to_vec();
         out.extend_from_slice(&(self.width as u32).to_le_bytes());
         out.extend_from_slice(&(self.height as u32).to_le_bytes());
         for vector in rc_render::gpu::basis(scene, self.view) {
@@ -93,18 +98,39 @@ impl RenderFrame {
         for (i, t) in self.triangles.iter().enumerate() {
             let face = appearance[i];
             let key = (
-                u32::from(i >= self.weapon_start),
+                u32::from(i >= self.weapon_start) * if extended { 2 } else { 1 },
                 face.map_or(-1, |f| f.texture as i32),
             );
             rc_render::gpu::vertices(batches.entry(key).or_default(), t, face.map(|f| f.uv), true);
         }
-        out.extend_from_slice(&(batches.len() as u32).to_le_bytes());
+        // Preserve supplied transparent ordering, including across textures.
+        let mut effect_batches: Vec<(i32, u32, Vec<u8>)> = vec![];
+        for effect in &self.effects {
+            let key = (effect.face.texture as i32, effect.blend as u32);
+            if effect_batches.last().is_none_or(|b| (b.0, b.1) != key) {
+                effect_batches.push((key.0, key.1, vec![]));
+            }
+            effect.vertices(&mut effect_batches.last_mut().unwrap().2);
+        }
+        out.extend_from_slice(&((batches.len() + effect_batches.len()) as u32).to_le_bytes());
         out.extend_from_slice(&(self.hud.len() as u32).to_le_bytes());
-        for ((pass, texture), vertices) in batches {
+        let mut write_batch = |pass: u32, texture: i32, blend: u32, vertices: &[u8]| {
             out.extend_from_slice(&pass.to_le_bytes());
             out.extend_from_slice(&texture.to_le_bytes());
+            if extended {
+                out.extend_from_slice(&blend.to_le_bytes());
+            }
             out.extend_from_slice(&((vertices.len() / 36) as u32).to_le_bytes());
-            out.extend(vertices);
+            out.extend_from_slice(vertices);
+        };
+        for ((_, texture), vertices) in batches.iter().filter(|((pass, _), _)| *pass == 0) {
+            write_batch(0, *texture, 0, vertices);
+        }
+        for (texture, blend, vertices) in effect_batches {
+            write_batch(1, texture, blend, &vertices);
+        }
+        for ((pass, texture), vertices) in batches.iter().filter(|((pass, _), _)| *pass != 0) {
+            write_batch(*pass, *texture, 0, vertices);
         }
         for r in &self.hud {
             for value in [r.x, r.y, r.width, r.height, r.color as i32] {
@@ -114,14 +140,21 @@ impl RenderFrame {
         out
     }
     pub fn render_cpu(&self, scene: &rc_render::Scene) -> Result<Vec<u32>, String> {
-        let mut pixels = if let Some(faces) = &self.appearance {
-            scene.render_animated_view(
-                self.width,
-                self.height,
+        let default_faces;
+        let faces = if !self.effects.is_empty() && self.appearance.is_none() {
+            default_faces = vec![None; self.triangles.len()];
+            Some(&default_faces)
+        } else {
+            self.appearance.as_ref()
+        };
+        let mut pixels = if let Some(faces) = faces {
+            scene.render_animated_effects(
+                [self.width, self.height],
                 self.view,
                 &self.triangles,
                 faces,
                 self.weapon_start,
+                &self.effects,
             )?
         } else {
             scene.render_game_view(self.width, self.height, self.view, &self.triangles)?
@@ -780,6 +813,7 @@ impl Game {
             triangles: extra,
             appearance,
             weapon_start,
+            effects: vec![],
             hud: hud.rectangles,
             width,
             height,

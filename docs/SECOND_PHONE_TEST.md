@@ -2,6 +2,8 @@
 
 Stand: 17.10.2026. Grundlage ist der Gerätebericht zu 0.50.0. Der gesamte angeforderte Inszenierungsblock ist **noch nicht abgeschlossen**. Die veröffentlichte 0.50.0 bleibt als Vergleich eingefroren; dieser Zwischenstand ist keine neue Gerätefreigabe.
 
+**Bacta-Effektrenderer vorbereitet:** Ein eigener CPU-/Android-Pfad verarbeitet transparente, unbeleuchtete Welteffekte ohne falsche Tiefenverdeckung oder doppelt aufgehellte Quadkanten. Die Originalemitter werden noch nicht gespawnt; die Material-/Ausrichtungszuordnung und persistente Partikellaufzeit sind als Nächstes anzuschließen. [Vertrag und Prüfungen](WORLD_EFFECTS.md).
+
 **Bacta-Audiofortsetzung:** Der originale Energie-Dauerton ist jetzt an den aktiven Stationszustand angeschlossen, einschließlich Stopp, Pause und Wiederaufbau nach Fortsetzen.14 visuelle Emittertemplates mit Basis-/Instanzdaten und119 verschachtelten Feldern sind erschlossen; ihre sichtbare Simulation und das Auslaufen bleiben offen. [Aktueller Nachweis](BACTA_AMBIENT.md).
 
 **Spielerführung an der Station:** Der originale Zustand `CTPlayer.UsingItem` ersetzt jetzt freie Bewegung/Blick-/Waffensteuerung während des Benutzens. Die geöffnete Station erscheint mittig; die konservative AABB-Kollision verhindert noch die letzten ungefähr10 Einheiten zum Originalstandpunkt. Aktualisierter normaler A-Eingabelauf und Bacta-Checkpoint-/Abbruch-/Eingabesperrprüfungen bestehen. [Grenzen und weitere Integration](BACTA_USING_ITEM.md).

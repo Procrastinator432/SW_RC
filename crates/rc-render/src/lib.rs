@@ -1,4 +1,5 @@
 //! Portable depth-tested geometry renderer with basic diffuse textures. No game simulation.
+pub mod effects;
 pub mod fragment;
 pub mod gpu;
 pub mod hologram_pass;
@@ -412,6 +413,81 @@ impl Scene {
         near: Option<f32>,
         animated: Option<(&[Option<FaceTexture>], usize)>,
     ) -> Result<Vec<u32>, String> {
+        self.render_combined_effects(width, height, view, extra, near, animated, None)
+    }
+    /// Effects are ordered by the caller, depth tested against world/actors,
+    /// leave depth untouched, and precede the separately depth-cleared weapon.
+    pub fn render_animated_effects(
+        &self,
+        dimensions: [usize; 2],
+        view: View,
+        extra: &[Triangle],
+        appearance: &[Option<FaceTexture>],
+        weapon_start: usize,
+        effects: &[effects::TriangleEffect],
+    ) -> Result<Vec<u32>, String> {
+        if effects.is_empty() {
+            return self.render_animated_view(
+                dimensions[0],
+                dimensions[1],
+                view,
+                extra,
+                appearance,
+                weapon_start,
+            );
+        }
+        if effects.len() > 4096
+            || extra.len() != appearance.len()
+            || weapon_start > extra.len()
+            || extra.len() + effects.len() > 100_000
+            || extra
+                .iter()
+                .chain(effects.iter().map(|e| &e.triangle))
+                .flat_map(|t| t.points.iter().flatten())
+                .any(|v| !v.is_finite() || v.abs() > 1e9)
+            || effects.iter().any(|e| {
+                e.color
+                    .iter()
+                    .any(|v| !v.is_finite() || !(0. ..=1.).contains(v))
+                    || e.face.uv.iter().flatten().any(|v| !v.is_finite())
+                    || e.face.texture >= self.textures.len()
+            })
+        {
+            return Err("Invalid world effects".into());
+        }
+        let triangles: Vec<_> = extra[..weapon_start]
+            .iter()
+            .cloned()
+            .chain(effects.iter().map(|e| e.triangle.clone()))
+            .chain(extra[weapon_start..].iter().cloned())
+            .collect();
+        let faces: Vec<_> = appearance[..weapon_start]
+            .iter()
+            .copied()
+            .chain(effects.iter().map(|e| Some(e.face)))
+            .chain(appearance[weapon_start..].iter().copied())
+            .collect();
+        self.render_combined_effects(
+            dimensions[0],
+            dimensions[1],
+            view,
+            &triangles,
+            Some(4.),
+            Some((&faces, weapon_start + effects.len())),
+            Some((weapon_start, effects)),
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn render_combined_effects(
+        &self,
+        width: usize,
+        height: usize,
+        view: View,
+        extra: &[Triangle],
+        near: Option<f32>,
+        animated: Option<(&[Option<FaceTexture>], usize)>,
+        effects: Option<(usize, &[effects::TriangleEffect])>,
+    ) -> Result<Vec<u32>, String> {
         let _draw_timing =
             rc_package::performance::Span::new(rc_package::performance::Category::SceneDraw);
         let profiling = rc_package::performance::detailed();
@@ -455,6 +531,11 @@ impl Scene {
         let mut depth = vec![f32::INFINITY; width * height];
         drop(buffers_timing);
         for (triangle_index, t) in self.triangles.iter().chain(extra).enumerate() {
+            let effect = effects.and_then(|(start, values)| {
+                triangle_index
+                    .checked_sub(self.triangles.len() + start)
+                    .and_then(|i| values.get(i))
+            });
             let appearance = if triangle_index < self.triangles.len() {
                 self.appearance.get(triangle_index).copied().flatten()
             } else {
@@ -532,6 +613,21 @@ impl Scene {
                         if w0 < -0.00001 || w1 < -0.00001 || w2 < -0.00001 {
                             continue;
                         }
+                        // A translucent quad must cover its shared edge once.
+                        if effect.is_some() {
+                            let included = |a: [f32; 3], b: [f32; 3]| {
+                                let (a, b) = if area > 0. { (a, b) } else { (b, a) };
+                                let value = (f64::from(xf) - f64::from(a[0]))
+                                    * (f64::from(b[1]) - f64::from(a[1]))
+                                    - (f64::from(yf) - f64::from(a[1]))
+                                        * (f64::from(b[0]) - f64::from(a[0]));
+                                value > 0.
+                                    || value == 0. && (b[1] > a[1] || b[1] == a[1] && b[0] < a[0])
+                            };
+                            if !included(b, c) || !included(c, a) || !included(a, b) {
+                                continue;
+                            }
+                        }
                         let z = 1.0 / (w0 / a[2] + w1 / b[2] + w2 / c[2]);
                         let i = y * width + x;
                         if z < depth[i] {
@@ -557,6 +653,16 @@ impl Scene {
                                 let ty = ((uv[1].rem_euclid(1.0) * texture.height as f32) as usize)
                                     .min(texture.height - 1);
                                 let pixel = texture.pixels[ty * texture.width + tx];
+                                if let Some(effect) = effect {
+                                    let source = [16, 8, 0, 24]
+                                        .map(|shift| ((pixel >> shift) & 255) as f32 / 255.);
+                                    pixels[i] = effects::composite(
+                                        pixels[i],
+                                        std::array::from_fn(|j| source[j] * effect.color[j]),
+                                        effect.blend,
+                                    );
+                                    continue;
+                                }
                                 if pixel >> 24 < 128 {
                                     continue;
                                 }

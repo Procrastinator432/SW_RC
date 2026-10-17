@@ -31,6 +31,8 @@ Die Body-Emitter haben `RespawnDeadParticles=false`; ihre Originallebensdauern r
 
 ## Nachweise und weitere Arbeit
 
+Die anschließende [Rendergrundlage für Welteffekte](WORLD_EFFECTS.md) stellt inzwischen explizite Alpha-/additive Überlagerung mit korrekter Welt-/Waffentiefe bereit. Sie spawnt noch keine dieser14 Bacta-Komponenten; die originale PTDS-Materialzuordnung und räumliche Simulation bleiben offen.
+
 `Test-BactaLifecycle.py` prüft den unveränderten Stations-/Missionsablauf mit18.829 normalen Eingaben und zusätzlich den gewünschten Loop bei allen fünf gespeicherten Stationsphasen, Suspend, Fortsetzen und Abbruch. Im Referenzlauf ist er bei Tick2789–2969 aktiv, davor/danach nicht. Die Loopabfrage lässt Einmalgeräusche erhalten; alle sechs mechanischen Notifies bleiben einmalig. `AmbientLoopsCheck` prüft idempotente Wiedergabe, Ersetzung, fehlgeschlagene Wiedergabe, Stopp, Pause/Neuaufbau und atomare Ablehnung ungültiger Pakete. Die native Soundprüfung umfasst31 Referenzen und27 eindeutige Originalcues.
 
 Arbeitsnachweise liegen unter `build/bacta-effects`: `original`, `checks`, `android`, `pipeline` sowie native Sound-/Bacta- und Paketberichte. Je1.132 Debug-/Release-Bibliothekstests, Java-/Clippy-/Buildvertrag und Android-Kompilation für ARM64/x86_64 bestehen. Das APK bleibt ein interner Zwischenstand; es gibt noch keine neue Geräte-/Hörfreigabe oder Releaseversion.
