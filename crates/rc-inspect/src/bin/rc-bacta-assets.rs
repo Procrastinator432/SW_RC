@@ -61,6 +61,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let mut effects = vec![];
+    let effect_bytes = fs::read(root.join("Properties/cteffects.u"))?;
+    let effect_package = read_package(&effect_bytes)?;
     for field in ["DispenserEffectClass", "PawnEffectClass"] {
         if let rc_package::properties::Value::Object { index, path } =
             cat.instance(&class, &props, field, 0, "geo_01a")?.value
@@ -73,10 +75,90 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         serde_json::to_value(cat.resolve(&path, name, 0))?,
                     );
                 }
-                effects.push(serde_json::json!({"field":field,"class":path,"defaults":data}));
+                let short = path.split_once('.').ok_or("Effect class path")?.1;
+                let export = effect_package
+                    .exports
+                    .iter()
+                    .find(|e| e.class == 0 && e.name.eq_ignore_ascii_case(short))
+                    .ok_or("Missing Bacta effect class")?;
+                let class_props =
+                    rc_package::classes::read(&effect_package, &effect_bytes, export)?.properties;
+                let payload = effect_package.payload(&effect_bytes, export)?;
+                let mut emitters = vec![];
+                for property in &class_props.values {
+                    if property.name == "Emitters" {
+                        for (index, name) in properties::object_array(
+                            &effect_package,
+                            &payload
+                                [property.payload_offset..property.payload_offset + property.bytes],
+                        )? {
+                            if index <= 0 {
+                                return Err("Unsupported external Bacta emitter template".into());
+                            }
+                            let e = &effect_package.exports[index as usize - 1];
+                            let props = properties::read(&effect_package, &effect_bytes, e)?;
+                            let bytes = effect_package.payload(&effect_bytes, e)?;
+                            let nested: Vec<_> = props.values.iter().filter(|p|p.struct_name.is_some() || p.kind==9).map(|p| {
+                                let data=&bytes[p.payload_offset..p.payload_offset+p.bytes];
+                                serde_json::json!({"name":p.name,"slot":p.array_index,"struct":properties::tagged_struct(&effect_package,data),"array":properties::struct_array(&effect_package,data),"raw":data})
+                            }).collect();
+                            let emitter_class = effect_package.object_path(e.class)?;
+                            let mut scalar_defaults = serde_json::Map::new();
+                            for field in [
+                                "MaxParticles",
+                                "RespawnDeadParticles",
+                                "AutoDestroy",
+                                "AutomaticInitialSpawning",
+                                "Disabled",
+                                "InitialParticlesPerSecond",
+                                "DrawStyle",
+                                "CoordinateSystem",
+                                "UseDirectionAs",
+                                "UseSkeletalLocationAs",
+                                "SecondsBeforeInactive",
+                                "Opacity",
+                                "Texture",
+                            ] {
+                                scalar_defaults.insert(
+                                    field.into(),
+                                    serde_json::to_value(cat.instance(
+                                        &emitter_class,
+                                        &props,
+                                        field,
+                                        0,
+                                        "cteffects",
+                                    ))?,
+                                );
+                            }
+                            emitters.push(serde_json::json!({"original":index,"name":name,"class":emitter_class,"properties":props,"nested":nested,"resolved_scalars":scalar_defaults}));
+                        }
+                    }
+                }
+                effects.push(serde_json::json!({"field":field,"class":path,"defaults":data,"parent":effect_package.object_path(export.super_class)?,"properties":class_props,"emitters":emitters}));
             }
         }
     }
+    let engine_bytes = fs::read(root.join("System/engine.u"))?;
+    let engine = read_package(&engine_bytes)?;
+    let mut bases = vec![];
+    for e in &engine.exports {
+        if e.class != 0
+            || !["Emitter", "ParticleEmitter", "SpriteEmitter"].contains(&e.name.as_str())
+        {
+            continue;
+        }
+        let props = rc_package::classes::read(&engine, &engine_bytes, e)?.properties;
+        let payload = engine.payload(&engine_bytes, e)?;
+        let nested: Vec<_> = props.values.iter().filter(|p|p.struct_name.is_some() || p.kind==9).map(|p| {
+            let bytes=&payload[p.payload_offset..p.payload_offset+p.bytes];
+            serde_json::json!({"name":p.name,"slot":p.array_index,"struct":properties::tagged_struct(&engine,bytes),"array":properties::struct_array(&engine,bytes),"raw":bytes})
+        }).collect();
+        bases.push(serde_json::json!({"class":e.name,"parent":engine.object_path(e.super_class)?,"properties":props,"nested":nested}));
+    }
+    fs::write(
+        out.join("emitter-base-defaults.json"),
+        serde_json::to_vec_pretty(&bases)?,
+    )?;
     fs::write(out.join("bacta-mesh.json"), serde_json::to_vec(&mesh)?)?;
     let prepared = mesh.prepare_reference()?;
     let mut poses = vec![];

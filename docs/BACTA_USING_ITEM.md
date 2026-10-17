@@ -2,6 +2,8 @@
 
 Stand: 16.10.2026. Fortsetzung der Bacta-Animation; der zweite Handytest-Korrekturblock bleibt insgesamt offen.
 
+Fortsetzung17.10.: Der originale Energie-Dauerton ist inzwischen angebunden und wird beim Fortsetzen aus dem aktuellen Stationszustand aufgebaut. Die14 visuellen Emittertemplates sind extrahiert; ihre Renderintegration bleibt offen. [Nachweise und Grenzen](BACTA_AMBIENT.md).
+
 ## Originalbefund
 
 `CTPlayer.uc`, Zustand `UsingItem`, enthält den fehlenden Controller direkt als originales UnrealScript. Eine angenommene feste Kamera oder ein größerer Stationsabstand wäre dafür keine ausreichende Rekonstruktion.

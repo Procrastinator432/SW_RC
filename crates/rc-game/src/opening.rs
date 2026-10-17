@@ -171,6 +171,7 @@ impl Assets {
         }
         if let Some(b) = &self.bacta {
             roles.extend(b.notifies.iter().map(|n| n.role));
+            roles.extend(b.ambient_loop);
         }
         roles.sort_unstable();
         roles.dedup();
@@ -220,6 +221,9 @@ impl Assets {
         if let Some(b) = &mut self.bacta {
             for n in &mut b.notifies {
                 n.role = mapping[&n.role];
+            }
+            if let Some(role) = &mut b.ambient_loop {
+                *role = mapping[role];
             }
         }
         if let Some(i) = &mut self.intro {

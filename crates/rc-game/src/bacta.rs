@@ -25,6 +25,8 @@ pub struct Notify {
 #[serde(deny_unknown_fields)]
 pub struct Assets {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ambient_loop: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub controller: Option<Controller>,
     pub mesh: Option<Mesh>,
     pub location: [f32; 3],
@@ -100,6 +102,16 @@ impl Assets {
             .take()
             .ok_or("Missing Bacta mesh")?
             .prepare_reference()?;
+        if self.ambient_loop.is_some_and(|role| role >= sounds)
+            || self.ambient_loop.is_some()
+                && !mesh
+                    .mesh
+                    .bones
+                    .iter()
+                    .any(|b| b.name.name.eq_ignore_ascii_case("eye"))
+        {
+            return Err("Invalid Bacta Eye ambient binding".into());
+        }
         for name in ["Load", "Holster"] {
             let clip = mesh.clip(name)?;
             let seq = &mesh.mesh.clips[clip].sequence;
@@ -257,6 +269,32 @@ impl Prepared {
     }
 }
 impl Game {
+    /// Desired ambient voices, not consumable cues: a restored host can
+    /// reconstruct the current loop without replaying a sound-event history.
+    pub fn ambient_loops(&self) -> Vec<(usize, i32)> {
+        if self.state.phase != crate::Phase::Playing
+            || self.state.health == 0
+            || self.state.squad.as_ref().is_some_and(|s| s.player_down)
+            || !self
+                .state
+                .mission
+                .as_ref()
+                .is_some_and(|m| m.using && !m.completed)
+            || !self
+                .state
+                .opening
+                .as_ref()
+                .and_then(|o| o.bacta.as_ref())
+                .is_some_and(|b| b.phase == Phase::Active)
+        {
+            return vec![];
+        }
+        self.opening
+            .as_ref()
+            .and_then(|o| o.bacta.as_ref())
+            .and_then(|b| b.assets.ambient_loop)
+            .map_or_else(Vec::new, |role| vec![(role, 736)])
+    }
     pub(crate) fn bacta_using(&self, held: bool) -> bool {
         held && self
             .state

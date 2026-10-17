@@ -174,8 +174,9 @@ pub unsafe extern "C" fn rc_game_map_handoff(id: u64, out: *mut u8, capacity: us
     std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, bytes.len());
     bytes.len() as isize
 }
-/// Original WAV bank (kind 0) or consumable simulation sound events (kind 1).
-/// Query and short-buffer calls preserve events; only a successful full copy consumes them.
+/// WAV bank (0), consumable legacy/enriched cues (1/2), or current ambient
+/// snapshot RCLOOP01 (3: count, then u32 sound + i32 owner per loop).
+/// Queries/short copies preserve cues; full 1/2 copies consume them. Kind3 is read-only.
 /// # Safety
 /// out is null with capacity zero, or points to capacity writable bytes.
 #[no_mangle]
@@ -187,6 +188,16 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
         return -1;
     };
     let packet = match kind {
+        3 => {
+            let loops = game.ambient_loops();
+            let mut b = b"RCLOOP01".to_vec();
+            b.extend_from_slice(&(loops.len() as u32).to_le_bytes());
+            for (sound, owner) in loops {
+                b.extend_from_slice(&(sound as u32).to_le_bytes());
+                b.extend_from_slice(&owner.to_le_bytes());
+            }
+            b
+        }
         0 if game.map.is_some() => {
             let mut b = b"RCSND001".to_vec();
             let sounds = &game.map.as_ref().unwrap().assets.sounds;

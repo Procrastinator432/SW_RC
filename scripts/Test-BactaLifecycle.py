@@ -19,6 +19,7 @@ def main():
     opening = json.loads(raw[12:12+struct.unpack_from('<I',raw,8)[0]])
     notify_roles = {n['original']:n['role'] for n in opening['bacta']['notifies']}
     controller = opening['bacta'].get('controller')
+    ambient_role = opening['bacta'].get('ambient_loop')
     assert replay[:8] == b'RCINPUT1' and (len(replay)-12) % 20 == 0
     rows = list(struct.iter_unpack('<ffffI', replay[12:]))
     api = c.CDLL(str(a.dll.resolve()))
@@ -71,14 +72,32 @@ def main():
         assert api.rc_game_audio(h, 2, b, n) == n
         return list(struct.iter_unpack('<QQIiII', b.raw[12:]))
 
+    def ambient(h):
+        queued=api.rc_game_audio(h,1,None,0)
+        n=api.rc_game_audio(h,3,None,0)
+        assert n>=12
+        tiny=c.create_string_buffer(1)
+        assert api.rc_game_audio(h,3,tiny,1)==n
+        b=c.create_string_buffer(n)
+        assert api.rc_game_audio(h,3,b,n)==n and b.raw[:8]==b'RCLOOP01'
+        again=c.create_string_buffer(n)
+        assert api.rc_game_audio(h,3,again,n)==n and again.raw==b.raw
+        assert api.rc_game_audio(h,1,None,0)==queued, 'Loop query consumed one-shot events'
+        result=list(struct.iter_unpack('<Ii',b.raw[12:]))
+        assert len(result)==struct.unpack_from('<I',b.raw,8)[0]
+        return result
+
     h = create()
     phases, notify_ids, checks, transitions = set(), set(), [], []
     station_audio = []
     probe_save = None
+    active_save = None
+    ambient_ticks = []
     last = None
     try:
         for i, row in enumerate(rows):
             step(h, row)
+            before_audio = ambient(h) if ambient_role is not None and 2720<=i<=3100 else None
             # Drain PCM events as the Android host does; the checkpoint still
             # carries the animation channel and once-only notify history.
             events = audio(h)
@@ -91,6 +110,10 @@ def main():
             s = state(h)
             b = s['opening']['bacta']
             phase = b['phase']
+            if ambient_role is not None:
+                wanted=[(ambient_role,736)] if phase=='Active' and s['mission']['using'] else []
+                assert before_audio==wanted and ambient(h)==wanted, (i+1,phase)
+                if wanted: ambient_ticks.append(i+1)
             if phase != last:
                 transitions.append(dict(tick=i+1, phase=phase, health=s['mission']['health']))
                 last = phase
@@ -107,6 +130,8 @@ def main():
                 notify_ids.add(original)
             if i == 2750:
                 probe_save = save(h)
+            if phase == 'Active' and active_save is None:
+                active_save=save(h)
             if phase not in phases:
                 phases.add(phase)
                 saved = save(h)
@@ -114,6 +139,7 @@ def main():
                 try:
                     restore(other, saved)
                     assert save(other) == saved
+                    if ambient_role is not None: assert ambient(other)==ambient(h)
                     assert pixels(other) == pixels(h)
                     # Continue both branches without altering the main replay.
                     baseline = create()
@@ -143,6 +169,16 @@ def main():
         assert probe_save
         probe = create()
         try:
+            if ambient_role is not None:
+                assert active_save
+                restore(probe,active_save)
+                assert ambient(probe)==[(ambient_role,736)], 'Restored active loop is missing'
+                assert api.rc_game_command(probe,0)==0
+                assert ambient(probe)==[], 'Suspend must clear desired playback'
+                for _ in range(60):step(probe,(0,0,0,0,16))
+                assert ambient(probe)==[(ambient_role,736)], 'Held use did not restart current loop'
+                step(probe,(0,0,0,0,0));assert ambient(probe)==[]
+                checks.append('ambient-load-stop-pause-restore')
             restore(probe, probe_save)
             for damage in ['missing-module', 'invalid-channel', 'future-notify']:
                 value = json.loads(probe_save[20:])
@@ -219,7 +255,7 @@ def main():
             api.rc_game_release(probe)
     finally:
         api.rc_game_release(h)
-    report = dict(passed=True, scene_sha256=hashlib.sha256(raw).hexdigest(), replay_sha256=hashlib.sha256(replay).hexdigest(), transitions=transitions, original_notify_ids=sorted(notify_ids), station_audio=station_audio, checks=checks, full_map_a_replay_ticks=len(rows), map_a_completed=True, limits='No Android device/audio or particle-effect acceptance')
+    report = dict(passed=True, scene_sha256=hashlib.sha256(raw).hexdigest(), replay_sha256=hashlib.sha256(replay).hexdigest(), transitions=transitions, original_notify_ids=sorted(notify_ids), station_audio=station_audio, ambient_role=ambient_role, ambient_ticks=ambient_ticks, checks=checks, full_map_a_replay_ticks=len(rows), map_a_completed=True, limits='No Android device/audio or particle-effect acceptance')
     a.output.parent.mkdir(parents=True, exist_ok=True)
     a.output.write_text(json.dumps(report, indent=2)+'\n', encoding='utf-8')
     print(json.dumps(report))

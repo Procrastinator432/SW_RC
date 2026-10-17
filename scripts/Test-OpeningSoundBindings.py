@@ -45,6 +45,8 @@ def main():
                 for n in opening['rappel']['notifies'] if n['role'] is not None)
     refs.extend(dict(kind='bacta-notify', original=n['original'], role=n['role'])
                 for n in opening.get('bacta', {}).get('notifies', []))
+    if opening.get('bacta', {}).get('ambient_loop') is not None:
+        refs.append(dict(kind='bacta-ambient', original=736, role=opening['bacta']['ambient_loop']))
     identities = {b['role']: b for b in expected}
     assert len(identities) == len(expected)
     assert set(identities) == {r['role'] for r in refs}, 'Incomplete cue manifest'
@@ -63,6 +65,8 @@ def main():
     try:
         n = api.rc_game_audio(handle, 0, None, 0)
         assert n > 12
+        assert n <= 8*1024*1024+1024, 'Bank exceeds the Android JNI packet limit'
+        bank_bytes = n
         bank = c.create_string_buffer(n)
         assert api.rc_game_audio(handle, 0, bank, n) == n
         data, at, sounds = bank.raw, 12, []
@@ -139,6 +143,7 @@ def main():
     finally:
         api.rc_game_release(handle)
     report = dict(passed=True, scene_sha256=hashlib.sha256(raw).hexdigest(),
+                  native_bank_bytes=bank_bytes,
                   cue_references=len(refs), unique_cues=len(identities), owned_voice_semantics=owned,
                   suppressed_caption_checked=suppressed_caption_checked, cues=refs, timeline=timeline)
     a.output.parent.mkdir(parents=True, exist_ok=True)

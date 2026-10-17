@@ -337,13 +337,14 @@ public final class PlayActivity extends Activity {
         final float forward=controls.forward(), strafe=controls.strafe(), lookX=controls.lookX, lookY=controls.lookY;
         final int buttons=controls.buttons(); controls.lookX=0; controls.lookY=0; controls.reload=false; controls.fireQueued=false; controls.jumpQueued=false; controls.grenadeQueued=false;
         worker.execute(() -> {
-            int[] pixels=null; GpuSceneView.Frame graphics=null; String error=null; byte[] soundEvents=null; String missionText=""; String actorText="[]";
+            int[] pixels=null; GpuSceneView.Frame graphics=null; String error=null; byte[] soundEvents=null,ambientSnapshot=null; String missionText=""; String actorText="[]";
             final long workStart=System.nanoTime();
             final long[] metrics=profiling ? new long[26] : null;
             try {
                 if(renderGpu) {graphics=new GpuSceneView.Frame(gpuFrame(game,elapsed,forward,strafe,lookX,lookY,buttons,metrics),still);pixels=graphics.status;}
                 else pixels=gameFrame(game,elapsed,forward,strafe,lookX,lookY,buttons,640,400,metrics);
                 soundEvents=gameAudio(game,2);
+                ambientSnapshot=gameAudio(game,3);
                 missionText=guidance(game);
                 if(pixels[4]==1 && !still) {
                     byte[] handoff=mapHandoff(game);
@@ -366,6 +367,7 @@ public final class PlayActivity extends Activity {
             } catch(Exception ex) {error=ex.getMessage();}
             final long workEnd=System.nanoTime();
             final byte[] events=soundEvents;
+            final byte[] loops=ambientSnapshot;
             final String guidance=missionText;
             final String actorObservation=actorText;
             final int[] result=pixels; final String problem=error; final GpuSceneView.Frame graphicsFrame=graphics;
@@ -374,7 +376,7 @@ public final class PlayActivity extends Activity {
                 // Pause/backend generations may invalidate the frame, but its audio
                 // has already been consumed from Rust. Keep it for this same scene.
                 if(problem==null && sceneAudio!=null && events!=null && requestedAudioGeneration==audioGeneration) {
-                    try {sceneAudio.events(events);} catch(IOException ex) {failure(ex.getMessage());return;}
+                    try {sceneAudio.events(events);if(generation==requestedGeneration && !still && loops!=null)sceneAudio.ambientLoops(loops);} catch(IOException ex) {failure(ex.getMessage());return;}
                 }
                 if(generation!=requestedGeneration) {if(loaded) queueFrame(true); return;}
                 if(problem!=null) {failure(problem); return;}

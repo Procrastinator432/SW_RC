@@ -22,6 +22,7 @@ final class SceneAudio implements AutoCloseable {
     private final android.os.Handler handler=new android.os.Handler(android.os.Looper.getMainLooper());
     private final AudioTimeline timeline=new AudioTimeline();
     private final SoundOwnership ownership=new SoundOwnership();
+    private final AmbientLoops ambient=new AmbientLoops();
     private final Runnable flushTask=this::flush;
     private long lastSequence;
     private static final class Event {
@@ -60,6 +61,11 @@ final class SceneAudio implements AutoCloseable {
         } catch(IOException|RuntimeException e) {close();throw e;}
     }
     boolean hasOriginalSounds() {return sounds.length>0;}
+    void ambientLoops(byte[] snapshot) throws IOException {
+        if(closed || suspended)return;
+        for(int stream:ambient.select(snapshot,sounds.length))pool.stop(stream);
+        flush();
+    }
     boolean ready() throws IOException {if(loadFailure!=null)throw new IOException(loadFailure);return !closed && ready.size()==sounds.length;}
     void events(byte[] bytes) throws IOException {
         boolean enriched=bytes.length>=8 && new String(bytes,0,8,StandardCharsets.US_ASCII).equals("RCAUD002");
@@ -79,6 +85,12 @@ final class SceneAudio implements AutoCloseable {
     private void flush() {
         handler.removeCallbacks(flushTask);
         if(closed || suspended || ready.size()!=sounds.length) return;
+        for(int owner:ambient.pendingOwners()) {
+            // Reserve the continuous ambient against the priority-1 shot pool.
+            int stream=pool.play(sounds[ambient.sound(owner)],0.35f,0.35f,2,-1,1f);
+            ambient.played(owner,stream);
+            if(stream!=0)Log.i("RCAudio","ambient owner="+owner+" stream="+stream);
+        }
         while(!pending.isEmpty()) {
             long now=android.os.SystemClock.uptimeMillis();long delay=timeline.delay(pending.peekFirst().tick,now);
             if(delay>0){handler.postDelayed(flushTask,delay);return;}
@@ -92,7 +104,7 @@ final class SceneAudio implements AutoCloseable {
             Log.i("RCAudio","event sequence="+e.sequence+" tick="+e.tick+" sound="+e.sound+" owner="+e.owner+" played_ms="+now);
         }
     }
-    private void stopStreams() {for(int id:ownership.activeStreams()) pool.stop(id);for(int id:streams) pool.stop(id);streams.clear();ownership.clear();}
+    private void stopStreams() {for(int id:ambient.clear())pool.stop(id);for(int id:ownership.activeStreams()) pool.stop(id);for(int id:streams) pool.stop(id);streams.clear();ownership.clear();}
     void suspend() {suspended=true;handler.removeCallbacks(flushTask);pending.clear();timeline.reset();stopStreams();}
     void resume() {suspended=false;flush();}
     void stop() {handler.removeCallbacks(flushTask);pending.clear();timeline.reset();stopStreams();}
