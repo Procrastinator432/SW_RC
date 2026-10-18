@@ -1,5 +1,7 @@
 # Bacta: Original-Dauerton und Effektgrundlagen
 
+Fortsetzung vom 18.10.2026: [Sichtbare Emitter, gespeichertes Body-FadeOut, originale Missions-FX und Türbewegung](MISSION_PRESENTATION.md). Die folgenden Angaben dokumentieren den vorherigen Teilabschnitt.
+
 Stand: 17.10.2026. Der Original-Dauerton ist angeschlossen; die sichtbaren Partikeleffekte sind noch nicht integriert. Der gesamte zweite Handytest-Korrekturblock bleibt offen.
 
 ## Laufende Wiedergabe

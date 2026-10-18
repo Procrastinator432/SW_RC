@@ -40,6 +40,8 @@ pub mod mission_motion;
 pub mod mission_tactics;
 pub mod navigation;
 pub mod opening;
+pub mod particles;
+pub mod pixel_words;
 pub mod presentation;
 pub mod rappel;
 pub mod rendezvous;
@@ -54,6 +56,7 @@ pub mod transition;
 pub mod visual;
 pub mod warrior_ai;
 mod wave_bytes;
+pub mod world_effects;
 use rc_package::{
     controller::{ControlledBody, ViewInput},
     movement::PlacementState,
@@ -558,6 +561,7 @@ impl Game {
         self.intro_tick()?;
         let rappel_motion = self.rappel_tick()?;
         if rappel_motion || self.state.opening.as_ref().is_some_and(|s| s.locked) {
+            self.world_effect_tick()?;
             if let Some(b) = &mut self.state.bunker {
                 for e in &mut b.explosions {
                     e.age += STEP;
@@ -771,6 +775,7 @@ impl Game {
             self.rendezvous_tick()?;
             self.demolition_tick(input)?;
             self.spire_tick()?;
+            self.world_effect_tick()?;
             self.artillery_tick()?;
             self.squad_tick(input.use_action)?;
             if self.state.health == 0 && !self.try_incapacitate_player() {

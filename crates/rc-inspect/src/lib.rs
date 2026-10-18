@@ -7,4 +7,5 @@ pub mod volumes;
 
 pub mod mission_assets;
 pub mod opening_audio;
+pub mod particle_assets;
 pub mod visual_assets;

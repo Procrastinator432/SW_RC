@@ -47,6 +47,10 @@ def main():
                 for n in opening.get('bacta', {}).get('notifies', []))
     if opening.get('bacta', {}).get('ambient_loop') is not None:
         refs.append(dict(kind='bacta-ambient', original=736, role=opening['bacta']['ambient_loop']))
+    for binding in opening.get('world_effects', []):
+        for field in ('sound', 'ambient'):
+            if binding.get(field) is not None:
+                refs.append(dict(kind='world-' + field, original=binding['original'], role=binding[field]))
     identities = {b['role']: b for b in expected}
     assert len(identities) == len(expected)
     assert set(identities) == {r['role'] for r in refs}, 'Incomplete cue manifest'

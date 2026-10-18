@@ -446,7 +446,19 @@ impl Scene {
                 .flat_map(|t| t.points.iter().flatten())
                 .any(|v| !v.is_finite() || v.abs() > 1e9)
             || effects.iter().any(|e| {
-                e.color
+                e.atlas_blend.as_ref().is_some_and(|a| {
+                    a.grid.iter().any(|n| !(1..=16).contains(n))
+                        || !a.fraction.is_finite()
+                        || !(0. ..=1.).contains(&a.fraction)
+                        || !matches!(
+                            e.blend,
+                            effects::Blend::Additive
+                                | effects::Blend::Screen
+                                | effects::Blend::Darken
+                        )
+                        || e.color[3] != 1.
+                }) || e
+                    .color
                     .iter()
                     .any(|v| !v.is_finite() || !(0. ..=1.).contains(v))
                     || e.face.uv.iter().flatten().any(|v| !v.is_finite())
@@ -630,7 +642,7 @@ impl Scene {
                         }
                         let z = 1.0 / (w0 / a[2] + w1 / b[2] + w2 / c[2]);
                         let i = y * width + x;
-                        if z < depth[i] {
+                        if z < depth[i] || effect.is_some_and(|e| !e.depth_test) {
                             let color = if let Some(face) = appearance {
                                 let texture = self
                                     .textures
@@ -654,8 +666,43 @@ impl Scene {
                                     .min(texture.height - 1);
                                 let pixel = texture.pixels[ty * texture.width + tx];
                                 if let Some(effect) = effect {
-                                    let source = [16, 8, 0, 24]
+                                    let mut source = [16, 8, 0, 24]
                                         .map(|shift| ((pixel >> shift) & 255) as f32 / 255.);
+                                    if let Some(atlas) = &effect.atlas_blend {
+                                        let grid = atlas.grid.map(f32::from);
+                                        let cell: [u32; 2] = std::array::from_fn(|i| {
+                                            (uv[i] * grid[i]).floor().clamp(0., grid[i] - 1.) as u32
+                                        });
+                                        let next =
+                                            (cell[0] * u32::from(atlas.grid[1]) + cell[1] + 1).min(
+                                                u32::from(atlas.grid[0]) * u32::from(atlas.grid[1])
+                                                    - 1,
+                                            );
+                                        let next_cell = [
+                                            next / u32::from(atlas.grid[1]),
+                                            next % u32::from(atlas.grid[1]),
+                                        ];
+                                        let next_uv: [f32; 2] = std::array::from_fn(|i| {
+                                            uv[i] + (next_cell[i] as f32 - cell[i] as f32) / grid[i]
+                                        });
+                                        let x = ((next_uv[0].rem_euclid(1.) * texture.width as f32)
+                                            as usize)
+                                            .min(texture.width - 1);
+                                        let y =
+                                            ((next_uv[1].rem_euclid(1.) * texture.height as f32)
+                                                as usize)
+                                                .min(texture.height - 1);
+                                        let next = texture.pixels[y * texture.width + x];
+                                        for (i, shift) in [16, 8, 0, 24].into_iter().enumerate() {
+                                            let value = ((next >> shift) & 255) as f32 / 255.;
+                                            source[i] += (value - source[i]) * atlas.fraction;
+                                        }
+                                    }
+                                    if effect.alpha_reference.is_some_and(|r| {
+                                        source[3] * effect.color[3] <= f32::from(r) / 255.
+                                    }) {
+                                        continue;
+                                    }
                                     pixels[i] = effects::composite(
                                         pixels[i],
                                         std::array::from_fn(|j| source[j] * effect.color[j]),

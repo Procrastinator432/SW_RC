@@ -8,6 +8,9 @@ use rc_package::geometry::Triangle;
 pub enum Blend {
     Alpha = 1,
     SourceAlphaAdditive = 2,
+    Additive = 3,
+    Screen = 4,
+    Darken = 5,
 }
 
 pub struct TriangleEffect {
@@ -16,16 +19,39 @@ pub struct TriangleEffect {
     /// Unlit RGBA multiplier, independent of triangle orientation.
     pub color: [f32; 4],
     pub blend: Blend,
+    pub depth_test: bool,
+    pub alpha_reference: Option<u8>,
+    pub atlas_blend: Option<AtlasBlend>,
+}
+pub struct AtlasBlend {
+    pub grid: [u8; 2],
+    pub fraction: f32,
 }
 
 impl TriangleEffect {
+    pub fn flags(&self) -> u32 {
+        self.blend as u32
+            | if self.depth_test { 0 } else { 0x100 }
+            | self
+                .alpha_reference
+                .map_or(0, |r| 0x200 | u32::from(r) << 16)
+            | self.atlas_blend.as_ref().map_or(0, |a| {
+                0x400 | u32::from(a.grid[0] - 1) << 24 | u32::from(a.grid[1] - 1) << 28
+            })
+    }
     /// Same nine-float vertex layout as the existing world transfer.
     pub fn vertices(&self, out: &mut Vec<u8>) {
         for i in 0..3 {
             for value in self.triangle.points[i]
                 .into_iter()
                 .chain(self.face.uv[i])
-                .chain(self.color)
+                .chain({
+                    let mut color = self.color;
+                    if let Some(a) = &self.atlas_blend {
+                        color[3] = a.fraction;
+                    }
+                    color
+                })
             {
                 out.extend_from_slice(&value.to_le_bytes());
             }
@@ -38,12 +64,14 @@ pub fn composite(destination: u32, source: [f32; 4], blend: Blend) -> u32 {
     let mut result = 0xff000000;
     for (axis, shift) in [16, 8, 0].into_iter().enumerate() {
         let old = ((destination >> shift) & 255) as f32 / 255.;
-        let gain = if blend == Blend::Alpha {
-            1. - alpha
-        } else {
-            1.
+        let src = source[axis].clamp(0., 1.);
+        let value = match blend {
+            Blend::Alpha => src * alpha + old * (1. - alpha),
+            Blend::SourceAlphaAdditive => src * alpha + old,
+            Blend::Additive => src + old,
+            Blend::Screen => src + old * (1. - src),
+            Blend::Darken => old * (1. - src),
         };
-        let value = source[axis].clamp(0., 1.) * alpha + old * gain;
         result |= ((value.clamp(0., 1.) * 255.).round() as u32) << shift;
     }
     result
@@ -89,6 +117,9 @@ mod tests {
             face: face(1),
             color: [1.; 4],
             blend,
+            depth_test: true,
+            alpha_reference: None,
+            atlas_blend: None,
         }
     }
     fn center(scene: &Scene, view: View, effects: &[TriangleEffect]) -> u32 {
@@ -199,5 +230,62 @@ mod tests {
             composite(0xff000000, [1., 0., 0., 0.5], Blend::Alpha),
             0xff800000
         );
+    }
+    #[test]
+    fn original_particle_blends_are_distinct_from_alpha_addition() {
+        assert_eq!(
+            composite(0xff808080, [0.5, 0.5, 0.5, 0.], Blend::Additive),
+            0xffffffff
+        );
+        assert_eq!(
+            composite(0xff808080, [0.5, 0.5, 0.5, 0.], Blend::Screen),
+            0xffc0c0c0
+        );
+        assert_eq!(
+            composite(0xff808080, [0.5, 0.5, 0.5, 0.], Blend::Darken),
+            0xff404040
+        );
+        let (scene, view) = fixture();
+        assert_eq!(
+            composite(0xff123456, [0., 0., 0., 0.], Blend::Darken),
+            0xff123456
+        );
+        assert_eq!(
+            composite(0xff123456, [1., 1., 1., 1.], Blend::Darken),
+            0xff000000
+        );
+        let mut e = effect(20., Blend::Screen);
+        e.depth_test = false;
+        e.alpha_reference = Some(0);
+        assert_eq!(e.flags(), 0x304);
+        assert!((center(&scene, view, &[e]) >> 16) & 255 > 0);
+        let mut e = effect(5., Blend::Screen);
+        e.alpha_reference = Some(64);
+        assert_eq!(center(&scene, view, &[e]), center(&scene, view, &[]));
+    }
+    #[test]
+    fn atlas_blend_interpolates_pixels_before_compositing_and_preserves_packet_weight() {
+        let (mut scene, view) = fixture();
+        scene.textures[1] = Texture {
+            width: 1,
+            height: 2,
+            pixels: vec![0xffff0000, 0xff0000ff],
+        };
+        let mut e = effect(5., Blend::Additive);
+        e.face.uv = [[0.25, 0.25]; 3];
+        e.atlas_blend = Some(AtlasBlend {
+            grid: [1, 2],
+            fraction: 0.5,
+        });
+        let mut packet = vec![];
+        e.vertices(&mut packet);
+        assert_eq!(
+            u32::from_le_bytes(packet[32..36].try_into().unwrap()),
+            0.5f32.to_bits()
+        );
+        assert_eq!(e.flags(), 0x10000403);
+        let p = center(&scene, view, &[e]);
+        assert_eq!((p >> 16) & 255, 128);
+        assert!(p & 255 >= 128);
     }
 }

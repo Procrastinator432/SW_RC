@@ -63,7 +63,7 @@ final class GpuSceneView extends GLSurfaceView implements GLSurfaceView.Renderer
             if(animated) {
                 actors=new Batch[n];int previousPass=0,total=0;
                 for(int i=0;i<n;i++) {
-                    int pass=count(b,extended ? 2:1),texture=b.getInt(),blend=extended ? count(b,2):0,vertices=count(b,300000);
+                    int pass=count(b,extended ? 2:1),texture=b.getInt(),blend=extended ? b.getInt():0,vertices=count(b,300000);
                     total+=vertices;
                     int normalized=FramePass.validate(pass,blend,texture,previousPass,extended);
                     if(vertices%3!=0 || total>300000) throw new IllegalArgumentException("Invalid animated batch");
@@ -142,7 +142,7 @@ final class GpuSceneView extends GLSurfaceView implements GLSurfaceView.Renderer
             int vs=shader(GLES20.GL_VERTEX_SHADER,
                 "attribute vec3 aPosition;attribute vec2 aUV;attribute vec4 aColor;uniform vec3 uCamera[4];uniform int uScreen;varying vec2 vUV;varying vec4 vColor;void main(){vUV=aUV;vColor=aColor;if(uScreen==1){gl_Position=vec4(aPosition,1.0);}else{vec3 d=aPosition-uCamera[0];float z=dot(d,uCamera[3]);gl_Position=vec4(dot(d,uCamera[1])*1.375,dot(d,uCamera[2])*2.2,z*1.0000008-8.0000032,z);}} ");
             int fs=shader(GLES20.GL_FRAGMENT_SHADER,
-                "precision highp float;uniform sampler2D uTexture;uniform int uTextured;varying vec2 vUV;varying vec4 vColor;void main(){vec4 c=vColor;if(uTextured!=0){vec4 t=texture2D(uTexture,fract(vUV));if(uTextured==1){if(t.a<0.5)discard;c=vec4(t.rgb*vColor.rgb,1.0);}else{c=t*vColor;}}gl_FragColor=c;}");
+                "precision highp float;uniform sampler2D uTexture;uniform int uTextured;uniform float uAlphaRef;uniform vec2 uGrid;varying vec2 vUV;varying vec4 vColor;void main(){vec4 c=vColor;if(uTextured!=0){vec4 t=texture2D(uTexture,fract(vUV));if(uTextured==1){if(t.a<0.5)discard;c=vec4(t.rgb*vColor.rgb,1.0);}else{if(uTextured==3){vec2 cell=clamp(floor(vUV*uGrid),vec2(0.0),uGrid-vec2(1.0));float next=min(cell.x*uGrid.y+cell.y+1.0,uGrid.x*uGrid.y-1.0);vec2 nc=vec2(floor(next/uGrid.y),mod(next,uGrid.y));t=mix(t,texture2D(uTexture,fract(vUV+(nc-cell)/uGrid)),vColor.a);c=t*vec4(vColor.rgb,1.0);}else{c=t*vColor;}if(c.a<=uAlphaRef)discard;}}gl_FragColor=c;}");
             program=GLES20.glCreateProgram();GLES20.glAttachShader(program,vs);GLES20.glAttachShader(program,fs);GLES20.glLinkProgram(program);
             GLES20.glDeleteShader(vs);GLES20.glDeleteShader(fs);int[] ok=new int[1];GLES20.glGetProgramiv(program,GLES20.GL_LINK_STATUS,ok,0);
             if(ok[0]==0) throw new IllegalStateException(GLES20.glGetProgramInfoLog(program));
@@ -229,12 +229,16 @@ final class GpuSceneView extends GLSurfaceView implements GLSurfaceView.Renderer
                     if(batch.pass==2 && pass!=2) {GLES20.glDepthMask(true);GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT);}
                     pass=batch.pass;
                     if(batch.blend!=0) {
+                        int mode=batch.blend&255;
                         GLES20.glEnable(GLES20.GL_BLEND);GLES20.glBlendEquation(GLES20.GL_FUNC_ADD);
-                        GLES20.glBlendFuncSeparate(GLES20.GL_SRC_ALPHA,batch.blend==1 ? GLES20.GL_ONE_MINUS_SRC_ALPHA:GLES20.GL_ONE,GLES20.GL_ZERO,GLES20.GL_ONE);
+                        GLES20.glBlendFuncSeparate(mode<=2 ? GLES20.GL_SRC_ALPHA:mode==5 ? GLES20.GL_ZERO:GLES20.GL_ONE,mode==1 ? GLES20.GL_ONE_MINUS_SRC_ALPHA:mode==4 ? GLES20.GL_ONE_MINUS_SRC_COLOR:mode==5 ? GLES20.GL_ONE_MINUS_SRC_COLOR:GLES20.GL_ONE,GLES20.GL_ZERO,GLES20.GL_ONE);
                         GLES20.glDepthMask(false);
-                    } else {GLES20.glDisable(GLES20.GL_BLEND);GLES20.glDepthMask(true);}
+                        if((batch.blend&0x100)!=0) GLES20.glDisable(GLES20.GL_DEPTH_TEST);else GLES20.glEnable(GLES20.GL_DEPTH_TEST);
+                        GLES20.glUniform1f(GLES20.glGetUniformLocation(program,"uAlphaRef"),(batch.blend&0x200)!=0 ? ((batch.blend>>>16)&255)/255f:-1);
+                        if((batch.blend&0x400)!=0) GLES20.glUniform2f(GLES20.glGetUniformLocation(program,"uGrid"),((batch.blend>>>24)&15)+1,((batch.blend>>>28)&15)+1);
+                    } else {GLES20.glDisable(GLES20.GL_BLEND);GLES20.glDepthMask(true);GLES20.glEnable(GLES20.GL_DEPTH_TEST);}
                     if(batch.texture>=textures.length) throw new IllegalArgumentException("Animated texture outside world atlas");
-                    GLES20.glUniform1i(textured,batch.blend!=0 ? 2:batch.texture<0 ? 0:1);
+                    GLES20.glUniform1i(textured,(batch.blend&0x400)!=0 ? 3:batch.blend!=0 ? 2:batch.texture<0 ? 0:1);
                     if(batch.texture>=0) GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,textures[batch.texture]);
                     drawStream(stage(batch.vertices),batch.count);
                 }

@@ -16,6 +16,9 @@ pub enum Op {
     Event {
         tag: String,
     },
+    TeleportEffectToPlayer {
+        original: u32,
+    },
     Injury {
         damage: f32,
     },
@@ -42,6 +45,8 @@ pub struct Program {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assets {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub world_effects: Vec<crate::world_effects::Binding>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bacta: Option<crate::bacta::Assets>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -118,6 +123,8 @@ pub struct Lane {
 #[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct State {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_effects: Option<crate::world_effects::State>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bacta: Option<crate::bacta::State>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub owned_voices: Vec<OwnedVoice>,
@@ -141,6 +148,7 @@ pub struct State {
     pub ready_tick: Option<u64>,
 }
 pub struct Prepared {
+    pub world_effect_bases: Vec<usize>,
     pub bacta: Option<crate::bacta::Prepared>,
     pub intro: Option<crate::intro::Prepared>,
     pub rappel: Option<crate::rappel::Prepared>,
@@ -156,6 +164,8 @@ impl Assets {
     }
     pub fn sound_roles(&self) -> Vec<usize> {
         let mut roles = Vec::new();
+        roles.extend(self.world_effects.iter().filter_map(|b| b.sound));
+        roles.extend(self.world_effects.iter().filter_map(|b| b.ambient));
         for p in &self.programs {
             for a in &p.actions {
                 if let Op::Sound { role, .. } = a.op {
@@ -217,6 +227,14 @@ impl Assets {
         }
         for p in &mut self.sound_policies {
             p.role = *mapping.get(&p.role).ok_or("Missing owned sound identity")?;
+        }
+        for effect in &mut self.world_effects {
+            if let Some(role) = &mut effect.sound {
+                *role = mapping[role];
+            }
+            if let Some(role) = &mut effect.ambient {
+                *role = mapping[role];
+            }
         }
         if let Some(b) = &mut self.bacta {
             for n in &mut b.notifies {
@@ -300,6 +318,13 @@ impl Assets {
                     {
                         return Err("Invalid opening sound".into())
                     }
+                    Op::TeleportEffectToPlayer { original }
+                        if !self.world_effects.iter().any(|b| {
+                            b.original == *original && b.teleport_action == Some(a.original)
+                        }) =>
+                    {
+                        return Err("Missing relocated original effect".into())
+                    }
                     Op::Injury { damage }
                         if !damage.is_finite() || !(1. ..self.initial_health).contains(damage) =>
                     {
@@ -325,6 +350,7 @@ impl State {
     fn new(a: &Assets) -> Self {
         Self {
             bacta: None,
+            world_effects: (!a.world_effects.is_empty()).then(crate::world_effects::State::default),
             owned_voices: vec![],
             intro: None,
             rappel: a.rappel.as_ref().map(|_| crate::rappel::State::default()),
@@ -416,6 +442,9 @@ impl Game {
         let mut s = State::new(&a);
         let bacta = if let Some(b) = a.bacta.take() {
             s.bacta = Some(crate::bacta::State::default());
+            if !b.effects.is_empty() {
+                s.bacta.as_mut().unwrap().particles = Some(crate::particles::State::default());
+            }
             Some(b.prepare(&mut self.scene, base + a.sounds.len())?)
         } else {
             None
@@ -444,9 +473,11 @@ impl Game {
         } else {
             None
         };
+        let world_effect_bases = crate::world_effects::prepare(&a.world_effects, &mut self.scene)?;
         s.signal(&a, "levelstart");
         self.state.opening = Some(s);
         self.opening = Some(Prepared {
+            world_effect_bases,
             bacta,
             intro,
             rappel,
@@ -554,17 +585,31 @@ impl Game {
                                         s.ready_tick = Some(tick);
                                     }
                                     "GunshipDoorExplosion" => {
-                                        self.state.bunker.as_mut().unwrap().explosions.push(
-                                            crate::gunner_runtime::Explosion {
-                                                position: a.explosion,
-                                                age: 0.,
-                                                bunker: false,
-                                            },
-                                        )
+                                        if !a.world_effects.iter().any(|b| b.original == 211) {
+                                            self.state.bunker.as_mut().unwrap().explosions.push(
+                                                crate::gunner_runtime::Explosion {
+                                                    position: a.explosion,
+                                                    age: 0.,
+                                                    bunker: false,
+                                                },
+                                            )
+                                        }
                                     }
                                     _ => {}
                                 }
                                 tag.clone()
+                            }
+                            Op::TeleportEffectToPlayer { original } => {
+                                let position = self.state.pawn.body.position.map(|v| v as f32);
+                                let effects =
+                                    s.world_effects.as_mut().ok_or("Missing effect state")?;
+                                let rotation = [
+                                    0,
+                                    (self.state.yaw * 65536. / std::f64::consts::TAU) as i32,
+                                    0,
+                                ];
+                                effects.relocate(*original, position, rotation)?;
+                                format!("TeleportEffect{original}ToPlayer")
                             }
                             Op::Injury { damage } => {
                                 self.state.health =
@@ -573,13 +618,15 @@ impl Game {
                                     self.state.health as f32;
                                 self.state.damage_flash = 0.2;
                                 s.injured = true;
-                                self.state.bunker.as_mut().unwrap().explosions.push(
-                                    crate::gunner_runtime::Explosion {
-                                        position: self.state.pawn.body.position,
-                                        age: 0.,
-                                        bunker: false,
-                                    },
-                                );
+                                if !a.world_effects.iter().any(|e| e.original == 823) {
+                                    self.state.bunker.as_mut().unwrap().explosions.push(
+                                        crate::gunner_runtime::Explosion {
+                                            position: self.state.pawn.body.position,
+                                            age: 0.,
+                                            bunker: false,
+                                        },
+                                    );
+                                }
                                 "ScriptedInjury".into()
                             }
                             Op::Prompt { text, seconds } => {
@@ -781,6 +828,7 @@ mod tests {
     fn assets() -> Assets {
         Assets {
             bacta: None,
+            world_effects: vec![],
             sound_policies: vec![],
             enemy_fire_source: None,
             sound_bindings: vec![],

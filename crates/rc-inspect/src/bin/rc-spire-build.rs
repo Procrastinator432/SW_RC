@@ -294,6 +294,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         vec![flow.area.position]
     };
     let assets = Assets {
+        door_motion: vec![],
         flow,
         route,
         sounds,

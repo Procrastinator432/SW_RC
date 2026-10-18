@@ -1,4 +1,5 @@
 """Freeze selected GEO_01B gameplay with explicit fixture/full-route boundaries."""
+from PixelWords import pixel_words
 import hashlib,json,re,shutil,zipfile,struct
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];WORK=ROOT/'analysis/mission17-map2-gameplay';OUT=WORK/'delivery'
@@ -18,7 +19,7 @@ scene=OUT/'geo_01b.rcplay';data=scene.read_bytes();assert data[:8]==b'RCPLAY14'
 a=json.loads(data[12:12+struct.unpack_from('<I',data,8)[0]])
 assert len(a['sounds'])==32 and len(a['gameplay']['objectives'])==8
 assert len(a['gameplay']['factories'])==42 and len(a['gameplay']['gates'])==27
-assert all(p>>24==255 for m in a['gameplay']['fixer_mesh']['materials'] for p in m['pixels'])
+assert all(p>>24==255 for m in a['gameplay']['fixer_mesh']['materials'] for p in pixel_words(m['pixels']))
 (OUT/'appearance-receipt.json').write_text(json.dumps(dict(fixer_original_skins=[m['source'] for m in a['gameplay']['fixer_mesh']['materials']],original_shader_without_opacity_uses_opaque_pixels=True,fixer_rifle_attachment='weaponAttach_R',hud_uses_uppercase_font=True),indent=2))
 for mode in ['known','unknown']:
  r=read(WORK/f'scene-reader-{mode}.json');assert r['passed'] and r['heap_limit']==96*1024*1024 and r['sha256']==sha(scene)

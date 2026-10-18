@@ -168,6 +168,7 @@ impl Game {
                 };
             }
         }
+        self.sync_spire_doors();
     }
     pub(crate) fn dynamic_geometry(
         &self,
@@ -186,7 +187,14 @@ impl Game {
                         (&p.triangles, &p.appearance)
                     };
                     triangles.extend(geometry.iter().map(|t| rc_package::geometry::Triangle {
-                        points: t.points,
+                        points: if !*disabled {
+                            self.spire_door_offset(p.original)
+                                .map_or(t.points, |delta| {
+                                    t.points.map(|v| std::array::from_fn(|i| v[i] + delta[i]))
+                                })
+                        } else {
+                            t.points
+                        },
                         surface: t.surface,
                     }));
                     faces.extend(appearance);

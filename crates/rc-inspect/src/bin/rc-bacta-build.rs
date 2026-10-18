@@ -217,6 +217,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     opening.sounds.push(sound);
     opening.bacta = Some(rc_game::bacta::Assets {
+        effects: rc_inspect::particle_assets::bacta(root, &mut resolver)?,
         ambient_loop: Some(role),
         controller: Some(controller),
         mesh: Some(mesh),
@@ -226,9 +227,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         pivot,
         notifies,
     });
-    opening.provenance["bacta"] = serde_json::json!({"actor":736,"source":"ctgame.BactaDispenser.Active: PlayAnim Load, FinishAnim, bActivated; EndState Holster","notifies":receipts,"transform":"Preserved legacy bottom alignment and box collision adapter","limits":"Original Eye/body particle emitters and their ambient loop are not yet hosted; station recharge/reuse after objective is outside this bounded tutorial host"});
-    opening.provenance["bacta"]["ambient"] = serde_json::json!({"effect_class":effect_class,"source":ambient_source,"role":role,"attachment":"Eye","lifetime":"after Load FinishAnim until EndState/DestroyAttachment, defeat or suspend; restored by current desired-state query","boundary":"Original PCM loop; existing non-spatial Android gain policy; visual particle emitters are not yet hosted"});
-    opening.provenance["bacta"]["limits"] = serde_json::json!("Visual Eye/body particle emitters are not yet hosted; station recharge/reuse after objective is outside this bounded tutorial host");
+    opening.provenance["bacta"] = serde_json::json!({"actor":736,"source":"ctgame.BactaDispenser.Active: PlayAnim Load, FinishAnim, bActivated; EndState Holster","notifies":receipts,"transform":"Preserved legacy bottom alignment and box collision adapter","limits":"Fourteen original Eye/body SpriteEmitter templates; fixed-tick portable host, saved local RNG, original eye bone and selected CloneCommando idle body joints. Native full player animation and station recharge/reuse after objective remain outside this host"});
+    opening.provenance["bacta"]["ambient"] = serde_json::json!({"effect_class":effect_class,"source":ambient_source,"role":role,"attachment":"Eye","lifetime":"after Load FinishAnim until EndState/DestroyAttachment, defeat or suspend; restored by current desired-state query","boundary":"Original PCM loop; existing non-spatial Android gain policy; visual Eye emitters end immediately, living body particles fade with checkpointed state"});
+    opening.provenance["bacta"]["limits"] = serde_json::json!("Selected SpriteEmitter host, local RNG and idle body pose policy; not full native particle/animation parity. Conservative station box collision can stop alignment about ten units short. Station recharge/reuse after objective remains outside this tutorial host");
     opening.provenance["bacta"]["using_item"] = serde_json::json!({"source":"ctgame.CTPlayer.UsingItem.PlayerMove / engine.PlayerController.ProcessMove", "bindings":opening.bacta.as_ref().unwrap().controller, "acceleration":"15 * (DesiredLocation - Pawn.Location) - Pawn.Velocity; Z=0", "settle":"Dist <= 450 * dt: SetLocation if Dist>1, then zero velocity/acceleration", "rotator_units_per_second":45000, "boundary":"Original script controller on port collision/volume physics; quantized portable rotator math; target acquisition remains the bounded tutorial adapter; hand-signal weapon switch/network/ViewShake are not hosted"});
     let mut result = vec![];
     let mut at = 0;

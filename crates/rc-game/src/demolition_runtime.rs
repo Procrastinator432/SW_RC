@@ -225,8 +225,11 @@ impl Game {
                         },
                     );
                 }
-                Effect::Event { tag } if tag == "Conversation05" => {
-                    self.state.demolition.as_mut().unwrap().complete_tick = Some(tick)
+                Effect::Event { tag } => {
+                    if tag == "Conversation05" {
+                        self.state.demolition.as_mut().unwrap().complete_tick = Some(tick);
+                    }
+                    self.queue_world_event(tag);
                 }
                 _ => {}
             }

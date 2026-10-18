@@ -106,7 +106,7 @@ impl RenderFrame {
         // Preserve supplied transparent ordering, including across textures.
         let mut effect_batches: Vec<(i32, u32, Vec<u8>)> = vec![];
         for effect in &self.effects {
-            let key = (effect.face.texture as i32, effect.blend as u32);
+            let key = (effect.face.texture as i32, effect.flags());
             if effect_batches.last().is_none_or(|b| (b.0, b.1) != key) {
                 effect_batches.push((key.0, key.1, vec![]));
             }
@@ -808,12 +808,15 @@ impl Game {
                 );
             }
         }
+        let basis = rc_render::gpu::basis(&self.scene, view);
+        let mut effects = self.bacta_effects(basis)?;
+        effects.extend(self.world_effect_geometry(basis)?);
         Ok(RenderFrame {
             view,
             triangles: extra,
             appearance,
             weapon_start,
-            effects: vec![],
+            effects,
             hud: hud.rectangles,
             width,
             height,

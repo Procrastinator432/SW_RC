@@ -1,5 +1,7 @@
 # Transparente Welteffekte für die Bacta-Fortsetzung
 
+Fortsetzung vom 18.10.2026: [Sichtbare Emitter, gespeichertes Body-FadeOut, originale Missions-FX und Türbewegung](MISSION_PRESENTATION.md). Die folgenden Angaben dokumentieren den vorherigen Teilabschnitt.
+
 Stand: 17.10.2026. Der gemeinsame CPU-/Android-Renderpfad kann jetzt transparente, unbeleuchtete Welteffekte darstellen. Die Bacta-Emitter sind **noch nicht angeschlossen**. Dieser Abschnitt schafft den benötigten Rendervertrag; er behauptet keine rekonstruierte originale Partikelsimulation oder freigegebene Geräteansicht.
 
 ## Verhalten

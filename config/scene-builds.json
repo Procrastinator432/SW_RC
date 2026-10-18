@@ -7,6 +7,7 @@
     "map-a-audio",
     "map-a-bacta",
     "map-a-bacta-replay",
+    "map-a-presentation",
     "map2-route",
     "map-b-material",
     "map-b-feedback",
@@ -24,6 +25,13 @@
     "factory-material"
   ],
   "stages": {
+    "map-a-presentation": {
+      "binary":"rc-presentation-build",
+      "inputs":["map_a_scene"],
+      "args":["{game_data}","{map_a_scene}","{out}"],
+      "product":"geo_01a.rcplay",
+      "output_key":"map_a_scene"
+    },
     "map-a-feedback": {
       "binary": "rc-enemy-feedback-build",
       "inputs": [

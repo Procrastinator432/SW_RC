@@ -192,9 +192,8 @@ impl Game {
             }
             // Events are consumed by the selected flow itself. Trench-rim actors
             // and decorative retreat/explosion scripts are outside this host.
-            crash::Effect::Event(_)
-            | crash::Effect::Invulnerable { .. }
-            | crash::Effect::ObjectiveCompleted(_) => {}
+            crash::Effect::Event(tag) => self.queue_world_event(&tag),
+            crash::Effect::Invulnerable { .. } | crash::Effect::ObjectiveCompleted(_) => {}
         }
         Ok(())
     }

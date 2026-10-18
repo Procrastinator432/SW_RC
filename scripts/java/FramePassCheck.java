@@ -14,7 +14,12 @@ public final class FramePassCheck {
         check(FramePass.validate(1,2,1023,1,true)==1);
         check(FramePass.validate(2,0,-1,1,true)==2);
         invalid(0,1,0,0,true);invalid(1,0,0,0,true);
-        invalid(1,3,0,0,true);invalid(1,1,-1,0,true);
+        invalid(1,6,0,0,true);invalid(1,1,-1,0,true);
+        check(FramePass.validate(1,3,0,0,true)==1);
+        check(FramePass.validate(1,0x100|0x200|(128<<16)|4,0,0,true)==1);
+        invalid(1,0x10000|4,0,0,true);invalid(1,0x400|1,0,0,true);
+        check(FramePass.validate(1,0x400|3|(7<<28),0,0,true)==1);
+        invalid(1,3|(7<<28),0,0,true);
         invalid(2,1,0,1,true);invalid(1,1,0,2,true);
         invalid(3,0,0,0,true);invalid(2,0,0,0,false);
         invalid(0,0,1024,0,true);invalid(0,0,-2,0,true);

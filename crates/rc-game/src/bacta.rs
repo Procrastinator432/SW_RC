@@ -12,6 +12,7 @@ use rc_package::{
     skeletal_lod_tick::{update_lod_animation, TickSequence},
 };
 use serde::{Deserialize, Serialize};
+type EffectAnchors = ([[f32; 4]; 4], [[f32; 4]; 4], Vec<[f32; 3]>);
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -24,6 +25,8 @@ pub struct Notify {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assets {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<crate::particles::Template>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ambient_loop: Option<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -53,6 +56,7 @@ pub struct Prepared {
     pub mesh: PreparedMesh,
     pub assets: Assets,
     pub texture_base: usize,
+    pub effect_texture_base: usize,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Phase {
@@ -65,6 +69,8 @@ pub enum Phase {
 }
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct State {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub particles: Option<crate::particles::State>,
     pub phase: Phase,
     pub playback: Option<ChannelPlaybackSnapshot>,
     pub notify_events: Vec<(u64, u32)>,
@@ -137,10 +143,27 @@ impl Assets {
                 height: m.height,
                 pixels: m.pixels.clone(),
             }));
+        if !self.effects.is_empty() && self.effects.len() != 14 {
+            return Err("Invalid Bacta emitter count".into());
+        }
+        let mut ids = std::collections::BTreeSet::new();
+        let effect_texture_base = scene.textures.len();
+        for template in &self.effects {
+            template.validate()?;
+            if !ids.insert(template.original) {
+                return Err("Duplicate Bacta emitter template".into());
+            }
+            scene.textures.push(rc_render::Texture {
+                width: template.material.width,
+                height: template.material.height,
+                pixels: template.material.pixels.clone(),
+            });
+        }
         Ok(Prepared {
             mesh,
             assets: self,
             texture_base,
+            effect_texture_base,
         })
     }
 }
@@ -272,6 +295,11 @@ impl Game {
     /// Desired ambient voices, not consumable cues: a restored host can
     /// reconstruct the current loop without replaying a sound-event history.
     pub fn ambient_loops(&self) -> Vec<(usize, i32)> {
+        let mut loops = self.bacta_ambient_loop();
+        loops.extend(self.world_ambient_loops());
+        loops
+    }
+    fn bacta_ambient_loop(&self) -> Vec<(usize, i32)> {
         if self.state.phase != crate::Phase::Playing
             || self.state.health == 0
             || self.state.squad.as_ref().is_some_and(|s| s.player_down)
@@ -397,7 +425,127 @@ impl Game {
                 owner: 736,
             });
         }
+        let active = m.using && self.state.health > 0 && s.phase == Phase::Active;
+        if let Some((eye, body, joints)) = self.bacta_effect_anchors()? {
+            let p = self.opening.as_ref().unwrap().bacta.as_ref().unwrap();
+            let particles = self
+                .state
+                .opening
+                .as_mut()
+                .unwrap()
+                .bacta
+                .as_mut()
+                .unwrap()
+                .particles
+                .as_mut()
+                .ok_or("Missing Bacta particle state")?;
+            particles.tick(&p.assets.effects, active, &eye, &body, &joints);
+        }
         Ok(())
+    }
+    fn bacta_effect_anchors(&self) -> Result<Option<EffectAnchors>, String> {
+        let Some(p) = self
+            .opening
+            .as_ref()
+            .and_then(|o| o.bacta.as_ref())
+            .filter(|p| !p.assets.effects.is_empty())
+        else {
+            return Ok(None);
+        };
+        let s = self
+            .state
+            .opening
+            .as_ref()
+            .and_then(|o| o.bacta.as_ref())
+            .ok_or("Bacta effect state")?;
+        if !matches!(s.phase, Phase::Loading | Phase::Active)
+            && s.particles
+                .as_ref()
+                .is_none_or(|s| s.eye.is_none() && s.bodies.is_empty())
+        {
+            return Ok(None);
+        }
+        let name = if matches!(s.phase, Phase::Loading | Phase::Active) {
+            "Load"
+        } else {
+            "Holster"
+        };
+        let frame = s
+            .playback
+            .as_ref()
+            .and_then(|p| p.channels.first())
+            .map_or(0., |c| f32::from_bits(c.words[7]).clamp(0., 29. / 30.));
+        let channel = p.mesh.channel(p.mesh.clip(name)?, frame)?;
+        let local = p.mesh.attachment_transform(&channel, "eye", true)?;
+        let point = |v| {
+            rc_package::mesh::transform_point(
+                v,
+                p.assets.location,
+                p.assets.rotation,
+                p.assets.scale,
+                p.assets.pivot,
+            )
+        };
+        let origin = point([0.; 3]);
+        let actor: [[f32; 4]; 4] = std::array::from_fn(|r| {
+            if r == 3 {
+                [origin[0], origin[1], origin[2], 1.]
+            } else {
+                let mut v = [0.; 3];
+                v[r] = 1.;
+                let v = point(v);
+                [v[0] - origin[0], v[1] - origin[1], v[2] - origin[2], 0.]
+            }
+        });
+        let eye = std::array::from_fn(|r| {
+            std::array::from_fn(|c| (0..4).map(|i| local[r][i] * actor[i][c]).sum())
+        });
+        let position = self.state.pawn.body.position.map(|v| v as f32);
+        let (sin, cos) = (self.state.yaw as f32).sin_cos();
+        let body = [
+            [cos, sin, 0., 0.],
+            [-sin, cos, 0., 0.],
+            [0., 0., 1., 0.],
+            [position[0], position[1], position[2], 1.],
+        ];
+        let mesh = &self
+            .rendezvous
+            .as_ref()
+            .ok_or("Bacta body skeleton unavailable")?
+            .mesh;
+        let clip = mesh.clip("ActionBreathe")?;
+        let seq = &mesh.mesh.clips[clip].sequence;
+        let frame = (self.state.statistics.ticks as f32
+            * crate::STEP as f32
+            * f32::from_bits(seq.rate_bits)
+            / seq.frames as f32)
+            .fract();
+        let mut joints = mesh.joint_positions(&mesh.channel(clip, frame)?, true)?;
+        for p in &mut joints {
+            p[2] -= 84. + mesh.rest_bounds[0][2];
+        }
+        Ok(Some((eye, body, joints)))
+    }
+    pub(crate) fn bacta_effects(
+        &self,
+        basis: [[f32; 3]; 4],
+    ) -> Result<Vec<rc_render::effects::TriangleEffect>, String> {
+        let Some((eye, body, _)) = self.bacta_effect_anchors()? else {
+            return Ok(vec![]);
+        };
+        let p = self.opening.as_ref().unwrap().bacta.as_ref().unwrap();
+        let state = self
+            .state
+            .opening
+            .as_ref()
+            .unwrap()
+            .bacta
+            .as_ref()
+            .unwrap()
+            .particles
+            .as_ref()
+            .ok_or("Bacta particle state")?;
+        Ok(state.geometry(&p.assets.effects, p.effect_texture_base, &eye, &body, basis))
     }
     pub(crate) fn bacta_geometry(
         &self,

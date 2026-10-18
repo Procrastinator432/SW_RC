@@ -23,19 +23,36 @@ public final class GpuFrameCheck {
         catch(IllegalArgumentException | BufferUnderflowException expected) {return;}
         throw new AssertionError("Accepted invalid frame");
     }
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         byte[] bytes=packet("RCFRA003",new int[][]{{0,-1,0},{1,0,1},{1,1,2},{1,0,1},{2,1,0}});
         GpuSceneView.Frame f=new GpuSceneView.Frame(bytes,false);
         check(f.actors.length==5 && f.actors[1].blend==1 && f.actors[2].blend==2);
         check(f.actors[1].texture==f.actors[3].texture && f.actors[4].pass==2);
         check(f.actors[1].vertices.length==108 && !f.capture);
+        GpuSceneView.Frame rgb=new GpuSceneView.Frame(packet("RCFRA003",new int[][]{{1,0,3},{1,0,4},{1,0,5},{1,0,0x10000403},{1,0,0x00060301}}),false);
+        check(rgb.actors.length==5 && rgb.actors[3].blend==0x10000403 && rgb.actors[4].blend==0x00060301);
         GpuSceneView.Frame old=new GpuSceneView.Frame(packet("RCFRA002",new int[][]{{0,-1,0},{1,0,0}}),true);
         check(old.actors[1].pass==2 && old.actors[1].blend==0 && old.capture);
         for(int[][] bad:new int[][][] {
-            {{1,0,0}},{{0,0,1}},{{1,-1,1}},{{1,0,3}},{{2,0,1}},{{2,0,0},{1,0,1}},{{1,1024,1}}
+            {{1,0,0}},{{0,0,1}},{{1,-1,1}},{{1,0,6}},{{2,0,1}},{{2,0,0},{1,0,1}},{{1,1024,1}},{{1,0,0x10000401}},{{1,0,0x00010003}},{{1,0,0x00000803}}
         }) invalid(packet("RCFRA003",bad));
         invalid(java.util.Arrays.copyOf(bytes,bytes.length-1));
         invalid(java.util.Arrays.copyOf(bytes,bytes.length+1));
+        int worldPackets=0;
+        for(String path:args) {
+            byte[] nativeFrame=java.nio.file.Files.readAllBytes(java.nio.file.Path.of(path));
+            if(path.endsWith(".world")) {
+                GpuSceneView.World actualWorld=new GpuSceneView.World(nativeFrame);
+                check(actualWorld.textures.length>0 && actualWorld.batches.length>0);
+                worldPackets++;
+                continue;
+            }
+            byte[] statusFrame=new byte[nativeFrame.length+40];
+            System.arraycopy(nativeFrame,0,statusFrame,40,nativeFrame.length);
+            GpuSceneView.Frame actual=new GpuSceneView.Frame(statusFrame,false);
+            check(actual.camera.length==12 && actual.actors.length>0);
+        }
+        System.out.println("Native player camera frames parsed: "+(args.length-worldPackets)+"; native worlds: "+worldPackets);
         System.out.println("Actual GPU frame reader: legacy and effect packets passed");
     }
 }

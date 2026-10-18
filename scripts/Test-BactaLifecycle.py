@@ -94,10 +94,11 @@ def main():
     active_save = None
     ambient_ticks = []
     last = None
+    particle_samples=[]
     try:
         for i, row in enumerate(rows):
             step(h, row)
-            before_audio = ambient(h) if ambient_role is not None and 2720<=i<=3100 else None
+            before_audio = ambient(h) if ambient_role is not None and 2720<=i<=3500 else None
             # Drain PCM events as the Android host does; the checkpoint still
             # carries the animation channel and once-only notify history.
             events = audio(h)
@@ -105,9 +106,26 @@ def main():
                 if owner == 736:
                     assert category == 2 and flags == 0
                     station_audio.append(dict(tick=tick, role=role))
-            if not 2720 <= i <= 3100:
+            if not 2720 <= i <= 3500:
                 continue
             s = state(h)
+            particle_state=s['opening']['bacta'].get('particles')
+            if particle_state is not None and i+1 in [2789,2850,2920,2970,3100,3400,3500]:
+                eye=particle_state['eye']
+                eye_count=sum(len(e['particles']) for e in eye['emitters']) if eye else 0
+                body_count=sum(len(e['particles']) for b in particle_state['bodies'] for e in b['emitters'])
+                particle_samples.append(dict(tick=i+1,eye=eye_count,body=body_count,instances=len(particle_state['bodies'])))
+                if i+1==2970:assert eye is None and body_count>0,'EndState must destroy Eye but retain living body particles'
+                if i+1==3500:assert eye is None and body_count==0,'Body particles did not finish their original lifetime'
+                saved=save(h);other=create()
+                try:
+                    restore(other,saved);assert save(other)==saved and pixels(other)==pixels(h)
+                    checks.append('particle-checkpoint-'+str(i+1))
+                finally:api.rc_game_release(other)
+                if a.capture_views:
+                    from PIL import Image
+                    views=a.output.parent/'player-views';views.mkdir(parents=True,exist_ok=True)
+                    Image.frombytes('RGBA',(720,405),pixels(h,720,405),'raw','BGRA').convert('RGB').save(views/f'particles-{i+1:05}.png')
             b = s['opening']['bacta']
             phase = b['phase']
             if ambient_role is not None:
@@ -180,15 +198,23 @@ def main():
                 step(probe,(0,0,0,0,0));assert ambient(probe)==[]
                 checks.append('ambient-load-stop-pause-restore')
             restore(probe, probe_save)
-            for damage in ['missing-module', 'invalid-channel', 'future-notify']:
+            for damage in ['missing-module', 'invalid-channel', 'future-notify']+(['missing-particles','wrong-template','oversized-particles'] if opening['bacta'].get('effects') else [])+(['missing-world-effects','missing-effect-origin','unknown-effect-origin'] if opening.get('world_effects') else []):
                 value = json.loads(probe_save[20:])
                 b = value['state']['opening']['bacta']
                 if damage == 'missing-module':
                     value['state']['opening'].pop('bacta')
                 elif damage == 'invalid-channel':
                     b['playback']['channels'][0]['words'][6] = 0x7fc00000
-                else:
+                elif damage=='future-notify':
                     b['notify_events'].append([20000000, 11])
+                elif damage=='missing-particles':b.pop('particles')
+                elif damage=='missing-world-effects':value['state']['opening'].pop('world_effects')
+                elif damage=='missing-effect-origin':value['state']['opening']['world_effects']['locations']=[]
+                elif damage=='unknown-effect-origin':value['state']['opening']['world_effects']['locations']=[[211,[1,2,3],[0,0,0]]]
+                else:
+                    value=json.loads(active_save[20:]);b=value['state']['opening']['bacta']
+                    if damage=='wrong-template':b['particles']['eye']['emitters'][0]['original']=0
+                    else:b['particles']['bodies']*=17
                 body = json.dumps(value, separators=(',', ':')).encode()
                 checksum = 0xcbf29ce484222325
                 for byte in body:
@@ -255,7 +281,7 @@ def main():
             api.rc_game_release(probe)
     finally:
         api.rc_game_release(h)
-    report = dict(passed=True, scene_sha256=hashlib.sha256(raw).hexdigest(), replay_sha256=hashlib.sha256(replay).hexdigest(), transitions=transitions, original_notify_ids=sorted(notify_ids), station_audio=station_audio, ambient_role=ambient_role, ambient_ticks=ambient_ticks, checks=checks, full_map_a_replay_ticks=len(rows), map_a_completed=True, limits='No Android device/audio or particle-effect acceptance')
+    report = dict(passed=True, native_dll_sha256=hashlib.sha256(a.dll.read_bytes()).hexdigest(), scene_sha256=hashlib.sha256(raw).hexdigest(), replay_sha256=hashlib.sha256(replay).hexdigest(), transitions=transitions, original_notify_ids=sorted(notify_ids), station_audio=station_audio, ambient_role=ambient_role, ambient_ticks=ambient_ticks, particle_samples=particle_samples, checks=checks, full_map_a_replay_ticks=len(rows), map_a_completed=True, limits='No Android device/audio or original-game visual parity acceptance')
     a.output.parent.mkdir(parents=True, exist_ok=True)
     a.output.write_text(json.dumps(report, indent=2)+'\n', encoding='utf-8')
     print(json.dumps(report))

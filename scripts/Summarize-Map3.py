@@ -1,4 +1,5 @@
 """Freeze third-map import/transition, without claiming Sun Fac gameplay completion."""
+from PixelWords import pixel_words
 import hashlib,json,re,shutil,zipfile,struct
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];WORK=ROOT/'analysis/mission19-map3';OUT=WORK/'delivery'
@@ -17,7 +18,7 @@ assert win['two_members_carried'] and android['two_members_carried'] and ui['apk
 scene=OUT/'geo_01c.rcplay';data=scene.read_bytes();assert data[:8]==b'RCPLAY14'
 a=json.loads(data[12:12+struct.unpack_from('<I',data,8)[0]])
 assert a['destination']=='GEO_01C.ctm#playerstart' and a.get('gameplay') is None and a['fixer_mesh'] and len(a['sounds'])==1
-assert all(p>>24==255 for m in a['fixer_mesh']['materials'] for p in m['pixels'])
+assert all(p>>24==255 for m in a['fixer_mesh']['materials'] for p in pixel_words(m['pixels']))
 surfaces=read(WORK/'surfaces/surface-receipt.json');world=read(WORK/'world/scene.json');assert not surfaces['errors']
 assert surfaces['bsp_textured']==195 and surfaces['mesh_textured']==81553
 assert len(world['instances'])==134 and len(world['omitted'])==5

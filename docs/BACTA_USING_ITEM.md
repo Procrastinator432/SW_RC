@@ -1,5 +1,7 @@
 # Bacta: ursprünglicher Spielercontroller
 
+Fortsetzung vom 18.10.2026: [Sichtbare Emitter, gespeichertes Body-FadeOut, originale Missions-FX und Türbewegung](MISSION_PRESENTATION.md). Die folgenden Angaben dokumentieren den vorherigen Teilabschnitt.
+
 Stand: 16.10.2026. Fortsetzung der Bacta-Animation; der zweite Handytest-Korrekturblock bleibt insgesamt offen.
 
 Fortsetzung17.10.: Der originale Energie-Dauerton ist inzwischen angebunden und wird beim Fortsetzen aus dem aktuellen Stationszustand aufgebaut. Die14 visuellen Emittertemplates sind extrahiert; ihre Renderintegration bleibt offen. [Nachweise und Grenzen](BACTA_AMBIENT.md).

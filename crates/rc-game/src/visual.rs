@@ -256,6 +256,7 @@ pub struct Material {
     pub opacity: serde_json::Value,
     pub width: usize,
     pub height: usize,
+    #[serde(with = "crate::pixel_words")]
     pub pixels: Vec<u32>,
     pub uv_scale: f32,
     pub uv_transform: Option<rc_package::material_uv::UvTransform>,
@@ -604,6 +605,25 @@ impl PreparedMesh {
         Ok(matrices)
     }
     /// Original animated bone followed by the same mesh adjustment as skinned vertices.
+    pub fn joint_positions(
+        &self,
+        channel: &AnimationChannel,
+        lock_root: bool,
+    ) -> Result<Vec<[f32; 3]>, String> {
+        let matrices = self.pose_matrices(channel, lock_root)?;
+        let t = self.adjustment()?;
+        Ok(matrices
+            .into_iter()
+            .map(|m| {
+                std::array::from_fn(|i| {
+                    f32::from_bits(m[12]) * t[0][i]
+                        + f32::from_bits(m[13]) * t[1][i]
+                        + f32::from_bits(m[14]) * t[2][i]
+                        + t[3][i]
+                })
+            })
+            .collect())
+    }
     pub fn attachment_transform(
         &self,
         channel: &AnimationChannel,

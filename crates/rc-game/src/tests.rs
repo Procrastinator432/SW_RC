@@ -219,6 +219,9 @@ fn transparent_frame_preserves_effect_order_color_and_weapon_pass() {
             },
             color: [0.2, 0.4, 0.6, 0.3],
             blend,
+            depth_test: true,
+            alpha_reference: None,
+            atlas_blend: None,
         });
     }
     let packet = frame.gpu_packet(&game.scene);

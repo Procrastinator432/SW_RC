@@ -183,11 +183,13 @@ impl Game {
             .unwrap();
         let mut release = vec![];
         let mut sounds = vec![];
+        let mut world_events = vec![];
         s.secured_seconds += STEP;
         s.blink_remaining = (s.blink_remaining - STEP).max(0.);
         if !s.walls_released && s.secured_seconds + 1e-9 >= a.wall_delay {
             s.walls_released = true;
             release.extend([909, 910, 912, 913]);
+            world_events.push("BlowUpWall");
         }
         if a.spawn_trigger.contains(p, extent) {
             s.barrier_armed = true;
@@ -240,6 +242,9 @@ impl Game {
             && s.flow.pickup_script == grenade_pickup::PickupStage::Done;
         for id in release {
             self.disable_dynamic(id)?;
+        }
+        for tag in world_events {
+            self.queue_world_event(tag);
         }
         for source in sounds {
             let sound = self

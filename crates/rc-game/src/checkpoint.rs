@@ -99,6 +99,7 @@ fn topology(base: &serde_json::Value, saved: &serde_json::Value) -> Result<(), S
                 "squad",
                 "opening",
                 "bacta",
+                "world_effects",
                 "map",
                 "planning",
                 "escape",
@@ -198,6 +199,31 @@ impl Game {
         }
         let base = serde_json::to_value(&self.initial).map_err(|e| e.to_string())?;
         for state in [&s.state, &s.initial] {
+            if let Some(prepared) = &self.opening {
+                let fx = state
+                    .opening
+                    .as_ref()
+                    .and_then(|o| o.world_effects.as_ref());
+                if fx.is_some() == prepared.assets.world_effects.is_empty() {
+                    return Err("World effects checkpoint module mismatch".into());
+                }
+                if let Some(fx) = fx {
+                    fx.validate(&prepared.assets.world_effects)?;
+                }
+            }
+            if let Some(prepared) = self.opening.as_ref().and_then(|o| o.bacta.as_ref()) {
+                let particles = state
+                    .opening
+                    .as_ref()
+                    .and_then(|o| o.bacta.as_ref())
+                    .and_then(|b| b.particles.as_ref());
+                if particles.is_some() == prepared.assets.effects.is_empty() {
+                    return Err("Checkpoint particle module does not match scene".into());
+                }
+                if let Some(particles) = particles {
+                    particles.validate(&prepared.assets.effects)?;
+                }
+            }
             if state
                 .opening
                 .as_ref()

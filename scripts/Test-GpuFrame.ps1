@@ -1,5 +1,7 @@
 param(
     [string]$ToolsDirectory=(Join-Path (Split-Path $PSScriptRoot -Parent) 'tools'),
+    [string]$FramesDirectory,
+    [string]$WorldPacket,
     [string]$OutputDirectory=(Join-Path (Split-Path $PSScriptRoot -Parent) 'build/gpu-frame-java')
 )
 $ErrorActionPreference='Stop'
@@ -12,5 +14,8 @@ New-Item -ItemType Directory -Force -Path $classes | Out-Null
 $sources=@('android/app/src/main/java/org/rcport/diagnostic/GpuSceneView.java','android/app/src/main/java/org/rcport/diagnostic/FramePass.java','scripts/java/GpuFrameCheck.java') | ForEach-Object {Join-Path $root $_}
 & (Join-Path $jdk 'bin/javac.exe') -cp $androidJar -d $classes @sources
 if($LASTEXITCODE -ne 0){throw 'GPU frame check compilation failed'}
-& (Join-Path $jdk 'bin/java.exe') -Xmx96m -cp "$classes;$androidJar" org.rcport.diagnostic.GpuFrameCheck
+$frames=if($FramesDirectory){@(Get-ChildItem -LiteralPath $FramesDirectory -Filter '*.frame' -File | Sort-Object Name | ForEach-Object FullName)}else{@()}
+if($FramesDirectory -and !$frames.Count){throw 'No native player frames found'}
+if($WorldPacket){$frames=@((Resolve-Path -LiteralPath $WorldPacket).Path)+$frames}
+& (Join-Path $jdk 'bin/java.exe') -Xmx96m -cp "$classes;$androidJar" org.rcport.diagnostic.GpuFrameCheck @frames
 if($LASTEXITCODE -ne 0){throw 'GPU frame reader check failed'}

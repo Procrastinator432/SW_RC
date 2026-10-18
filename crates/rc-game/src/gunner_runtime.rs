@@ -258,6 +258,7 @@ impl Game {
             self.disable_dynamic(850)?;
             self.disable_dynamic(1093)?;
             self.explosion_sound(1);
+            self.queue_world_event("SmallBunkerExplosion");
         }
         if confirm {
             self.state.bunker.as_mut().unwrap().confirmation_tick = Some(tick);
