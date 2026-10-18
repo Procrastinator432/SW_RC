@@ -155,7 +155,13 @@ try:
  assert moved['state']['pawn']['body']['position']!=normal['state']['pawn']['body']['position'];capture('small-touch-after-input')
  # Genuine won snapshots select B/C/factory automatically, with actual native carry.
  transitions=[]
- for source,name,target in [('GEO_01A','A-18730.rcsave','GEO_01B'),('GEO_01B','B-16414.rcsave','GEO_01C'),('GEO_01C','C-11800.rcsave','GEO_03A')]:
+ for source,label,target in [('GEO_01A','A','GEO_01B'),('GEO_01B','B','GEO_01C'),('GEO_01C','C','GEO_03A')]:
+  completed=[]
+  for path in args.checkpoints.glob(label+'-*.rcsave'):
+   snapshot=json.loads(path.read_bytes()[20:])
+   if snapshot['state']['phase']=='Won':completed.append(path)
+  assert completed, f'No completed {label} checkpoint in {args.checkpoints}'
+  name=max(completed,key=lambda p:int(p.stem.split('-')[1])).name
   launch();old=fixture(name,props[source+'.sha256']);tap('Fortsetzen');wait(lambda:has(target),seconds=90)
   new=slot();assert new['state']['map']['destination'].startswith(target)
   for field in ['health','ammo','reserve']:assert new['initial'][field]==old['state'][field],(target,field)

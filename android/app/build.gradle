@@ -1,5 +1,9 @@
 plugins { id 'com.android.application' }
 android {
+    if(project.hasProperty('rcAcceptanceSources')) {
+        sourceSets.debug.java.srcDir(project.property('rcAcceptanceSources')+'/java')
+        sourceSets.debug.manifest.srcFile(project.property('rcAcceptanceSources')+'/AndroidManifest.xml')
+    }
     namespace 'org.rcport.diagnostic'
     compileSdk 35
     buildToolsVersion '35.0.0'
@@ -7,8 +11,8 @@ android {
         applicationId 'org.rcport.diagnostic'
         minSdk 26
         targetSdk 35
-        versionCode 54
-        versionName '0.50.0-phone-fixes'
+        versionCode 55
+        versionName '0.51.0-mission-presentation'
         ndk { abiFilters.addAll((project.findProperty('rcAbis') ?: 'arm64-v8a').split(',')) }
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }

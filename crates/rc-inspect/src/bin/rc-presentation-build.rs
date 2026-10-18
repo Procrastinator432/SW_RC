@@ -63,6 +63,164 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cat = rc_inspect::defaults::load(root)?;
     let data = fs::read(root.join("Maps/geo_01a.ctm"))?;
     let map = read_package(&data)?;
+    let station = &map.exports[735];
+    let station_class = map.object_path(station.class)?;
+    let station_props = properties::read(&map, &data, station)?;
+    let station_value = |field| {
+        cat.instance(&station_class, &station_props, field, 0, "geo_01a")
+            .map(|v| v.value)
+    };
+    let Value::Vector(center) = station_value("Location")? else {
+        return Err("Station center".into());
+    };
+    let Value::Float(radius) = station_value("CollisionRadius")? else {
+        return Err("Station radius".into());
+    };
+    let Value::Float(height) = station_value("CollisionHeight")? else {
+        return Err("Station height".into());
+    };
+    for field in ["bCollideActors", "bBlockActors", "bBlockPlayers"] {
+        if !matches!(station_value(field)?, Value::Bool(true)) {
+            return Err(format!("Station {field} differs").into());
+        }
+    }
+    let collision = rc_package::cylinder::Cylinder {
+        center: center.map(f64::from),
+        radius: f64::from(radius),
+        height: f64::from(height),
+    };
+    collision.validate()?;
+    opening.bacta.as_mut().ok_or("Missing station")?.collision = Some(collision);
+    opening.provenance["bacta"]["collision"] = serde_json::to_value(collision)?;
+    opening.provenance["bacta"]["transform"] = "Legacy bottom-aligned visual; original actor Location/CollisionRadius/CollisionHeight cylinder".into();
+    opening.provenance["bacta"]["limits"] = "Selected SpriteEmitter host, local RNG and idle body pose policy; not full native particle/animation parity. Station recharge/reuse after objective remains outside this tutorial host".into();
+    let mesh_bytes = fs::read(root.join("StaticMeshes/Arena_HR.usx"))?;
+    let mesh_pkg = read_package(&mesh_bytes)?;
+    let mass_export = mesh_pkg
+        .exports
+        .iter()
+        .enumerate()
+        .find(|(i, _)| {
+            mesh_pkg
+                .object_path(*i as i32 + 1)
+                .is_ok_and(|p| p == "ArenaWalls.Blockade03.KMeshProps1280")
+        })
+        .ok_or("Missing original barrier mass properties")?
+        .1;
+    let mass = rc_package::karma_mesh::read_box(&mesh_pkg, &mesh_bytes, mass_export)?;
+    let mut rigid_receipts = vec![];
+    for id in [909_u32, 910, 912, 913] {
+        let e = &map.exports[id as usize - 1];
+        let class = map.object_path(e.class)?;
+        let props = properties::read(&map, &data, e)?;
+        let value = |field| {
+            cat.instance(&class, &props, field, 0, "geo_01a")
+                .map(|p| p.value)
+        };
+        let Value::Object { index, .. } = value("KParams")? else {
+            return Err("Original KParams reference".into());
+        };
+        if index <= 0 {
+            return Err("Missing original KParams".into());
+        }
+        let ke = &map.exports[index as usize - 1];
+        let kc = map.object_path(ke.class)?;
+        let kp = properties::read(&map, &data, ke)?;
+        let param = |field| cat.instance(&kc, &kp, field, 0, "geo_01a").map(|p| p.value);
+        let number = |field| -> Result<f64, String> {
+            match param(field)? {
+                Value::Float(v) => Ok(f64::from(v)),
+                _ => Err(format!("KParams {field}")),
+            }
+        };
+        let Value::Vector(location) = value("Location")? else {
+            return Err("Barrier location".into());
+        };
+        let Value::Rotator(rot) = value("Rotation")? else {
+            return Err("Barrier rotation".into());
+        };
+        let Value::Float(scale) = value("DrawScale")? else {
+            return Err("Barrier scale".into());
+        };
+        let Value::Vector(scale3) = value("DrawScale3D")? else {
+            return Err("Barrier scale3".into());
+        };
+        let Value::Vector(pivot) = value("PrePivot")? else {
+            return Err("Barrier pivot".into());
+        };
+        let scale3 = scale3.map(|v| v * scale);
+        if scale3[0] != scale3[1]
+            || scale3[0] != scale3[2]
+            || scale3[0] <= 0.
+            || !matches!(param("bKStayUpright")?, Value::Bool(false))
+        {
+            return Err("Unsupported selected Karma scale/constraint".into());
+        }
+        let transform = |p: [f64; 3]| {
+            rc_package::mesh::transform_point(
+                p.map(|v| (v * 100.) as f32),
+                location,
+                rot,
+                scale3,
+                pivot,
+            )
+            .map(f64::from)
+        };
+        let center = transform(mass.center);
+        // Native convex order: x-max front four, x-min back four.
+        let vertices = [5, 7, 3, 1, 4, 6, 0, 2]
+            .map(|m| transform(std::array::from_fn(|i| mass.bounds[(m >> i) & 1][i])));
+        let columns: [[f64; 3]; 3] = std::array::from_fn(|i| {
+            let mut axis = [0.; 3];
+            axis[i] = 1.;
+            rc_package::mesh::transform_point(axis, [0.; 3], rot, [1.; 3], [0.; 3]).map(f64::from)
+        });
+        let rows: [[f64; 3]; 3] = std::array::from_fn(|i| std::array::from_fn(|j| columns[j][i]));
+        let [xx, xy, xz, yy, yz, zz] = mass.inertia;
+        let tensor = [[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]];
+        let weight = number("KMass")?;
+        let factor = weight * (f64::from(scale3[0]) * 100.).powi(2);
+        let inertia = std::array::from_fn(|i| {
+            std::array::from_fn(|j| {
+                (0..3)
+                    .flat_map(|k| (0..3).map(move |l| rows[i][k] * tensor[k][l] * rows[j][l]))
+                    .sum::<f64>()
+                    * factor
+            })
+        });
+        let Value::Vector(velocity) = param("KStartLinVel")? else {
+            return Err("KStartLinVel".into());
+        };
+        let Value::Vector(angular) = param("KStartAngVel")? else {
+            return Err("KStartAngVel".into());
+        };
+        if velocity != [0.; 3] || angular != [0.; 3] {
+            return Err("Selected barriers have unexpected initial velocities".into());
+        }
+        let volume = game.volumes.select(center.map(|v| v as f32))?;
+        let gravity_scale = number("KActorGravScale")?;
+        let binding = rc_game::rigid::Binding {
+            original: id,
+            center,
+            vertices,
+            inertia,
+            mass: weight,
+            friction: number("KFriction")?,
+            restitution: number("KRestitution")?,
+            linear_damping: number("KLinearDamping")?,
+            angular_damping: number("KAngularDamping")?,
+            gravity: volume
+                .settings
+                .gravity
+                .map(|v| f64::from(v) * gravity_scale),
+            initial_velocity: [0.; 3],
+            initial_angular_velocity: [0.; 3],
+        };
+        binding.validate()?;
+        rigid_receipts.push(serde_json::json!({"original":id,"KParams":index,"binding":binding}));
+        opening.rigid.push(binding);
+    }
+    opening.provenance["rigid"] = serde_json::json!({"mesh":"Arena_HR.ArenaWalls.Blockade03.KMeshProps1280","serializer":"engine.dll 10386d10 / 10386ad0","mass_properties":mass,"actors":rigid_receipts,"solver":"Portable 480 Hz free rigid body integration, original COM/full inertia/convex box/mass/friction/restitution/gravity; triangle terrain and pairwise box contacts; saved pose and velocities","boundary":"Selected four barriers; not native MathEngine contact ordering or general Karma, no Pawn pushing/projectile impulses"});
     let teleport = &map.exports[2395 - 1];
     let teleport_props = properties::read(&map, &data, teleport)?;
     for (field, expected) in [
@@ -295,6 +453,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::write(
         out.join("presentation.json"),
         serde_json::to_vec_pretty(&opening.provenance["world_effects"])?,
+    )?;
+    fs::write(
+        out.join("physics.json"),
+        serde_json::to_vec_pretty(
+            &serde_json::json!({"bacta_collision":opening.provenance["bacta"]["collision"],"rigid":opening.provenance["rigid"]}),
+        )?,
     )?;
     println!(
         "Bound {} original presentation effects, {} bytes; compacted {compact_materials} material arrays losslessly",

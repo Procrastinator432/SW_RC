@@ -153,13 +153,21 @@ impl Game {
             .dynamic
             .as_mut()
             .ok_or("Missing dynamic actor state")?[i] = true;
+        if let Some(bodies) = self.state.opening.as_mut().and_then(|o| o.rigid.as_mut()) {
+            if let Some(body) = bodies.iter_mut().find(|b| b.original == original) {
+                body.active = true;
+            }
+        }
         self.sync_dynamic();
         Ok(())
     }
     pub(crate) fn sync_dynamic(&mut self) {
         if let (Some(p), Some(state)) = (&self.dynamic, &self.state.dynamic) {
             for (p, disabled) in p.objects.iter().zip(state) {
-                self.world.actors[p.actor].shape = if *disabled {
+                self.world.actors[p.actor].shape = if let Some(h) = self.rigid_collider(p.original)
+                {
+                    BodyShape::Hulls(Arc::new(h))
+                } else if *disabled {
                     p.released_hulls
                         .as_ref()
                         .map_or(BodyShape::Clear, |h| BodyShape::Hulls(h.clone()))
@@ -181,13 +189,17 @@ impl Game {
         if let (Some(p), Some(state)) = (&self.dynamic, &self.state.dynamic) {
             for (p, disabled) in p.objects.iter().zip(state) {
                 {
-                    let (geometry, appearance) = if *disabled {
+                    let rigid = self.rigid_pose(p.original);
+                    let (geometry, appearance) = if *disabled && rigid.is_none() {
                         (&p.released_triangles, &p.released_appearance)
                     } else {
                         (&p.triangles, &p.appearance)
                     };
                     triangles.extend(geometry.iter().map(|t| rc_package::geometry::Triangle {
-                        points: if !*disabled {
+                        points: if let Some((b, s)) = rigid {
+                            t.points
+                                .map(|v| s.point(b, v.map(f64::from)).map(|v| v as f32))
+                        } else if !*disabled {
                             self.spire_door_offset(p.original)
                                 .map_or(t.points, |delta| {
                                     t.points.map(|v| std::array::from_fn(|i| v[i] + delta[i]))

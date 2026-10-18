@@ -275,3 +275,33 @@ impl Motion {
         Ok((false, false))
     }
 }
+
+#[cfg(test)]
+mod ground_tests {
+    use super::*;
+    use rc_package::hull::{Hull, HullSet};
+    use std::sync::Arc;
+    #[test]
+    fn placement_search_skips_overlap_but_propagates_incomplete_geometry() {
+        let world = StaticBodyWorld {
+            world: Ok(Arc::new(HullSet {
+                hulls: vec![Hull {
+                    offset: 0,
+                    bounds: [[-10., -10., 0.], [10., 10., 2.]],
+                    planes: vec![],
+                }],
+                missing_solid_leaves: 0,
+                empty_root_solid: false,
+            })),
+            actors: vec![],
+        };
+        assert_eq!(ground(&world, [0., 0., 1.], [1.; 3], 10.).unwrap(), None);
+        let supported = ground(&world, [0., 0., 5.], [1.; 3], 10.).unwrap().unwrap();
+        assert!((supported[2] - 3.02).abs() < 1e-8);
+        let missing = StaticBodyWorld {
+            world: Err("missing".into()),
+            actors: vec![],
+        };
+        assert!(ground(&missing, [0., 0., 5.], [1.; 3], 10.).is_err());
+    }
+}

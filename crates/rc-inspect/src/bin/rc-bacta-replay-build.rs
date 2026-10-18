@@ -42,6 +42,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .as_object_mut()
         .ok_or("Missing station")?
         .remove("controller");
+    // The pinned recording originally approached the legacy station box.
+    // Rejoin that recording's exit, including its pre-use collision behavior.
+    metadata["bacta"]
+        .as_object_mut()
+        .unwrap()
+        .remove("collision");
     let meta = serde_json::to_vec(&metadata)?;
     let mut baseline = b"RCPLAY13".to_vec();
     baseline.extend((meta.len() as u32).to_le_bytes());

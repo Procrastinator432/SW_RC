@@ -15,7 +15,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut rows = vec![];
     for (index, e) in pkg.exports.iter().enumerate() {
         let class = pkg.object_path(e.class)?;
-        if ![617, 964, 497, 2397, 909, 910, 912, 913].contains(&(index + 1))
+        if ![
+            617, 964, 497, 2397, 736, 909, 910, 912, 913, 3289, 3291, 3297, 3299,
+        ]
+        .contains(&(index + 1))
             && !class.ends_with("ProjectileFactory")
             && !class.ends_with("FXFactory")
         {
@@ -47,6 +50,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "SpawnInterval",
             "Damage",
             "DamageRadius",
+            "KParams",
+            "KMass",
+            "KLinearDamping",
+            "KAngularDamping",
+            "KFriction",
+            "KRestitution",
+            "KStartLinVel",
+            "KStartAngVel",
+            "KBuoyancy",
+            "KCOMOffset",
+            "KInertiaTensor",
+            "CollisionRadius",
+            "CollisionHeight",
+            "bKTakeShot",
+            "bKDoubleTickRate",
+            "bHighDetailOnly",
         ] {
             resolved.insert(
                 field.into(),
@@ -62,6 +81,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::write(
         out.join("injury-barriers.json"),
         serde_json::to_vec_pretty(&rows)?,
+    )?;
+    let mesh_data = fs::read(root.join("StaticMeshes/Arena_HR.usx"))?;
+    let mesh_pkg = read_package(&mesh_data)?;
+    let mut mesh_rows = vec![];
+    for (i, e) in mesh_pkg.exports.iter().enumerate() {
+        let path = mesh_pkg.object_path(i as i32 + 1)?;
+        if !path.contains("Blockade03") {
+            continue;
+        }
+        let props = properties::read(&mesh_pkg, &mesh_data, e)?;
+        let payload = mesh_pkg.payload(&mesh_data, e)?;
+        mesh_rows.push(serde_json::json!({"original":i+1,"path":path,"class":mesh_pkg.object_path(e.class)?,"properties":props,"native":payload[props.native_offset..]}));
+    }
+    fs::write(
+        out.join("barrier-mesh.json"),
+        serde_json::to_vec_pretty(&mesh_rows)?,
     )?;
     let mut resolver =
         rc_inspect::assets::Assets::new(&[&root.join("Textures"), &root.join("System")])?;

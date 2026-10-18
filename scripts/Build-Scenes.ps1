@@ -8,6 +8,7 @@ param(
 )
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
+& (Join-Path $PSScriptRoot 'Test-BuildContract.ps1') -ProjectRoot $root
 $manifestPath=(Resolve-Path -LiteralPath $Inputs).Path
 $manifest=Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json -AsHashtable
 $recipes=Get-Content -LiteralPath (Join-Path $root 'config/scene-builds.json') -Raw | ConvertFrom-Json -AsHashtable

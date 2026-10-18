@@ -80,7 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
     let mut game: Option<Game> = None;
     let mut checks = vec![];
-    for (label, path, recording, samples) in stages {
+    for (label, path, recording, mut samples) in stages {
         let bytes = fs::read(path)?;
         let identity = format!("{}:{}", bytes.len(), rc_game::replay::fingerprint(&bytes));
         let mut g = if let Some(previous) = game.take() {
@@ -92,6 +92,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let entry_frame = image(&g)?;
         let rows = fs::read(recording)?;
         let count = (rows.len() - 12) / 20;
+        // Inserted collision-correction inputs change the final tick. Always
+        // retain a genuine completed snapshot for the Android travel checks.
+        *samples.last_mut().ok_or("Missing checkpoint samples")? = count;
         let mut i = 0;
         player_view(&g, &out, label, 0)?;
         let mut previous_marker = g.checkpoint_marker();

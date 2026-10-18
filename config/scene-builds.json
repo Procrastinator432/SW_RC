@@ -6,8 +6,9 @@
     "map-a-feedback",
     "map-a-audio",
     "map-a-bacta",
-    "map-a-bacta-replay",
     "map-a-presentation",
+    "map-a-bacta-replay",
+    "map-a-barrier-replay",
     "map2-route",
     "map-b-material",
     "map-b-feedback",
@@ -25,6 +26,13 @@
     "factory-material"
   ],
   "stages": {
+    "map-a-barrier-replay": {
+      "binary":"rc-barrier-replay-build",
+      "inputs":["map_a_scene","map_a_replay"],
+      "args":["{map_a_scene}","{map_a_replay}","{out}"],
+      "product":"map_a_replay.bin",
+      "output_key":"map_a_replay"
+    },
     "map-a-presentation": {
       "binary":"rc-presentation-build",
       "inputs":["map_a_scene"],

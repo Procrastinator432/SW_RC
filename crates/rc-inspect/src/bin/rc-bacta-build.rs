@@ -217,6 +217,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     opening.sounds.push(sound);
     opening.bacta = Some(rc_game::bacta::Assets {
+        collision: None,
         effects: rc_inspect::particle_assets::bacta(root, &mut resolver)?,
         ambient_loop: Some(role),
         controller: Some(controller),

@@ -100,6 +100,7 @@ fn topology(base: &serde_json::Value, saved: &serde_json::Value) -> Result<(), S
                 "opening",
                 "bacta",
                 "world_effects",
+                "rigid",
                 "map",
                 "planning",
                 "escape",
@@ -118,6 +119,7 @@ fn topology(base: &serde_json::Value, saved: &serde_json::Value) -> Result<(), S
             if [
                 "dynamic",
                 "lanes",
+                "rigid",
                 "animations",
                 "objectives",
                 "scripts",
@@ -200,6 +202,32 @@ impl Game {
         let base = serde_json::to_value(&self.initial).map_err(|e| e.to_string())?;
         for state in [&s.state, &s.initial] {
             if let Some(prepared) = &self.opening {
+                let bodies = state.opening.as_ref().and_then(|o| o.rigid.as_ref());
+                if bodies.is_some() == prepared.assets.rigid.is_empty() {
+                    return Err("Rigid checkpoint module mismatch".into());
+                }
+                if let Some(bodies) = bodies {
+                    if bodies.len() != prepared.assets.rigid.len()
+                        || bodies
+                            .iter()
+                            .zip(&prepared.assets.rigid)
+                            .any(|(s, b)| !s.valid(b))
+                    {
+                        return Err("Invalid rigid checkpoint state".into());
+                    }
+                    for body in bodies {
+                        let i = self
+                            .dynamic
+                            .as_ref()
+                            .and_then(|p| {
+                                p.objects.iter().position(|o| o.original == body.original)
+                            })
+                            .ok_or("Missing rigid checkpoint actor")?;
+                        if body.active != state.dynamic.as_ref().is_some_and(|d| d[i]) {
+                            return Err("Rigid release disagrees with dynamic state".into());
+                        }
+                    }
+                }
                 let fx = state
                     .opening
                     .as_ref()

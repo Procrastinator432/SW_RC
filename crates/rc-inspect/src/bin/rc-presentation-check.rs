@@ -17,6 +17,15 @@ fn input(row: &[u8]) -> Input {
         crouch: b & 64 != 0,
     }
 }
+fn seal(value: &serde_json::Value) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let body = serde_json::to_vec(value)?;
+    let checksum = u64::from_str_radix(&rc_game::replay::fingerprint(&body), 16)?;
+    let mut bytes = b"RCSAVE01".to_vec();
+    bytes.extend((body.len() as u32).to_le_bytes());
+    bytes.extend(checksum.to_le_bytes());
+    bytes.extend(body);
+    Ok(bytes)
+}
 fn capture(
     g: &Game,
     out: &Path,
@@ -67,13 +76,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut door_started = false;
     let mut door_open = false;
     let mut door_sound = false;
+    let mut rigid_started = false;
+    let mut corrupt_rigid_checks = 0;
     capture(&g, out, 0, "entry")?;
     for (i, row) in rows.iter().enumerate() {
-        if g.advance(STEP, input(row))? != 1 {
+        let advanced = g.advance(STEP, input(row)).map_err(|e| {
+            let _ = fs::write(
+                out.join("interrupted.json"),
+                serde_json::to_vec_pretty(&serde_json::json!({"tick":i,"error":e,"state":g.state}))
+                    .unwrap(),
+            );
+            format!("Input {i}: {e}")
+        })?;
+        if advanced != 1 {
+            fs::write(
+                out.join("interrupted.json"),
+                serde_json::to_vec_pretty(&g.state)?,
+            )?;
             return Err(format!("Map A stopped at input {i}: {:?}", g.state.phase).into());
         }
         let tick = i + 1;
         let opening = g.state.opening.as_ref().ok_or("Missing opening")?;
+        if opening
+            .rigid
+            .as_ref()
+            .is_some_and(|b| b.iter().any(|b| b.active))
+            && !rigid_started
+        {
+            rigid_started = true;
+            for (delay, label) in [
+                (1, "barriers-release"),
+                (12, "barriers-falling"),
+                (30, "barriers-contact"),
+                (120, "barriers-settling"),
+                (600, "barriers-rest"),
+            ] {
+                pending.insert(tick + delay, label.into());
+            }
+        }
         if opening.injured && !injured {
             injured = true;
             let fx = opening
@@ -147,6 +187,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         if let Some(label) = pending.remove(&tick) {
+            if label == "bacta-active-mid" {
+                let p = g.opening.as_ref().unwrap().bacta.as_ref().unwrap();
+                if p.assets.collision.is_some() {
+                    let desired = p.assets.controller.as_ref().unwrap().desired_xy;
+                    let position = g.state.pawn.body.position;
+                    if (position[0] - f64::from(desired[0]))
+                        .hypot(position[1] - f64::from(desired[1]))
+                        > 1.
+                    {
+                        return Err("Bacta player did not reach original desired alignment".into());
+                    }
+                }
+            }
             capture(&g, out, tick, &label)?;
             views.push(serde_json::json!({"tick":tick,"label":label}));
             if [
@@ -155,6 +208,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "bacta-body-tail",
                 "door-moving",
                 "door-start",
+                "barriers-falling",
+                "barriers-contact",
+                "barriers-settling",
+                "barriers-rest",
             ]
             .contains(&label.as_str())
             {
@@ -162,6 +219,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let mut restored = rc_game::bundle::decode(&scene)?;
                 restored.restore_checkpoint(&saved, &identity)?;
                 assert_eq!(saved, restored.checkpoint(&identity)?);
+                if label == "barriers-falling" {
+                    let original: serde_json::Value = serde_json::from_slice(&saved[20..])?;
+                    for case in 0..3 {
+                        let mut bad = original.clone();
+                        match case {
+                            0 => {
+                                bad["state"]["opening"]["rigid"][0]["orientation"] =
+                                    serde_json::json!([0., 0., 0., 0.])
+                            }
+                            1 => bad["state"]["opening"]["rigid"] = serde_json::json!([]),
+                            _ => {
+                                let index = g
+                                    .dynamic
+                                    .as_ref()
+                                    .unwrap()
+                                    .objects
+                                    .iter()
+                                    .position(|o| o.original == 909)
+                                    .unwrap();
+                                bad["state"]["dynamic"][index] = false.into();
+                            }
+                        }
+                        assert!(restored
+                            .restore_checkpoint(&seal(&bad)?, &identity)
+                            .is_err());
+                        assert_eq!(saved, restored.checkpoint(&identity)?);
+                        corrupt_rigid_checks += 1;
+                    }
+                }
                 assert_eq!(
                     g.render_frame(160, 100)?.gpu_packet(&g.scene),
                     restored.render_frame(160, 100)?.gpu_packet(&restored.scene)
@@ -198,6 +284,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .into());
     }
     let mut b = g.travel_to(&map_b)?;
+    let rigid = g.state.opening.as_ref().and_then(|s| s.rigid.as_ref());
+    if rigid.is_some_and(|b| b.iter().any(|b| !b.active || !b.sleeping)) {
+        return Err("A selected barrier failed to reach stable sleep".into());
+    }
     capture(&b, out, 0, "map-b-entry")?;
     for _ in 0..60 {
         b.advance(STEP, Input::default())?;
@@ -206,7 +296,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::write(
         out.join("validation.json"),
         serde_json::to_vec_pretty(
-            &serde_json::json!({"passed":true,"scene_identity":identity,"replay_fingerprint":rc_game::replay::fingerprint(&replay),"map_a_ticks":rows.len(),"effects":seen,"views":views,"checkpoint_continuations":checks,"door_started":door_started,"door_open":door_open,"door_sound_after_original_delay":door_sound,"map_b_phase":b.state.phase,"boundary":"Native CPU/player-camera acceptance; Android/GLES/device hearing and global original-engine parity remain separate"}),
+            &serde_json::json!({"passed":true,"scene_identity":identity,"replay_fingerprint":rc_game::replay::fingerprint(&replay),"map_a_ticks":rows.len(),"effects":seen,"views":views,"checkpoint_continuations":checks,"rigid_bodies":rigid,"corrupt_rigid_restore_atomic":corrupt_rigid_checks,"door_started":door_started,"door_open":door_open,"door_sound_after_original_delay":door_sound,"map_b_phase":b.state.phase,"boundary":"Native CPU/player-camera acceptance; Android/GLES/device hearing and global original-engine parity remain separate"}),
         )?,
     )?;
     println!(

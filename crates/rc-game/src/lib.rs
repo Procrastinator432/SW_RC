@@ -48,6 +48,7 @@ pub mod rendezvous;
 pub mod rendezvous_runtime;
 pub mod replay;
 pub mod revival;
+pub mod rigid;
 pub mod spire;
 pub mod spire_runtime;
 pub mod squad;
@@ -770,6 +771,7 @@ impl Game {
             self.bacta_tick()?;
             self.crash_tick()?;
             self.grenade_tick()?;
+            self.rigid_tick();
             self.throw_tick()?;
             self.gunner_tick()?;
             self.rendezvous_tick()?;

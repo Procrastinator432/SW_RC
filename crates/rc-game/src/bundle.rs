@@ -195,6 +195,10 @@ impl Manifest {
         for actor in &game.world.actors {
             match &actor.shape {
                 BodyShape::Hulls(h) => colliders.push(Collider::capture(actor.name.clone(), h)?),
+                // The optional opening binding reinstalls the exact cylinder on load.
+                BodyShape::Cylinder { legacy, .. } => {
+                    colliders.push(Collider::capture(actor.name.clone(), legacy)?)
+                }
                 BodyShape::Clear => {}
                 BodyShape::Unsupported(e) => return Err(format!("{}: {e}", actor.name)),
             }

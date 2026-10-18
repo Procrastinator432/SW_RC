@@ -1,5 +1,7 @@
 # Bacta- und Missionsinszenierung: aktueller Arbeitsstand
 
+Fortsetzung dieses Standes: [Stationskollision, freie Barrierenphysik und Android-Abnahme 0.51.0](MISSION_PHYSICS_ANDROID.md). Die nachfolgenden Abschlussbelege beschreiben den vorherigen Zwischenstand.
+
 Stand: 18.10.2026. Die sichtbaren Bacta-Emitter und ausgewählte originale Explosionen/Raucheffekte sind an die laufende Mission angeschlossen. Die bisher ausgelassene Verwundungs-Teleportaktion und die Bewegung der Ausgangstür sind ergänzt. Dies ist eine technische Fortsetzung der vier beauftragten Punkte; die genaue Stationskollision und die vollständige native Karma-Physik bleiben ausdrücklich offen. Eine neue Geräte-/Hörfreigabe wird daraus nicht abgeleitet.
 
 ## Die vier Punkte

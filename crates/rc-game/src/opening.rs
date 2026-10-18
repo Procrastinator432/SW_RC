@@ -46,6 +46,8 @@ pub struct Program {
 #[serde(deny_unknown_fields)]
 pub struct Assets {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rigid: Vec<crate::rigid::Binding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub world_effects: Vec<crate::world_effects::Binding>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bacta: Option<crate::bacta::Assets>,
@@ -123,6 +125,8 @@ pub struct Lane {
 #[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct State {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rigid: Option<Vec<crate::rigid::Body>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub world_effects: Option<crate::world_effects::State>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bacta: Option<crate::bacta::State>,
@@ -148,6 +152,7 @@ pub struct State {
     pub ready_tick: Option<u64>,
 }
 pub struct Prepared {
+    pub rigid: crate::rigid::Prepared,
     pub world_effect_bases: Vec<usize>,
     pub bacta: Option<crate::bacta::Prepared>,
     pub intro: Option<crate::intro::Prepared>,
@@ -349,6 +354,7 @@ impl Assets {
 impl State {
     fn new(a: &Assets) -> Self {
         Self {
+            rigid: (!a.rigid.is_empty()).then(|| a.rigid.iter().map(|b| b.initial()).collect()),
             bacta: None,
             world_effects: (!a.world_effects.is_empty()).then(crate::world_effects::State::default),
             owned_voices: vec![],
@@ -386,6 +392,43 @@ impl Game {
         let base = self.mission.as_ref().unwrap().sounds.len();
         a.bind_sounds(&self.mission.as_ref().unwrap().sounds)?;
         a.validate(base)?;
+        let mut rigid_ids = std::collections::BTreeSet::new();
+        if a.rigid.len() > 4 {
+            return Err("Too many selected rigid bodies".into());
+        }
+        for b in &a.rigid {
+            b.validate()?;
+            if !rigid_ids.insert(b.original)
+                || !self
+                    .dynamic
+                    .as_ref()
+                    .is_some_and(|p| p.objects.iter().any(|o| o.original == b.original))
+            {
+                return Err("Missing or duplicate rigid actor".into());
+            }
+        }
+        let terrain = self
+            .scene
+            .triangles
+            .iter()
+            .filter(|t| {
+                a.rigid.iter().any(|b| {
+                    (0..3).all(|i| {
+                        t.points
+                            .iter()
+                            .map(|p| f64::from(p[i]))
+                            .fold(f64::INFINITY, f64::min)
+                            < b.center[i] + 1600.
+                            && t.points
+                                .iter()
+                                .map(|p| f64::from(p[i]))
+                                .fold(f64::NEG_INFINITY, f64::max)
+                                > b.center[i] - 1600.
+                    })
+                })
+            })
+            .filter_map(|t| crate::rigid::Terrain::new(t.points.map(|v| v.map(f64::from))))
+            .collect();
         let enemy_fire = a
             .enemy_fire_source
             .as_ref()
@@ -441,6 +484,22 @@ impl Game {
         self.state.mission.as_mut().unwrap().objective_mode = 0;
         let mut s = State::new(&a);
         let bacta = if let Some(b) = a.bacta.take() {
+            if let Some(cylinder) = b.collision {
+                use rc_package::world_collision::BodyShape;
+                let actor = self
+                    .world
+                    .actors
+                    .iter_mut()
+                    .find(|a| a.name == "BactaDispenserLZ.box-adapter")
+                    .ok_or("Missing original station collider")?;
+                let BodyShape::Hulls(legacy) = &actor.shape else {
+                    return Err("Unexpected station collider".into());
+                };
+                actor.shape = BodyShape::Cylinder {
+                    cylinder,
+                    legacy: legacy.clone(),
+                };
+            }
             s.bacta = Some(crate::bacta::State::default());
             if !b.effects.is_empty() {
                 s.bacta.as_mut().unwrap().particles = Some(crate::particles::State::default());
@@ -477,6 +536,7 @@ impl Game {
         s.signal(&a, "levelstart");
         self.state.opening = Some(s);
         self.opening = Some(Prepared {
+            rigid: crate::rigid::Prepared::new(terrain),
             world_effect_bases,
             bacta,
             intro,
@@ -827,6 +887,7 @@ mod tests {
     }
     fn assets() -> Assets {
         Assets {
+            rigid: vec![],
             bacta: None,
             world_effects: vec![],
             sound_policies: vec![],

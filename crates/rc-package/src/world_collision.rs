@@ -42,6 +42,10 @@ pub struct WorldLine {
 pub enum BodyShape {
     Clear,
     Hulls(Arc<crate::hull::HullSet>),
+    Cylinder {
+        cylinder: crate::cylinder::Cylinder,
+        legacy: Arc<crate::hull::HullSet>,
+    },
     Unsupported(String),
 }
 pub struct BodyActor {
@@ -132,6 +136,9 @@ impl StaticBodyWorld {
                 &actor.name,
                 match &actor.shape {
                     BodyShape::Clear => Ok(None),
+                    BodyShape::Cylinder { cylinder, .. } => {
+                        cylinder.sweep(start, end, extent, motion)
+                    }
                     BodyShape::Hulls(h) => {
                         if motion {
                             h.sweep_motion(start, end, extent)

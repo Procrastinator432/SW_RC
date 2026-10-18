@@ -25,6 +25,8 @@ pub struct Notify {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assets {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collision: Option<rc_package::cylinder::Cylinder>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub effects: Vec<crate::particles::Template>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -82,6 +84,9 @@ impl Assets {
         scene: &mut rc_render::Scene,
         sounds: usize,
     ) -> Result<Prepared, String> {
+        if let Some(c) = self.collision {
+            c.validate()?;
+        }
         if self
             .location
             .iter()

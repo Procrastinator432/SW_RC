@@ -33,6 +33,10 @@ fn clone_world(g: &Game, all: bool) -> StaticBodyWorld {
                 } else {
                     match &a.shape {
                         BodyShape::Clear => BodyShape::Clear,
+                        BodyShape::Cylinder { cylinder, legacy } => BodyShape::Cylinder {
+                            cylinder: *cylinder,
+                            legacy: legacy.clone(),
+                        },
                         BodyShape::Hulls(h) => BodyShape::Hulls(h.clone()),
                         BodyShape::Unsupported(s) => BodyShape::Unsupported(s.clone()),
                     }

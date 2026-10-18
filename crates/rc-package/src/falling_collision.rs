@@ -95,13 +95,15 @@ impl StaticBodyWorld {
         ) {
             return Err("falling diagnostic movement could not finish safely".into());
         }
+        // Preserve the established trajectories when the original port policy
+        // converges. Acute moving-body corners need a bounded exact fallback.
         let mut velocity = plan.substeps[0].velocity_before_terminal;
         for _ in 0..8 {
             for contact in &movement.contacts {
                 let inward = (0..3)
                     .map(|i| velocity[i] * contact.hit.normal[i])
                     .sum::<f64>()
-                    .min(0.0);
+                    .min(0.);
                 for (v, n) in velocity.iter_mut().zip(contact.hit.normal) {
                     *v -= n * inward;
                 }
@@ -112,7 +114,14 @@ impl StaticBodyWorld {
             .iter()
             .any(|c| (0..3).map(|i| velocity[i] * c.hit.normal[i]).sum::<f64>() < -1e-8)
         {
-            return Err("falling diagnostic velocity projection did not converge".into());
+            velocity = crate::contact_velocity::project(
+                plan.substeps[0].velocity_before_terminal,
+                &movement
+                    .contacts
+                    .iter()
+                    .map(|c| c.hit.normal)
+                    .collect::<Vec<_>>(),
+            )?;
         }
         let mut position = movement.position;
         let descending_floor_hit = plan.substeps[0].velocity_before_terminal[2] <= 0.0
