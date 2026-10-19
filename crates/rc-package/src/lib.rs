@@ -44,6 +44,7 @@ pub mod hardware_stages;
 pub mod hardware_state_snapshot;
 pub mod hit_wall;
 pub mod hull;
+pub mod karma_impulse;
 pub mod karma_mesh;
 pub mod level;
 pub mod material_constants;

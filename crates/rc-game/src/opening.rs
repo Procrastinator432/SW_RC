@@ -45,6 +45,8 @@ pub struct Program {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assets {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rigid_interactions: Option<crate::rigid_interaction::Assets>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rigid: Vec<crate::rigid::Binding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -124,6 +126,8 @@ pub struct Lane {
 }
 #[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct State {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rigid_interactions: Option<Vec<i32>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rigid: Option<Vec<crate::rigid::Body>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -355,6 +359,7 @@ impl State {
     fn new(a: &Assets) -> Self {
         Self {
             rigid: (!a.rigid.is_empty()).then(|| a.rigid.iter().map(|b| b.initial()).collect()),
+            rigid_interactions: a.rigid_interactions.as_ref().map(|a| a.initial()),
             bacta: None,
             world_effects: (!a.world_effects.is_empty()).then(crate::world_effects::State::default),
             owned_voices: vec![],
@@ -407,25 +412,29 @@ impl Game {
                 return Err("Missing or duplicate rigid actor".into());
             }
         }
+        if let Some(interactions) = &a.rigid_interactions {
+            interactions.validate(&a.rigid)?;
+        }
         let terrain = self
             .scene
             .triangles
             .iter()
             .filter(|t| {
-                a.rigid.iter().any(|b| {
-                    (0..3).all(|i| {
-                        t.points
-                            .iter()
-                            .map(|p| f64::from(p[i]))
-                            .fold(f64::INFINITY, f64::min)
-                            < b.center[i] + 1600.
-                            && t.points
+                a.rigid_interactions.is_some()
+                    || a.rigid.iter().any(|b| {
+                        (0..3).all(|i| {
+                            t.points
                                 .iter()
                                 .map(|p| f64::from(p[i]))
-                                .fold(f64::NEG_INFINITY, f64::max)
-                                > b.center[i] - 1600.
+                                .fold(f64::INFINITY, f64::min)
+                                < b.center[i] + 1600.
+                                && t.points
+                                    .iter()
+                                    .map(|p| f64::from(p[i]))
+                                    .fold(f64::NEG_INFINITY, f64::max)
+                                    > b.center[i] - 1600.
+                        })
                     })
-                })
             })
             .filter_map(|t| crate::rigid::Terrain::new(t.points.map(|v| v.map(f64::from))))
             .collect();
@@ -887,6 +896,7 @@ mod tests {
     }
     fn assets() -> Assets {
         Assets {
+            rigid_interactions: None,
             rigid: vec![],
             bacta: None,
             world_effects: vec![],

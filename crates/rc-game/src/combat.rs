@@ -377,6 +377,17 @@ impl Game {
             if let Some(i) = proximity_target {
                 let damage = assets.ballistics.as_ref().unwrap().proximity_damage;
                 self.projectile_hit(i, damage)?;
+            } else {
+                let fraction = self.wall_fraction(eye, origin)?;
+                let damage = self
+                    .combat
+                    .as_ref()
+                    .unwrap()
+                    .ballistics
+                    .as_ref()
+                    .unwrap()
+                    .proximity_damage;
+                self.rigid_projectile_hit(eye, origin, fraction, damage, aim)?;
             }
         }
         Ok(())
@@ -485,6 +496,8 @@ impl Game {
                 }));
                 if let Some(i) = target {
                     self.projectile_hit(i, damage)?;
+                } else {
+                    self.rigid_projectile_hit(p.position, end, fraction, damage, p.direction)?;
                 }
             } else {
                 p.position = end;

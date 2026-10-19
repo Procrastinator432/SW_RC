@@ -109,6 +109,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .1;
     let mass = rc_package::karma_mesh::read_box(&mesh_pkg, &mesh_bytes, mass_export)?;
     let mut rigid_receipts = vec![];
+    let momentum = |class: &str| -> Result<(f32, f32), String> {
+        let Value::Object { path, .. } = cat.resolve(class, "MyDamageType", 0)?.value else {
+            return Err("Missing projectile damage type".into());
+        };
+        let Value::Float(impulse) = cat.resolve(&path, "KDamageImpulse", 0)?.value else {
+            return Err("Missing KDamageImpulse".into());
+        };
+        let Value::Float(up) = cat.resolve(&path, "KDeathUpKick", 0)?.value else {
+            return Err("Missing KDeathUpKick".into());
+        };
+        Ok((impulse, up))
+    };
+    let Value::Float(pawn_mass) = cat.resolve("CTGame.CTPawn", "Mass", 0)?.value else {
+        return Err("Missing original pawn mass".into());
+    };
+    let (shot_momentum, _) = momentum("CTInventory.DC15Proj")?;
+    let (blast_momentum, blast_up_kick) = momentum("CTInventory.ThermalDetonatorProj")?;
+    let mut interactions = rc_game::rigid_interaction::Assets {
+        props: vec![],
+        shot_momentum,
+        blast_momentum,
+        blast_up_kick,
+        pawn_mass: f64::from(pawn_mass),
+    };
     for id in [909_u32, 910, 912, 913] {
         let e = &map.exports[id as usize - 1];
         let class = map.object_path(e.class)?;
@@ -156,30 +180,101 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         {
             return Err("Unsupported selected Karma scale/constraint".into());
         }
-        let transform = |p: [f64; 3]| {
-            rc_package::mesh::transform_point(
-                p.map(|v| (v * 100.) as f32),
-                location,
-                rot,
-                scale3,
-                pivot,
-            )
-            .map(f64::from)
-        };
-        let center = transform(mass.center);
-        // Native convex order: x-max front four, x-min back four.
-        let vertices = [5, 7, 3, 1, 4, 6, 0, 2]
-            .map(|m| transform(std::array::from_fn(|i| mass.bounds[(m >> i) & 1][i])));
         let columns: [[f64; 3]; 3] = std::array::from_fn(|i| {
             let mut axis = [0.; 3];
             axis[i] = 1.;
             rc_package::mesh::transform_point(axis, [0.; 3], rot, [1.; 3], [0.; 3]).map(f64::from)
         });
+        // Preserve the local box axes before adding the large world origin.
+        // Rounding each world corner to f32 made narrow boxes non-orthogonal.
+        let transform = |p: [f64; 3]| {
+            std::array::from_fn(|i| {
+                f64::from(location[i])
+                    + (0..3)
+                        .map(|j| {
+                            (p[j] * rc_package::karma_impulse::WORLD_UNITS - f64::from(pivot[j]))
+                                * f64::from(scale3[j])
+                                * columns[j][i]
+                        })
+                        .sum::<f64>()
+            })
+        };
+        let center = transform(mass.center);
+        let Value::Bool(initial_take_shot) = value("bKTakeShot")? else {
+            return Err("Missing bKTakeShot".into());
+        };
+        let Value::Int(damage_threshold) = value("DamageThreshold")? else {
+            return Err("Missing DamageThreshold".into());
+        };
+        let Value::Float(collision_radius) = value("CollisionRadius")? else {
+            return Err("Missing CollisionRadius".into());
+        };
+        if !matches!(value("Physics")?, Value::Byte(0))
+            || !matches!(value("LifeTime")?,Value::Float(v) if v==0.)
+            || !matches!(value("Event")?,Value::Name(ref n) if n=="None")
+        {
+            return Err("Unsupported selected Karma initial physics/lifetime/event".into());
+        }
+        interactions.props.push(rc_game::rigid_interaction::Prop {
+            original: id,
+            location: location.map(f64::from),
+            collision_radius,
+            initial_take_shot,
+            damage_threshold,
+        });
+        // Native convex order: x-max front four, x-min back four.
+        let vertices = [5, 7, 3, 1, 4, 6, 0, 2]
+            .map(|m| transform(std::array::from_fn(|i| mass.bounds[(m >> i) & 1][i])));
+        let visual = game
+            .dynamic
+            .as_ref()
+            .and_then(|p| p.objects.iter().find(|o| o.original == id))
+            .ok_or("Missing original barrier mesh")?;
+        let visual_bounds: [[f64; 3]; 2] = std::array::from_fn(|side| {
+            std::array::from_fn(|axis| {
+                visual
+                    .triangles
+                    .iter()
+                    .flat_map(|t| t.points)
+                    .map(|v| f64::from(v[axis]))
+                    .fold(
+                        if side == 0 {
+                            f64::INFINITY
+                        } else {
+                            f64::NEG_INFINITY
+                        },
+                        if side == 0 { f64::min } else { f64::max },
+                    )
+            })
+        });
+        let physical_bounds: [[f64; 3]; 2] = std::array::from_fn(|side| {
+            std::array::from_fn(|axis| {
+                vertices.iter().map(|v| v[axis]).fold(
+                    if side == 0 {
+                        f64::INFINITY
+                    } else {
+                        f64::NEG_INFINITY
+                    },
+                    if side == 0 { f64::min } else { f64::max },
+                )
+            })
+        });
+        let ratios: [f64; 3] = std::array::from_fn(|i| {
+            (physical_bounds[1][i] - physical_bounds[0][i])
+                / (visual_bounds[1][i] - visual_bounds[0][i])
+        });
+        if ratios
+            .iter()
+            .any(|r| !r.is_finite() || !(0.9..=1.25).contains(r))
+        {
+            return Err(format!("Selected Karma/visual scale mismatch: {id} {ratios:?}").into());
+        }
         let rows: [[f64; 3]; 3] = std::array::from_fn(|i| std::array::from_fn(|j| columns[j][i]));
         let [xx, xy, xz, yy, yz, zz] = mass.inertia;
         let tensor = [[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]];
         let weight = number("KMass")?;
-        let factor = weight * (f64::from(scale3[0]) * 100.).powi(2);
+        let factor =
+            weight * (f64::from(scale3[0]) * rc_package::karma_impulse::WORLD_UNITS).powi(2);
         let inertia = std::array::from_fn(|i| {
             std::array::from_fn(|j| {
                 (0..3)
@@ -217,10 +312,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             initial_angular_velocity: [0.; 3],
         };
         binding.validate()?;
-        rigid_receipts.push(serde_json::json!({"original":id,"KParams":index,"binding":binding}));
+        rigid_receipts.push(serde_json::json!({"original":id,"KParams":index,"binding":binding,"visual_bounds":visual_bounds,"physical_bounds":physical_bounds,"bounds_ratio":ratios,"world_units_per_karma_unit":rc_package::karma_impulse::WORLD_UNITS}));
         opening.rigid.push(binding);
     }
-    opening.provenance["rigid"] = serde_json::json!({"mesh":"Arena_HR.ArenaWalls.Blockade03.KMeshProps1280","serializer":"engine.dll 10386d10 / 10386ad0","mass_properties":mass,"actors":rigid_receipts,"solver":"Portable 480 Hz free rigid body integration, original COM/full inertia/convex box/mass/friction/restitution/gravity; triangle terrain and pairwise box contacts; saved pose and velocities","boundary":"Selected four barriers; not native MathEngine contact ordering or general Karma, no Pawn pushing/projectile impulses"});
+    interactions.validate(&opening.rigid)?;
+    opening.rigid_interactions = Some(interactions);
+    opening.provenance["rigid"] = serde_json::json!({"mesh":"Arena_HR.ArenaWalls.Blockade03.KMeshProps1280","serializer":"engine.dll 10386d10 / 10386ad0","mass_properties":mass,"actors":rigid_receipts,"solver":"Portable 480 Hz free rigid body integration, original COM/full inertia/convex box/mass/friction/restitution/gravity; triangle terrain and pairwise box contacts; saved pose and velocities","boundary":"Selected four barriers; not native MathEngine contact ordering or general Karma, projectile and blast impulses; finite-mass Pawn contact adapter, not native Pawn/Karma contact parity"});
     let teleport = &map.exports[2395 - 1];
     let teleport_props = properties::read(&map, &data, teleport)?;
     for (field, expected) in [

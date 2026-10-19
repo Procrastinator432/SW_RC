@@ -117,6 +117,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("Missing four free barriers".into());
     }
     meta.as_object_mut().unwrap().remove("rigid");
+    meta.as_object_mut().unwrap().remove("rigid_interactions");
     let meta = serde_json::to_vec(&meta)?;
     let mut legacy = b"RCPLAY13".to_vec();
     legacy.extend((meta.len() as u32).to_le_bytes());

@@ -49,6 +49,7 @@ pub mod rendezvous_runtime;
 pub mod replay;
 pub mod revival;
 pub mod rigid;
+pub mod rigid_interaction;
 pub mod spire;
 pub mod spire_runtime;
 pub mod squad;
@@ -664,6 +665,7 @@ impl Game {
                 runtime,
             )?
         };
+        self.rigid_pawn_contacts(&moved.motion);
         self.state.pawn = moved.state;
         self.state.statistics.ticks += 1;
         self.state
@@ -861,6 +863,9 @@ impl Game {
         self.state.impact = Some(std::array::from_fn(|i| {
             eye[i] + (end[i] - eye[i]) * fraction
         }));
+        if !glass_hit && warrior_target.is_none() && target.is_none() {
+            self.rigid_projectile_hit(eye, end, fraction, 30, d)?;
+        }
         if glass_hit {
             self.map3_damage_glass(30);
         }

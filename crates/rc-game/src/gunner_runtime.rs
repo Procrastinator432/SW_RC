@@ -187,6 +187,7 @@ impl Game {
         let rules = &self.thermal.as_ref().unwrap().assets.projectile;
         let damages = self.blast_damage(position, rules.damage, rules.damage_radius)?;
         let (damage, radius) = (rules.damage, rules.damage_radius);
+        self.rigid_blast(position, damage, radius)?;
         self.warrior_blast(position, damage, radius)?;
         self.squad_blast(position, damage, radius)?;
         for d in &damages {

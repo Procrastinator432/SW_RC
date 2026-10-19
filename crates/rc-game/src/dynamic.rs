@@ -143,6 +143,10 @@ impl Game {
         Ok(())
     }
     pub fn disable_dynamic(&mut self, original: u32) -> Result<(), String> {
+        let wake = self
+            .opening
+            .as_ref()
+            .is_some_and(|p| p.assets.rigid_interactions.is_some());
         let p = self.dynamic.as_ref().ok_or("No dynamic actors")?;
         let i = p
             .objects
@@ -156,6 +160,9 @@ impl Game {
         if let Some(bodies) = self.state.opening.as_mut().and_then(|o| o.rigid.as_mut()) {
             if let Some(body) = bodies.iter_mut().find(|b| b.original == original) {
                 body.active = true;
+                if wake {
+                    body.wake();
+                }
             }
         }
         self.sync_dynamic();

@@ -244,6 +244,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("Missing explosion factory location".into());
     };
     let assets = Assets {
+        rigid_interactions: None,
         rigid: vec![],
         world_effects: vec![],
         bacta: None,

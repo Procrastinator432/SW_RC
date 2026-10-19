@@ -1,5 +1,7 @@
 # Stationskollision und bewegliche Barrieren – 0.51.0
 
+**Korrektur vom 20.10.2026:** Der hier beschriebene historische Import verwendete 100 statt der ursprünglichen 50 Welteinheiten je Karma-Einheit. 0.52.0 korrigiert Hüllen, Schwerpunkt und Trägheit und ergänzt Geschoss-/Explosionsimpulse sowie Spielerberührung. Alte archivierte Szenen behalten ihre bisherige Rechnung. [Aktuelle Umsetzung und Nachweise](KARMA_INTERACTIONS.md). Die untenstehenden Prüfergebnisse beziehen sich weiterhin auf die eingefrorene Lieferung 0.51.0.
+
 Stand vom 18.10.2026, versionCode 55. Gesamtbau und Android-Abnahme sind unter `build/mission-collision` protokolliert. Die eingefrorene Lieferung 0.50.0 wird nicht überschrieben.
 
 ## Umsetzung

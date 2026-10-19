@@ -80,6 +80,10 @@ try {
         if($LASTEXITCODE -ne 0){throw 'Player presentation validator compilation failed'}
         & (Join-Path $targetRoot 'release/rc-presentation-check.exe') $resolved.map_a_scene.path $resolved.map_a_replay.path $resolved.map_b_scene.path (Join-Path $out 'player-presentation')
         if($LASTEXITCODE -ne 0){throw 'Player presentation validation failed'}
+        & cargo build -p rc-inspect --bin rc-karma-check @options
+        if($LASTEXITCODE -ne 0){throw 'Karma interaction validator compilation failed'}
+        & (Join-Path $targetRoot 'release/rc-karma-check.exe') $resolved.map_a_scene.path $resolved.map_a_replay.path (Join-Path $out 'karma-interactions')
+        if($LASTEXITCODE -ne 0){throw 'Karma interaction validation failed'}
     }
     @{schema=1;passed=$true;source_manifest=$manifestPath;mission_runtime_checked=($Stage -eq 'mission');inputs=$resolved;results=$results} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $out 'validation.json') -Encoding utf8
 } finally {

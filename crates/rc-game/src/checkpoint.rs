@@ -101,6 +101,7 @@ fn topology(base: &serde_json::Value, saved: &serde_json::Value) -> Result<(), S
                 "bacta",
                 "world_effects",
                 "rigid",
+                "rigid_interactions",
                 "map",
                 "planning",
                 "escape",
@@ -202,6 +203,15 @@ impl Game {
         let base = serde_json::to_value(&self.initial).map_err(|e| e.to_string())?;
         for state in [&s.state, &s.initial] {
             if let Some(prepared) = &self.opening {
+                let interactions = state
+                    .opening
+                    .as_ref()
+                    .and_then(|o| o.rigid_interactions.as_ref());
+                if interactions.is_some() != prepared.assets.rigid_interactions.is_some()
+                    || interactions.is_some_and(|s| s.len() != prepared.assets.rigid.len())
+                {
+                    return Err("Karma interaction checkpoint module mismatch".into());
+                }
                 let bodies = state.opening.as_ref().and_then(|o| o.rigid.as_ref());
                 if bodies.is_some() == prepared.assets.rigid.is_empty() {
                     return Err("Rigid checkpoint module mismatch".into());

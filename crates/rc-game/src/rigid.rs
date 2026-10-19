@@ -151,6 +151,45 @@ pub struct Body {
     pub sleeping: bool,
 }
 impl Body {
+    pub(crate) fn wake(&mut self) {
+        self.sleeping = false;
+        self.quiet_steps = 0;
+    }
+    pub fn add_world_impulse(
+        &mut self,
+        b: &Binding,
+        position: V,
+        impulse: V,
+    ) -> Result<bool, String> {
+        let a = rc_package::karma_impulse::world_impulse(
+            impulse.map(|v| v as f32),
+            position.map(|v| v as f32),
+            self.center.map(|v| v as f32),
+        )?;
+        if !self.active {
+            return Ok(false);
+        }
+        let mut next = self.clone();
+        next.velocity = add(
+            next.velocity,
+            a.linear
+                .map(|v| f64::from(v) * rc_package::karma_impulse::WORLD_UNITS / b.mass),
+        );
+        next.angular_velocity = add(
+            next.angular_velocity,
+            mv(
+                next.inverse_inertia(b),
+                a.angular
+                    .map(|v| f64::from(v) * rc_package::karma_impulse::WORLD_UNITS.powi(2)),
+            ),
+        );
+        next.wake();
+        if !next.valid(b) {
+            return Err("Karma impulse exceeds body limits".into());
+        }
+        *self = next;
+        Ok(true)
+    }
     pub fn valid(&self, b: &Binding) -> bool {
         self.original == b.original
             && self
@@ -185,20 +224,20 @@ impl Body {
             transpose(r),
         )
     }
-    fn velocity_at(&self, p: V) -> V {
+    pub(crate) fn velocity_at(&self, p: V) -> V {
         add(
             self.velocity,
             cross(self.angular_velocity, sub(p, self.center)),
         )
     }
-    fn impulse(&mut self, b: &Binding, p: V, j: V) {
+    pub(crate) fn impulse(&mut self, b: &Binding, p: V, j: V) {
         self.velocity = add(self.velocity, mul(j, 1. / b.mass));
         self.angular_velocity = add(
             self.angular_velocity,
             mv(self.inverse_inertia(b), cross(sub(p, self.center), j)),
         );
     }
-    fn denominator(&self, b: &Binding, p: V, n: V) -> f64 {
+    pub(crate) fn denominator(&self, b: &Binding, p: V, n: V) -> f64 {
         1. / b.mass
             + dot(
                 n,
