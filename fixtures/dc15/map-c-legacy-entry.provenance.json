@@ -1,0 +1,8 @@
+{
+  "source_version": "0.52.0-karma-interactions",
+  "source_commit": "a71f894597ab2231832ea1f9b08b64871c412e50",
+  "source_scene_sha256": "b65d89a71d60576a137976785fe2c6a7effd1c2f437b7cecc8d26d11717c0158",
+  "source_checkpoint_sha256": "5d99884c603f55b679194d8abd50571a7da69e19410127f8d6c9af79d471d619",
+  "handoff_sha256": "5819cbbabefacdac9e846401b41a938cff579eb8ec3b557de3e67145ca4d48cd",
+  "scope": "Immutable entry of the verified pre-energy C recording. Counterfactual route reference only; production campaign uses genuine new A/B handoffs."
+}

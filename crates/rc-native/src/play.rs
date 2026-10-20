@@ -557,6 +557,21 @@ pub extern "C" fn rc_game_checkpoint_safe(id: u64) -> i32 {
         .get(&id)
         .map_or(-1, |game| i32::from(game.checkpoint_safe()))
 }
+
+/// Per-mille energy for the passive touch indicator; -1 for legacy weapons.
+#[no_mangle]
+pub extern "C" fn rc_game_energy_status(id: u64) -> i32 {
+    let Ok(registry) = games().lock() else {
+        return -2;
+    };
+    let Some(game) = registry.get(&id) else {
+        return -2;
+    };
+    match (&game.dc15, &game.state.dc15) {
+        (Some(a), Some(s)) => (s.charge / a.maximum as f32 * 1000.).round() as i32,
+        _ => -1,
+    }
+}
 /// Read-only defensive-jump counters and first four owner phases (0 idle,
 /// 1 start, 2 flight, 3 land, 4 sleep). Short buffers remain untouched.
 /// # Safety
@@ -855,6 +870,7 @@ mod tests {
         }
         assert_eq!(rc_game_advance(0, 0., 0., 0., 0., 0., 16), -1);
         assert_eq!(rc_game_command(0, 1), -1);
+        assert_eq!(rc_game_energy_status(u64::MAX), -2);
         rc_game_release(0);
         assert_eq!(words, [0xa5a5a5a5; 10]);
     }

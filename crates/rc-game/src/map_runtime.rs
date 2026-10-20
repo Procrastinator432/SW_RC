@@ -282,9 +282,15 @@ impl Game {
             }
         }
         // Commit only after all data and destination placements validate.
+        let (dc15, fire_remaining) = self.dc15_handoff(&h.player, ammo, reserve)?;
         self.state.health = health;
         self.state.ammo = ammo;
         self.state.reserve = reserve;
+        self.state.dc15 = dc15;
+        if self.dc15.is_some() {
+            self.state.fire_remaining = fire_remaining;
+            self.sync_dc15();
+        }
         let s = self.state.map.as_mut().unwrap();
         s.restored = true;
         s.grenades = grenades;

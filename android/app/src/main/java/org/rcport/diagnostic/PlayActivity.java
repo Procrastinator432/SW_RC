@@ -35,6 +35,7 @@ public final class PlayActivity extends Activity {
     private static native long checkpointMarker(long id);
     private static native int[] gameStatus(long id) throws IOException;
     private static native int gameMap(long id);
+    private static native int gameEnergy(long id);
     private static native boolean checkpointSafe(long id);
     private static String campaignMap(long id){int n=gameMap(id);return n>=1 && n<=4?CampaignStore.MAPS[n-1]:"";}
     private static String guidance(long id)throws IOException {String text=missionStatus(id),map=campaignMap(id);return map.isEmpty() || text.startsWith(map)?text:map+" · "+text;}
@@ -337,7 +338,7 @@ public final class PlayActivity extends Activity {
         final float forward=controls.forward(), strafe=controls.strafe(), lookX=controls.lookX, lookY=controls.lookY;
         final int buttons=controls.buttons(); controls.lookX=0; controls.lookY=0; controls.reload=false; controls.fireQueued=false; controls.jumpQueued=false; controls.grenadeQueued=false;
         worker.execute(() -> {
-            int[] pixels=null; GpuSceneView.Frame graphics=null; String error=null; byte[] soundEvents=null,ambientSnapshot=null; String missionText=""; String actorText="[]";
+            int[] pixels=null; GpuSceneView.Frame graphics=null; String error=null; byte[] soundEvents=null,ambientSnapshot=null; String missionText=""; String actorText="[]"; int energy=-1;
             final long workStart=System.nanoTime();
             final long[] metrics=profiling ? new long[26] : null;
             try {
@@ -346,6 +347,7 @@ public final class PlayActivity extends Activity {
                 soundEvents=gameAudio(game,2);
                 ambientSnapshot=gameAudio(game,3);
                 missionText=guidance(game);
+                energy=gameEnergy(game);
                 if(pixels[4]==1 && !still) {
                     byte[] handoff=mapHandoff(game);
                     if(handoff.length>0) {
@@ -369,6 +371,7 @@ public final class PlayActivity extends Activity {
             final byte[] events=soundEvents;
             final byte[] loops=ambientSnapshot;
             final String guidance=missionText;
+            final int energyLevel=energy;
             final String actorObservation=actorText;
             final int[] result=pixels; final String problem=error; final GpuSceneView.Frame graphicsFrame=graphics;
             runOnUiThread(() -> {
@@ -380,6 +383,7 @@ public final class PlayActivity extends Activity {
                 }
                 if(generation!=requestedGeneration) {if(loaded) queueFrame(true); return;}
                 if(problem!=null) {failure(problem); return;}
+                controls.setEnergy(energyLevel);
                 long bitmapStart=System.nanoTime();
                 if(renderGpu) gpu.submit(graphicsFrame);
                 else {
@@ -453,6 +457,12 @@ public final class PlayActivity extends Activity {
         private final Map<Integer,Integer> roles=new HashMap<>();
         private float dx,dy,lookX,lookY,lastX,lastY;
         private boolean fire,jump,reload,fireQueued,jumpQueued,w,s,a,d,walk,use,grenade,grenadeQueued,crouch;
+        private int energy=-1;
+        void setEnergy(int level) {
+            if(energy==level)return;
+            if((energy<0)!=(level<0))setContentDescription(level>=0?"Links Joystick; rechts Blick drehen; Feuer, Sprung, Energieanzeige, Benutzen, Granate und Ducken":"Links Joystick; rechts Blick drehen; Feuer, Sprung, Laden, Benutzen, Granate und Ducken");
+            energy=level;invalidate();
+        }
         Controls() {super(PlayActivity.this); setContentDescription("Links Joystick; rechts Blick drehen; Feuer, Sprung, Laden, Benutzen, Granate und Ducken"); setFocusable(true);}
         private TouchLayout layout(){return new TouchLayout(getWidth(),getHeight(),getResources().getDisplayMetrics().density);}
         @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){
@@ -473,7 +483,7 @@ public final class PlayActivity extends Activity {
                 case KeyEvent.KEYCODE_SPACE:jump=down;if(down) jumpQueued=true;return true;
                 case KeyEvent.KEYCODE_CTRL_LEFT:fire=down;if(down) fireQueued=true;return true;
                 case KeyEvent.KEYCODE_SHIFT_LEFT:walk=down;return true;
-                case KeyEvent.KEYCODE_R:if(down) reload=true;return true;
+                case KeyEvent.KEYCODE_R:if(down && energy<0) reload=true;return true;
                 case KeyEvent.KEYCODE_E:use=down;return true;
                 case KeyEvent.KEYCODE_C: crouch=down;return true;
                 case KeyEvent.KEYCODE_G:if(down && !grenade) grenadeQueued=true;grenade=down;return true;
@@ -491,7 +501,7 @@ public final class PlayActivity extends Activity {
                 role=0;for(TouchLayout.Key key:layout.keys)if(key.contains(x,y)){role=key.role;break;}
                 if(role==2){fire=true;fireQueued=true;}
                 else if(role==3){jump=true;jumpQueued=true;}
-                else if(role==4)reload=true;
+                else if(role==4 && energy<0)reload=true;
                 else if(role==6)use=true;
                 else if(role==7){if(!grenade)grenadeQueued=true;grenade=true;}
                 else if(role==8)crouch=true;
@@ -529,7 +539,7 @@ public final class PlayActivity extends Activity {
             if(!loaded) return; TouchLayout layout=layout();float width=getWidth(),height=getHeight();
             circle(canvas,layout.joystickX,layout.joystickY,layout.joystickRadius,"",false);
             circle(canvas,layout.joystickX+dx*layout.joystickRadius*.6f,layout.joystickY+dy*layout.joystickRadius*.6f,layout.joystickRadius*.38f,"",true);
-            for(TouchLayout.Key key:layout.keys){boolean active=key.role==2?fire:key.role==3?jump:key.role==4?reload:key.role==6?use:key.role==7?grenade:crouch;circle(canvas,key.x,key.y,key.r,key.label,active);}
+            for(TouchLayout.Key key:layout.keys){boolean active=key.role==2?fire:key.role==3?jump:key.role==4?(energy>=0?energy<1000:reload):key.role==6?use:key.role==7?grenade:crouch;String label=key.role==4 && energy>=0?"E "+Math.round(energy/10f)+"%":key.label;circle(canvas,key.x,key.y,key.r,label,active);}
         }
     }
 }

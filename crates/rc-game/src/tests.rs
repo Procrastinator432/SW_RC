@@ -8,6 +8,216 @@ use rc_package::{
     world_collision::{BodyActor, BodyShape},
 };
 use std::{collections::BTreeMap, sync::Arc};
+fn dc15_profile() -> dc15::Assets {
+    dc15::Assets {
+        provenance: serde_json::Value::Null,
+        maximum: 5,
+        recharge_rate: 1.5,
+        cooldown_time: 0.,
+        wait_for_recharge: false,
+        damage: 55,
+        shot_delay: 0.2,
+    }
+}
+#[test]
+fn dc15_original_damage_energy_cadence_and_reload_input() {
+    let mut g = game(false);
+    g.attach_dc15(dc15_profile()).unwrap();
+    g.state.enemies[0].position[2] = g.eye()[2];
+    let health = g.state.enemies[0].health;
+    g.advance(
+        STEP,
+        Input {
+            fire: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(g.state.enemies[0].health, health - 55);
+    assert_eq!((g.state.ammo, g.state.reserve), (4, 0));
+    g.advance(
+        STEP,
+        Input {
+            reload: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(g.state.statistics.reloads, 0);
+    assert_eq!(g.state.reload_remaining, 0.);
+    let mut last = 0;
+    for _ in 0..600 {
+        let before = g.state.statistics.shots;
+        g.advance(
+            STEP,
+            Input {
+                fire: true,
+                reload: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        if g.state.statistics.shots > before {
+            assert!(g.state.statistics.ticks - last >= 12);
+            last = g.state.statistics.ticks;
+        }
+        dc15::validate_state(g.dc15.as_ref(), &g.state).unwrap();
+    }
+    assert!((18..=21).contains(&g.state.statistics.shots));
+    assert_eq!(g.state.reserve, 0);
+    assert_eq!(g.state.statistics.reloads, 0);
+}
+#[test]
+fn dc15_recharges_and_expires_shot_deadline_during_locked_opening() {
+    let mut g = game(false);
+    g.attach_dc15(dc15_profile()).unwrap();
+    g.advance(
+        STEP,
+        Input {
+            fire: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let charge = g.state.dc15.as_ref().unwrap().charge;
+    let position = g.state.pawn.body.position;
+    // Isolate the host's locked-opening early return from authored assets.
+    g.state.opening = Some(
+        serde_json::from_value(serde_json::json!({
+            "intro":null,"rappel":null,"clock":0.,"lanes":[],"done":false,
+            "locked":true,"injured":false,"gunship_idle":null,"captions":[],
+            "subtitle":"","subtitle_until":0.,"prompt":"","prompt_until":0.,
+            "blink_until":0.,"events":[],"ready_tick":null
+        }))
+        .unwrap(),
+    );
+    for _ in 0..60 {
+        g.advance(
+            STEP,
+            Input {
+                forward: 1.,
+                fire: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    }
+    assert!(g.state.dc15.as_ref().unwrap().charge > charge);
+    assert_eq!(g.state.dc15.as_ref().unwrap().charge, 5.);
+    assert_eq!(g.state.fire_remaining, 0.);
+    assert_eq!(g.state.pawn.body.position, position);
+    assert_eq!(g.state.statistics.shots, 1);
+}
+#[test]
+fn dc15_checkpoint_fractional_input_continuation_and_restart_are_exact() {
+    let mut a = game(false);
+    a.attach_dc15(dc15_profile()).unwrap();
+    for _ in 0..38 {
+        a.advance(
+            STEP,
+            Input {
+                fire: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    }
+    a.advance(
+        STEP * 0.4,
+        Input {
+            fire: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let save = a.checkpoint("dc15-test").unwrap();
+    let mut b = game(false);
+    b.attach_dc15(dc15_profile()).unwrap();
+    b.restore_checkpoint(&save, "dc15-test").unwrap();
+    assert_eq!(save, b.checkpoint("dc15-test").unwrap());
+    for _ in 0..180 {
+        let input = Input {
+            fire: true,
+            ..Default::default()
+        };
+        a.advance(STEP, input).unwrap();
+        b.advance(STEP, input).unwrap();
+    }
+    assert_eq!(
+        a.checkpoint("dc15-test").unwrap(),
+        b.checkpoint("dc15-test").unwrap()
+    );
+    a.restart();
+    assert_eq!(a.state.dc15, Some(dc15_profile().initial()));
+    assert_eq!((a.state.ammo, a.state.reserve), (5, 0));
+}
+#[test]
+fn dc15_bad_checkpoint_states_are_rechecksummed_and_rejected_atomically() {
+    let mut g = game(false);
+    g.attach_dc15(dc15_profile()).unwrap();
+    g.advance(
+        STEP,
+        Input {
+            fire: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let save = g.checkpoint("dc15-test").unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&save[20..]).unwrap();
+    for path in ["missing", "charge", "timer", "ammo", "reserve", "sleep"] {
+        let mut v = value.clone();
+        match path {
+            "missing" => {
+                v["state"].as_object_mut().unwrap().remove("dc15");
+            }
+            "charge" => v["state"]["dc15"]["charge"] = 6.into(),
+            "timer" => v["state"]["dc15"]["cooldown_started"] = 999.into(),
+            "ammo" => v["state"]["ammo"] = 0.into(),
+            "reserve" => v["state"]["reserve"] = 1.into(),
+            _ => v["state"]["dc15"]["ticking"] = false.into(),
+        }
+        let body = serde_json::to_vec(&v).unwrap();
+        let hash = body.iter().fold(0xcbf29ce484222325_u64, |h, b| {
+            (h ^ u64::from(*b)).wrapping_mul(0x100000001b3)
+        });
+        let mut broken = b"RCSAVE01".to_vec();
+        broken.extend((body.len() as u32).to_le_bytes());
+        broken.extend(hash.to_le_bytes());
+        broken.extend(body);
+        assert!(
+            g.restore_checkpoint(&broken, "dc15-test").is_err(),
+            "{path}"
+        );
+        assert_eq!(save, g.checkpoint("dc15-test").unwrap());
+    }
+}
+#[test]
+fn dc15_handoff_preserves_fractional_charge_and_shot_timer_and_accepts_legacy() {
+    let mut a = game(false);
+    a.attach_dc15(dc15_profile()).unwrap();
+    for _ in 0..16 {
+        a.advance(
+            STEP,
+            Input {
+                fire: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    }
+    let receipt = a.dc15_player(serde_json::json!({}));
+    let (s, remaining) = a
+        .dc15_handoff(&receipt, a.state.ammo, a.state.reserve)
+        .unwrap();
+    assert_eq!(s, a.state.dc15);
+    assert_eq!(remaining, a.state.fire_remaining);
+    assert!(game(false).dc15_handoff(&receipt, a.state.ammo, 0).is_err());
+    let (legacy, remaining) = a.dc15_handoff(&serde_json::json!({}), 3, 200).unwrap();
+    assert_eq!(legacy.unwrap().charge, 3.);
+    assert_eq!(remaining, 0.);
+    assert!(a.dc15_handoff(&receipt, 0, 0).is_err());
+}
 #[test]
 fn stable_checkpoint_rejects_combat_falling_low_health_and_projectiles() {
     let mut g = game(false);

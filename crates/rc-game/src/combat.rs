@@ -246,7 +246,7 @@ pub fn validate_wave(b: &[u8]) -> Result<(), String> {
 impl Game {
     pub fn attach_combat(&mut self, assets: Assets) -> Result<(), String> {
         assets.validate()?;
-        if self.combat.is_some() {
+        if self.combat.is_some() || self.dc15.is_some() {
             return Err("Combat already attached".into());
         }
         let visual = self

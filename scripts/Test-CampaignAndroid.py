@@ -153,6 +153,14 @@ try:
   key=next(k for k in layout['keys'] if k[0]==role);tap_xy(box[0]+key[1],box[1]+key[2]);time.sleep(.3)
  moved=pause_save();assert moved['state']['statistics']['shots']>normal['state']['statistics']['shots'] and moved['state']['statistics']['jumps']>normal['state']['statistics']['jumps']
  assert moved['state']['pawn']['body']['position']!=normal['state']['pawn']['body']['position'];capture('small-touch-after-input')
+ energy_checked=moved['state'].get('dc15') is not None
+ if energy_checked:
+  assert moved['state']['reserve']==0 and moved['state']['reload_remaining']==0
+  before_reload=moved['state']['statistics']['reloads']
+  assert any('Energieanzeige' in (n.get('content-desc') or '') for n in tree().iter('node'))
+  tap('Fortsetzen');key=next(k for k in layout['keys'] if k[0]==4);tap_xy(box[0]+key[1],box[1]+key[2])
+  energy_save=pause_save();assert energy_save['state']['statistics']['reloads']==before_reload and energy_save['state']['reload_remaining']==0
+  capture('energy-indicator-reload-inert')
  # Genuine won snapshots select B/C/factory automatically, with actual native carry.
  transitions=[]
  for source,label,target in [('GEO_01A','A','GEO_01B'),('GEO_01B','B','GEO_01C'),('GEO_01C','C','GEO_03A')]:
@@ -165,11 +173,14 @@ try:
   launch();old=fixture(name,props[source+'.sha256']);tap('Fortsetzen');wait(lambda:has(target),seconds=90)
   new=slot();assert new['state']['map']['destination'].startswith(target)
   for field in ['health','ammo','reserve']:assert new['initial'][field]==old['state'][field],(target,field)
+  if old['state'].get('dc15') is not None:
+   assert new['initial']['dc15']==old['state']['dc15'],target
+   assert new['initial']['fire_remaining']==old['state']['fire_remaining'],target
   assert all(n.get('package')!='com.google.android.documentsui' for n in tree().iter('node'))
   capture('automatic-'+target.lower());transitions.append(dict(source=source,destination=target,carried_entry_exact=True,no_file_picker=True))
   print(f'Automatic {source} -> {target} passed',flush=True)
  log=adb('logcat','-d','-s','RCPlay:I','RCCheckpoint:I','RCTouch:I','AndroidRuntime:E','*:S');(OUT/'app.log').write_text(log);assert 'FATAL EXCEPTION' not in log
- (OUT/'validation.json').write_text(json.dumps(dict(passed=True,apk_sha256=hashlib.sha256(args.apk.read_bytes()).hexdigest(),package_sha256=hashlib.sha256(args.package.read_bytes()).hexdigest(),actual_package_picker_and_native_import=True,import_preserves_checkpoint=True,invalid_import_preserves_package_and_save=True,cold_start_keeps_package=True,new_game_without_picker=True,android_background_kill_recreates_original_intent_exactly=True,logical_display=[640,360],viewport_dp=[640,312],all_touch_targets_min_48dp=True,touch_movement_fire_jump=True,sensitivity_saved_and_density_independent=True,both_look_axes_verified=True,high_sensitivity_yaw_delta=delta_fast,normal_sensitivity_yaw_delta=delta_normal,automatic_transitions=transitions,limits=['Android x86_64 emulator; physical small-screen comfort remains for device testing','Map-end and factory checkpoints are genuine replay states inserted into private test storage, not a full manual touch playthrough']),indent=2))
+ (OUT/'validation.json').write_text(json.dumps(dict(passed=True,apk_sha256=hashlib.sha256(args.apk.read_bytes()).hexdigest(),package_sha256=hashlib.sha256(args.package.read_bytes()).hexdigest(),actual_package_picker_and_native_import=True,import_preserves_checkpoint=True,invalid_import_preserves_package_and_save=True,cold_start_keeps_package=True,new_game_without_picker=True,android_background_kill_recreates_original_intent_exactly=True,logical_display=[640,360],viewport_dp=[640,312],all_touch_targets_min_48dp=True,touch_movement_fire_jump=True,sensitivity_saved_and_density_independent=True,both_look_axes_verified=True,dc15_energy_indicator_reload_inert_and_state_carry=energy_checked,high_sensitivity_yaw_delta=delta_fast,normal_sensitivity_yaw_delta=delta_normal,automatic_transitions=transitions,limits=['Android x86_64 emulator; physical small-screen comfort remains for device testing','Map-end and factory checkpoints are genuine replay states inserted into private test storage, not a full manual touch playthrough']),indent=2))
  print('Package import, compact small-screen controls, saved sensitivity and all three automatic map transitions passed')
 except Exception:
  import traceback

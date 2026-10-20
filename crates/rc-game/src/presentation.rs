@@ -746,6 +746,13 @@ impl Game {
                 .and_then(|c| c.melee.as_ref())
                 .map_or_else(
                     || {
+                        if let (Some(a), Some(s)) = (&self.dc15, &self.state.dc15) {
+                            return format!(
+                                "HP {}   DC-15S ENERGIE {:.0}%",
+                                self.state.health,
+                                s.charge / a.maximum as f32 * 100.
+                            );
+                        }
                         format!(
                             "HP {}   MUNITION {}/{}",
                             self.state.health, self.state.ammo, self.state.reserve
@@ -766,6 +773,9 @@ impl Game {
         );
         if self.state.reload_remaining > 0. {
             hud.text(w / 2 - 36, h / 2 + 25, "NACHLADEN", 1, 0xffffdb79);
+        }
+        if self.state.dc15.as_ref().is_some_and(|s| s.charge < 1.) {
+            hud.text(w / 2 - 48, h / 2 + 25, "ENERGIE LAEDT", 1, 0xffffdb79);
         }
         if self.state.phase != Phase::Playing {
             hud.rect(w / 2 - 145, h / 2 - 35, 290, 70, 0xff182c39);
@@ -840,6 +850,7 @@ impl Canvas {
         for c in text.chars() {
             let columns: [u8; 5] = match c {
                 'A' => [126, 9, 9, 9, 126],
+                '%' => [35, 19, 8, 100, 98],
                 'B' => [127, 73, 73, 73, 54],
                 'C' => [62, 65, 65, 65, 34],
                 'D' => [127, 65, 65, 34, 28],

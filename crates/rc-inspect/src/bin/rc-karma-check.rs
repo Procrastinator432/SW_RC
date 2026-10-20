@@ -82,7 +82,10 @@ fn shot(g: &mut Game, from: [f64; 3], target: [f64; 3]) -> Result<(), String> {
     let delta: [f64; 3] = std::array::from_fn(|k| target[k] - from[k]);
     let length = delta.iter().map(|v| v * v).sum::<f64>().sqrt();
     let direction = delta.map(|v| v / length);
-    let damage = g.combat.as_ref().map_or(30, |a| a.damage);
+    let damage = g
+        .dc15
+        .as_ref()
+        .map_or_else(|| g.combat.as_ref().map_or(30, |a| a.damage), |a| a.damage);
     let q = g.world.sweep_motion(from, target, [0.; 3])?;
     let fraction = q
         .contacts
@@ -217,7 +220,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (i, from, target) = ray(&g, false)?;
     let before = g.state.opening.as_ref().unwrap().rigid.as_ref().unwrap()[i].clone();
     let threshold_before = thresholds(&g)[i];
-    let damage = g.combat.as_ref().map_or(30, |a| a.damage) as i32;
+    let damage = g
+        .dc15
+        .as_ref()
+        .map_or_else(|| g.combat.as_ref().map_or(30, |a| a.damage), |a| a.damage)
+        as i32;
     shot(&mut g, from, target)?;
     assert_eq!(thresholds(&g)[i], threshold_before - damage);
     assert_eq!(

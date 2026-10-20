@@ -128,6 +128,10 @@
     "map_c_player_mesh": {
       "path": "assets/map_c_player_mesh.json",
       "sha256": "487cedce73b8da6e768484a5d481b5cbbccac8bfac4de3de6b3469ebe6225c45"
+    },
+    "map_c_reference_handoff": {
+      "path": "../../fixtures/dc15/map-c-legacy-entry.json",
+      "sha256": "5819cbbabefacdac9e846401b41a938cff579eb8ec3b557de3e67145ca4d48cd"
     }
   }
 }

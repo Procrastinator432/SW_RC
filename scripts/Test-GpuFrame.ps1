@@ -17,5 +17,7 @@ if($LASTEXITCODE -ne 0){throw 'GPU frame check compilation failed'}
 $frames=if($FramesDirectory){@(Get-ChildItem -LiteralPath $FramesDirectory -Filter '*.frame' -File | Sort-Object Name | ForEach-Object FullName)}else{@()}
 if($FramesDirectory -and !$frames.Count){throw 'No native player frames found'}
 if($WorldPacket){$frames=@((Resolve-Path -LiteralPath $WorldPacket).Path)+$frames}
-& (Join-Path $jdk 'bin/java.exe') -Xmx96m -cp "$classes;$androidJar" org.rcport.diagnostic.GpuFrameCheck @frames
+# Fix the collector for this constrained desktop heap. Android ART is covered
+# independently by the GLES acceptance run.
+& (Join-Path $jdk 'bin/java.exe') -Xmx96m -XX:+UseSerialGC -cp "$classes;$androidJar" org.rcport.diagnostic.GpuFrameCheck @frames
 if($LASTEXITCODE -ne 0){throw 'GPU frame reader check failed'}

@@ -420,7 +420,9 @@ impl Game {
         for (i, pickup) in a.ammunition.iter().enumerate() {
             if !s.pickups[i] && crate::distance(position, *pickup) < 150. {
                 s.pickups[i] = true;
-                self.state.reserve = (self.state.reserve + 40).min(400);
+                if self.dc15.is_none() {
+                    self.state.reserve = (self.state.reserve + 40).min(400);
+                }
             }
         }
         let mut sounds = vec![];

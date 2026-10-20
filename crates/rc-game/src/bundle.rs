@@ -75,6 +75,8 @@ pub struct Volume {
 }
 #[derive(Serialize, Deserialize)]
 pub struct Manifest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dc15: Option<crate::dc15::Assets>,
     pub name: String,
     pub provenance: serde_json::Value,
     pub movement: Movement,
@@ -253,6 +255,7 @@ impl Manifest {
             });
         }
         Ok(Self {
+            dc15: game.dc15.clone(),
             name: "geo_01a".into(),
             provenance,
             movement,
@@ -422,6 +425,9 @@ impl Manifest {
             game.exit = self.exit;
         } else {
             game.set_encounter(&self.enemies, self.exit)?;
+        }
+        if let Some(a) = &self.dc15 {
+            game.attach_dc15(a.clone())?;
         }
         Ok(game)
     }

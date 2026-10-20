@@ -260,6 +260,10 @@ extern intptr_t rc_game_checkpoint(uint64_t,uint8_t*,size_t);
 extern int32_t rc_game_restore_checkpoint(uint64_t,const uint8_t*,size_t,char*,size_t);
 extern uint64_t rc_game_checkpoint_marker(uint64_t);
 extern int32_t rc_game_checkpoint_safe(uint64_t);
+extern int32_t rc_game_energy_status(uint64_t);
+JNIEXPORT jint JNICALL Java_org_rcport_diagnostic_PlayActivity_gameEnergy(JNIEnv*env,jclass klass,jlong id) {
+ (void)env;(void)klass;return rc_game_energy_status((uint64_t)id);
+}
 JNIEXPORT jboolean JNICALL Java_org_rcport_diagnostic_PlayActivity_checkpointSafe(JNIEnv*env,jclass klass,jlong id) {
  (void)env;(void)klass;return rc_game_checkpoint_safe((uint64_t)id)==1 ? JNI_TRUE : JNI_FALSE;
 }

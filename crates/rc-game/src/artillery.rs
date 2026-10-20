@@ -649,14 +649,14 @@ impl Game {
         }
         Ok(())
     }
-    pub(crate) fn warrior_hit(&mut self, index: usize) {
+    pub(crate) fn warrior_hit(&mut self, index: usize, damage: u32) {
         let w = &mut self.state.artillery.as_mut().unwrap().warriors[index];
         if let Some(ai) = &mut w.ai {
             w.frame = 0.;
             ai.interrupt();
         }
         let before = w.health;
-        w.health = w.health.saturating_sub(30);
+        w.health = w.health.saturating_sub(damage);
         self.state.hit_flash = 0.12;
         self.state.statistics.hits += 1;
         if before > 0 && w.health == 0 {

@@ -176,7 +176,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     distance(*a).total_cmp(&distance(*b))
                 })
                 .unwrap();
-            let mut waypoints = route[nearest..=end].to_vec();
+            let direct = (from[0] - target[0]).hypot(from[1] - target[1]) < 256.
+                && new
+                    .world
+                    .sweep_motion(from, target, new.profile.physics.extent)
+                    .is_ok_and(|s| s.complete && s.contacts.is_empty());
+            let mut waypoints = if direct {
+                vec![]
+            } else {
+                route[nearest..=end].to_vec()
+            };
             waypoints.push(target);
             let mut waypoint = 0;
             let mut previous = from;

@@ -8,6 +8,7 @@ pub mod checkpoint;
 pub mod combat;
 pub mod crash;
 pub mod crash_runtime;
+pub mod dc15;
 pub mod demolition;
 pub mod demolition_runtime;
 pub mod detonator;
@@ -118,6 +119,8 @@ pub struct Statistics {
 }
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct State {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dc15: Option<dc15::State>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub enemy_traces: Vec<enemy_feedback::Trace>,
     pub pawn: ControlledBody,
@@ -165,6 +168,7 @@ pub struct State {
     pub map: Option<map_runtime::State>,
 }
 pub struct Game {
+    pub dc15: Option<dc15::Assets>,
     pub scene: rc_render::Scene,
     pub world: StaticBodyWorld,
     pub volumes: VolumeWorld,
@@ -249,6 +253,7 @@ impl Game {
             yaw,
             pitch: 0.,
             health: 100,
+            dc15: None,
             ammo: MAGAZINE,
             reserve: 200,
             reload_remaining: 0.,
@@ -276,6 +281,7 @@ impl Game {
             map: None,
         };
         Ok(Self {
+            dc15: None,
             scene,
             world,
             volumes,
@@ -524,6 +530,9 @@ impl Game {
         Ok(ticks)
     }
     fn tick(&mut self, input: Input) -> Result<(), String> {
+        // Ammo actor ticks and the absolute shot deadline keep running while
+        // an intro, rappel or incapacitation host locks player movement.
+        self.dc15_tick();
         let map_weapon_blocked = self.map_blocks_weapon();
         let locked = self.map3_opening_tick()?;
         self.map3_planning_tick()?;
@@ -676,12 +685,14 @@ impl Game {
             &mut self.state.hit_flash,
             &mut self.state.damage_flash,
             &mut self.state.muzzle_flash,
-            &mut self.state.fire_remaining,
         ] {
             *timer = (*timer - STEP).max(0.);
         }
+        if self.dc15.is_none() {
+            self.state.fire_remaining = (self.state.fire_remaining - STEP).max(0.);
+        }
         let magazine = self.combat.as_ref().map_or(MAGAZINE, |a| a.magazine);
-        if self.combat.is_some() && self.state.fire_remaining < 1e-8 {
+        if (self.combat.is_some() || self.dc15.is_some()) && self.state.fire_remaining < 1e-8 {
             self.state.fire_remaining = 0.;
         }
         if self.state.reload_remaining > 0. {
@@ -707,6 +718,7 @@ impl Game {
                 .as_ref()
                 .is_some_and(|t| t.gate.blocks_weapon());
         if !weapon_blocked
+            && self.dc15.is_none()
             && (input.reload || ((input.fire || self.combat.is_some()) && self.state.ammo == 0))
             && self.state.ammo < magazine
             && self.state.reserve > 0
@@ -720,6 +732,10 @@ impl Game {
             && self.state.fire_remaining == 0.
             && self.state.reload_remaining == 0.
             && self.state.ammo > 0
+            && self
+                .dc15
+                .as_ref()
+                .is_none_or(|a| self.state.dc15.as_ref().is_some_and(|s| s.can_fire(a)))
         {
             self.fire()?;
         }
@@ -842,8 +858,17 @@ impl Game {
                 }
             }
         }
-        self.state.ammo -= 1;
-        self.state.fire_remaining = 0.15;
+        let damage = self.dc15.as_ref().map_or(30, |a| a.damage);
+        if let (Some(a), Some(s)) = (&self.dc15, &mut self.state.dc15) {
+            if !s.use_charge(a) {
+                return Ok(());
+            }
+            self.state.fire_remaining = f64::from(a.shot_delay);
+            self.sync_dc15();
+        } else {
+            self.state.ammo -= 1;
+            self.state.fire_remaining = 0.15;
+        }
         self.state.muzzle_flash = 0.08;
         self.state.statistics.shots += 1;
         self.map_fire_sound();
@@ -864,17 +889,17 @@ impl Game {
             eye[i] + (end[i] - eye[i]) * fraction
         }));
         if !glass_hit && warrior_target.is_none() && target.is_none() {
-            self.rigid_projectile_hit(eye, end, fraction, 30, d)?;
+            self.rigid_projectile_hit(eye, end, fraction, damage, d)?;
         }
         if glass_hit {
-            self.map3_damage_glass(30);
+            self.map3_damage_glass(damage);
         }
         if let Some(i) = warrior_target {
-            self.warrior_hit(i);
+            self.warrior_hit(i, damage);
         }
         if let Some(i) = target.filter(|_| !self.crash_invulnerable()) {
             let e = &mut self.state.enemies[i];
-            e.health = e.health.saturating_sub(30);
+            e.health = e.health.saturating_sub(damage);
             e.flash = 0.12;
             self.state.hit_flash = 0.12;
             self.state.statistics.hits += 1;

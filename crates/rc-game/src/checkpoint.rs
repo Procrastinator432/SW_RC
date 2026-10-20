@@ -88,6 +88,7 @@ fn topology(base: &serde_json::Value, saved: &serde_json::Value) -> Result<(), S
             if [
                 "visuals",
                 "combat",
+                "dc15",
                 "mission",
                 "dynamic",
                 "thermal",
@@ -202,6 +203,7 @@ impl Game {
         }
         let base = serde_json::to_value(&self.initial).map_err(|e| e.to_string())?;
         for state in [&s.state, &s.initial] {
+            crate::dc15::validate_state(self.dc15.as_ref(), state)?;
             if let Some(prepared) = &self.opening {
                 let interactions = state
                     .opening

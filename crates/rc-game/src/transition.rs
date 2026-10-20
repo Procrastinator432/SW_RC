@@ -65,8 +65,8 @@ impl Game {
                     fixer: serde_json::to_value(&m.fixer).map_err(|e| e.to_string())?,
                     sev: serde_json::to_value(&o.sev).map_err(|e| e.to_string())?,
                 }),
-                player: serde_json::json!({"health":self.state.health,"ammo":self.state.ammo,"reserve":self.state.reserve,
-                    "grenades":{"flow":{"ammunition":m.grenades}},"position":self.state.pawn.body.position,"yaw":self.state.yaw,"pitch":self.state.pitch}),
+                player: self.dc15_player(serde_json::json!({"health":self.state.health,"ammo":self.state.ammo,"reserve":self.state.reserve,
+                    "grenades":{"flow":{"ammunition":m.grenades}},"position":self.state.pawn.body.position,"yaw":self.state.yaw,"pitch":self.state.pitch})),
                 squad: serde_json::to_value(&m.companion).map_err(|e| e.to_string())?,
             }));
         }
@@ -93,7 +93,7 @@ impl Game {
                 objectives: g.objectives,
                 fixer: serde_json::to_value(&g.fixer).map_err(|e| e.to_string())?,
             }),
-            player: serde_json::json!({"health":self.state.health,"ammo":self.state.ammo,"reserve":self.state.reserve,"grenades":{"flow":{"ammunition":m.grenades}},"position":self.state.pawn.body.position,"yaw":self.state.yaw,"pitch":self.state.pitch}),
+            player: self.dc15_player(serde_json::json!({"health":self.state.health,"ammo":self.state.ammo,"reserve":self.state.reserve,"grenades":{"flow":{"ammunition":m.grenades}},"position":self.state.pawn.body.position,"yaw":self.state.yaw,"pitch":self.state.pitch})),
             squad: serde_json::to_value(&m.companion).map_err(|e| e.to_string())?,
         }))
     }
@@ -160,9 +160,9 @@ impl Game {
             trigger: 9,
             tick: self.state.statistics.ticks,
             objectives: [0, 1, 2, 3, 4, 5, 6],
-            player: serde_json::json!({"health":self.state.health,"ammo":self.state.ammo,"reserve":self.state.reserve,
+            player: self.dc15_player(serde_json::json!({"health":self.state.health,"ammo":self.state.ammo,"reserve":self.state.reserve,
                 "grenades":m.grenades,"combat":self.state.combat,"position":self.state.pawn.body.position,
-                "yaw":self.state.yaw,"pitch":self.state.pitch}),
+                "yaw":self.state.yaw,"pitch":self.state.pitch})),
             squad: serde_json::to_value(&self.state.squad).map_err(|e| e.to_string())?,
         };
         self.state.spire.as_mut().unwrap().handoff = Some(handoff);

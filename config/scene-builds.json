@@ -7,11 +7,15 @@
     "map-a-audio",
     "map-a-bacta",
     "map-a-presentation",
+    "map-a-energy",
     "map-a-bacta-replay",
+    "map-a-energy-replay",
     "map-a-barrier-replay",
     "map2-route",
     "map-b-material",
     "map-b-feedback",
+    "map-b-energy",
+    "map-b-energy-replay",
     "map3",
     "map3-opening",
     "map3-planning",
@@ -22,23 +26,39 @@
     "map3-finale",
     "map3-elevator",
     "map-c-material",
+    "map-c-energy",
+    "map-c-energy-replay",
     "factory",
-    "factory-material"
+    "factory-material",
+    "factory-energy"
   ],
   "stages": {
     "map-a-barrier-replay": {
-      "binary":"rc-barrier-replay-build",
-      "inputs":["map_a_scene","map_a_replay"],
-      "args":["{map_a_scene}","{map_a_replay}","{out}"],
-      "product":"map_a_replay.bin",
-      "output_key":"map_a_replay"
+      "binary": "rc-barrier-replay-build",
+      "inputs": [
+        "map_a_scene",
+        "map_a_replay"
+      ],
+      "args": [
+        "{map_a_scene}",
+        "{map_a_replay}",
+        "{out}"
+      ],
+      "product": "map_a_replay.bin",
+      "output_key": "map_a_replay"
     },
     "map-a-presentation": {
-      "binary":"rc-presentation-build",
-      "inputs":["map_a_scene"],
-      "args":["{game_data}","{map_a_scene}","{out}"],
-      "product":"geo_01a.rcplay",
-      "output_key":"map_a_scene"
+      "binary": "rc-presentation-build",
+      "inputs": [
+        "map_a_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "{map_a_scene}",
+        "{out}"
+      ],
+      "product": "geo_01a.rcplay",
+      "output_key": "map_a_scene"
     },
     "map-a-feedback": {
       "binary": "rc-enemy-feedback-build",
@@ -317,15 +337,28 @@
     },
     "map-a-bacta": {
       "binary": "rc-bacta-build",
-      "inputs": ["map_a_scene"],
-      "args": ["{game_data}", "{map_a_scene}", "{out}"],
+      "inputs": [
+        "map_a_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "{map_a_scene}",
+        "{out}"
+      ],
       "product": "geo_01a.rcplay",
       "output_key": "map_a_scene"
     },
     "map-a-bacta-replay": {
       "binary": "rc-bacta-replay-build",
-      "inputs": ["map_a_scene", "map_a_replay"],
-      "args": ["{map_a_scene}", "{map_a_replay}", "{out}"],
+      "inputs": [
+        "map_a_scene",
+        "map_a_replay"
+      ],
+      "args": [
+        "{map_a_scene}",
+        "{map_a_replay}",
+        "{out}"
+      ],
       "product": "map_a_replay.bin",
       "output_key": "map_a_replay"
     },
@@ -341,6 +374,114 @@
       ],
       "product": "geo_01a.rcplay",
       "output_key": "map_a_scene"
+    },
+    "map-a-energy": {
+      "binary": "rc-dc15-build",
+      "inputs": [
+        "map_a_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "{map_a_scene}",
+        "{out}"
+      ],
+      "product": "geo_01a.rcplay",
+      "output_key": "map_a_scene"
+    },
+    "map-b-energy": {
+      "binary": "rc-dc15-build",
+      "inputs": [
+        "map_b_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "{map_b_scene}",
+        "{out}"
+      ],
+      "product": "geo_01b.rcplay",
+      "output_key": "map_b_scene"
+    },
+    "map-c-energy": {
+      "binary": "rc-dc15-build",
+      "inputs": [
+        "map_c_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "{map_c_scene}",
+        "{out}"
+      ],
+      "product": "geo_01c.rcplay",
+      "output_key": "map_c_scene"
+    },
+    "factory-energy": {
+      "binary": "rc-dc15-build",
+      "inputs": [
+        "factory_scene"
+      ],
+      "args": [
+        "{game_data}",
+        "{factory_scene}",
+        "{out}"
+      ],
+      "product": "geo_03a.rcplay",
+      "output_key": "factory_scene"
+    },
+    "map-a-energy-replay": {
+      "binary": "rc-dc15-replay-build",
+      "inputs": [
+        "map_a_scene",
+        "map_a_replay"
+      ],
+      "args": [
+        "{map_a_scene}",
+        "{map_a_replay}",
+        "{out}"
+      ],
+      "product": "replay.bin",
+      "output_key": "map_a_replay"
+    },
+    "map-b-energy-replay": {
+      "binary": "rc-dc15-replay-build",
+      "inputs": [
+        "map_b_scene",
+        "map_b_replay",
+        "map_a_scene",
+        "map_a_replay"
+      ],
+      "args": [
+        "{map_b_scene}",
+        "{map_b_replay}",
+        "{out}",
+        "{map_a_scene}",
+        "{map_a_replay}"
+      ],
+      "product": "replay.bin",
+      "output_key": "map_b_replay"
+    },
+    "map-c-energy-replay": {
+      "binary": "rc-dc15-replay-build",
+      "inputs": [
+        "map_c_scene",
+        "map_c_replay",
+        "map_a_scene",
+        "map_a_replay",
+        "map_b_scene",
+        "map_b_replay",
+        "map_c_reference_handoff"
+      ],
+      "args": [
+        "{map_c_scene}",
+        "{map_c_replay}",
+        "{out}",
+        "{map_a_scene}",
+        "{map_a_replay}",
+        "{map_b_scene}",
+        "{map_b_replay}",
+        "{map_c_reference_handoff}"
+      ],
+      "product": "replay.bin",
+      "output_key": "map_c_replay"
     }
   }
 }
