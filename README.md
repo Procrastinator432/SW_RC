@@ -1,5 +1,7 @@
 # Republic Commando → natives Android / Rust
 
+**Zentrale Funktionsübersicht:** [Bericht, Detailtabellen und Gesamtpaket](docs/original-function-status/README.md) · Stand 21.10.2026 / Release 0.53.0. Enthält 240 Funktions-/Systembereiche, alle 79 Karten und technische Indizes für 6.810 UFunction-Definitionen, 3.170 Klassen und native Exportsymbole; ungeprüfte Einzelroutinen sind ausdrücklich gekennzeichnet.
+
 **20.10.2026: 0.53.0 / DC-15s-Energieverwaltung.** Fünf Bereiche umgesetzt: originale Waffenwerte, Ladungsverbrauch, Kühlung/Wiederaufladung, HUD/Android-Bedienung und persistenter Zustand. Fünf Energieeinheiten, 1,5 Einheiten pro Sekunde, Schaden 55 und Schussabstand 0,2 Sekunden stammen aus den installierten Originaldaten. Die Waffe lädt automatisch; die bisherige Android-Nachladefläche zeigt ihren Füllstand. Ladungsbruchteile und Schussfrist überstehen Fortsetzen und alle Kartenwechsel. Je 1.175 Debug-/Release-Bibliothekstests, 30 Szenenstufen und die vollständige Kampagnenprüfung A/B/C→Fabrik bestehen. [Umsetzung, Nachweise und Grenzen](docs/DC15_ENERGY.md).
 
 **Aktuelle Lieferung: 0.53.0**, APK und passendes Szenenpaket unter `build/releases/0.53.0`. Beide Dateien aktualisieren, Paket importieren und eine neue Mission starten. Android x86_64 bestätigt Energieanzeige, wirkungsloses manuelles Nachladen, Wiederherstellung und automatische Übergaben. Historische Szene-/Spielstandpaare bleiben kompatibel. Vollständige Waffen-/Geschossflug- und MathEngine-Parität sowie physische ARM64-/Hör-/Touch-Abnahme bleiben offen.

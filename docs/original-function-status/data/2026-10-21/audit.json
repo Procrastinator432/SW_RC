@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-21",
+  "source_commit": "97b03e4ca1b730d912756379afeac66b313dcd3b",
+  "report_generation_commit": "97b03e4ca1b730d912756379afeac66b313dcd3b",
+  "release": "0.53.0",
+  "runtime_inputs_match_release": true,
+  "inventory_files": 938,
+  "parse_errors": 0,
+  "original_packages": 273,
+  "original_classes": 3170,
+  "original_functions": 6810,
+  "original_states": 260,
+  "recovered_source_files": 1705,
+  "individual_function_evidence_links": 45,
+  "individually_unrated_functions": 6765,
+  "original_maps": 79,
+  "feature_rows": 240,
+  "feature_status_counts": {
+    "T": 99,
+    "I": 32,
+    "O": 73,
+    "B": 20,
+    "E": 9,
+    "U": 7
+  },
+  "original_pe_binaries": 47,
+  "native_exported_symbols": 36680,
+  "native_export_kinds": {
+    "code": 30742,
+    "data": 5938
+  },
+  "native_address_links_exported": 14,
+  "native_address_links_internal": 1,
+  "native_export_count_is_not_a_function_or_progress_count": true,
+  "all_internal_native_functions_enumerated": false,
+  "implementation_status_not_inferred_from_name_matching": true,
+  "current_release_hashes_verified": {
+    "apk": {
+      "path": "build/releases/0.53.0/republic-commando-0.53.0-dc15-energy.apk",
+      "sha256": "da2165ef238a629fab4a4165a8ec7bd46d56779abc3c7b72b4e877d50c940b10"
+    },
+    "package": {
+      "path": "build/releases/0.53.0/mission1-scenes.rcpack.zip",
+      "sha256": "de109c850fda038bb7f6ea1e63679a1de924de3f53b4dda721426ee8f921a95a"
+    }
+  },
+  "existing_release_tests_passed": true,
+  "existing_release_library_tests": {
+    "debug-tests": 1175,
+    "release-tests": 1175
+  },
+  "tests_rerun_for_this_document": false,
+  "catalog_sha256": "19e8cf98b4e0f83083fa7d875cb9523c4cebc15b1c72db1f32a4f76a9be254b7"
+}

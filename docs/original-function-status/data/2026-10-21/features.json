@@ -1,0 +1,4122 @@
+[
+  {
+    "id": "K01",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "GEO_01A: Landung bis Turmausgang",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Zusammenhängender Eingabelauf mit sieben ausgewählten Zielen, Kämpfen, Scorch und Ausgang.",
+    "limit": "Inszenierungs-, Kampf- und KI-Parität sowie freier Handy-Gesamtlauf offen.",
+    "code": [
+      "crates/rc-game/src/mission.rs",
+      "crates/rc-game/src/spire_runtime.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "geo_01a.ctm"
+  },
+  {
+    "id": "K02",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "GEO_01A: Gunship-Intro und Abseilen",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originalclips, Kameraführung, Root-Motion, Funk/Foley und regulärer Einstieg eingebunden; doppelte Root-Translation korrigiert.",
+    "limit": "Vollständige Spieleranimation und subjektiver Vergleich des Ausstiegs/Klons mit dem Original offen.",
+    "code": [
+      "crates/rc-game/src/intro.rs",
+      "crates/rc-game/src/rappel.rs"
+    ],
+    "evidence": [
+      "docs/RAPPEL_RECONSTRUCTION.md",
+      "docs/SECOND_PHONE_TEST.md"
+    ],
+    "original": "ACTION_AttachToGunship; CTPlayer.Briefing"
+  },
+  {
+    "id": "K03",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "GEO_01A: Verwundung und Bacta-Tutorial",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Originale Verwundungs-Factory wird vor Auslösung zur Spielerposition versetzt; Bacta mit Animation, Notifies, Führung, Zylinderkollision, Audio und Partikeln integriert.",
+    "limit": "Nachweis gilt für diesen ausgewählten Tutorialpfad; physische Hör-/Nahansichtabnahme bleibt offen.",
+    "code": [
+      "crates/rc-game/src/bacta.rs",
+      "crates/rc-game/src/world_effects.rs"
+    ],
+    "evidence": [
+      "docs/MISSION_PRESENTATION.md",
+      "docs/MISSION_PHYSICS_ANDROID.md"
+    ],
+    "original": "PlayerExplosionFactory; BactaDispenser"
+  },
+  {
+    "id": "K04",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "GEO_01A: Absturzstelle und Droidenfabriken",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Ausgewählte Originalfabriken, Schutzwechsel, Todeszähler und Zielabschluss im Missionslauf.",
+    "limit": "Allgemeine Factory-/BattleDroid-KI und alle Nebeneffekte sind damit nicht abgedeckt.",
+    "code": [
+      "crates/rc-game/src/crash.rs",
+      "crates/rc-game/src/crash_runtime.rs"
+    ],
+    "evidence": [
+      "docs/ORIGINAL_CRASH_MISSION.md",
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "PawnFactory; Secure area around crash"
+  },
+  {
+    "id": "K05",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "GEO_01A: Granatenaufnahme und Geschützstellung",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originales Pickup, Wurfnotify, kollisionsgeprüfter Flug, Bunkerumbau, Explosionsfeedback und Zielabschluss.",
+    "limit": "Vollständiges Geschützverhalten, native Treffer-/Explosionsparität und Geräteverständlichkeit offen.",
+    "code": [
+      "crates/rc-game/src/grenade_runtime.rs",
+      "crates/rc-game/src/gunner_runtime.rs"
+    ],
+    "evidence": [
+      "docs/GUN_POSITION_MISSION.md",
+      "docs/PHONE_TEST_BLOCKERS.md"
+    ],
+    "original": "ThermalDetonator; Geschütz-Trigger621"
+  },
+  {
+    "id": "K06",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "GEO_01A: Scorch treffen und Sprengauftrag",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Duckpassage, Beitritt, körpergeprüfte Wege, Setzanimation, Scharfschalten, Zünder und physische Bunkerfreigabe integriert.",
+    "limit": "Allgemeiner Marker-/Befehlsablauf und sämtliche Zerstörungsdetails offen.",
+    "code": [
+      "crates/rc-game/src/rendezvous_runtime.rs",
+      "crates/rc-game/src/demolition_runtime.rs"
+    ],
+    "evidence": [
+      "docs/SCORCH_RENDEZVOUS.md",
+      "docs/DEMOLITION_MISSION.md"
+    ],
+    "original": "Commando62Delta; DemolitionChargeObject"
+  },
+  {
+    "id": "K07",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "GEO_01A: Artillerie, Fabrikgegner und Turmzugang",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte Geschosse, Gunship-/Spider-Animationen, Warrior-Begegnungen, Tür und tatsächlicher Ausgang integriert.",
+    "limit": "Allgemeine Fahrzeug-/Boss-KI sowie vollständige Nebeninszenierung offen.",
+    "code": [
+      "crates/rc-game/src/artillery.rs",
+      "crates/rc-game/src/spire_runtime.rs"
+    ],
+    "evidence": [
+      "docs/ARTILLERY_MISSION.md",
+      "docs/MISSION_PRESENTATION.md"
+    ],
+    "original": "SpiderDroid; Mover; Teleporter"
+  },
+  {
+    "id": "K08",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "GEO_01B: acht Ziele und Fixer-Beitritt",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Zusammenhängender regulärer Lauf mit Spreng-/Slice-Aktionen, Türen, Begegnungen und Ausgang nach C.",
+    "limit": "Lokale Zeit-/Kampfhosts; B-spezifische Animationen, Effekte und vollständige KI bleiben teilweise.",
+    "code": [
+      "crates/rc-game/src/map_gameplay.rs",
+      "crates/rc-game/src/map_runtime.rs"
+    ],
+    "evidence": [
+      "docs/MAP2_GAMEPLAY.md",
+      "docs/MAP2_CONTINUOUS_PLAYTHROUGH.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "geo_01b.ctm; Commando40Delta"
+  },
+  {
+    "id": "K09",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "GEO_01C: Sev, Strategieraum und Flucht",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originale Ziel-/Dialogketten, Sev-Beitritt, Strategieraum und ausgewählte Bewegungs-/Fluchtabläufe integriert.",
+    "limit": "Allgemeine Skriptausführung, Gegnerzustände und Inszenierungsparität offen.",
+    "code": [
+      "crates/rc-game/src/map3_opening.rs",
+      "crates/rc-game/src/map3_planning.rs",
+      "crates/rc-game/src/map3_escape.rs"
+    ],
+    "evidence": [
+      "docs/MAP3_OPENING.md",
+      "docs/MAP3_PLANNING.md",
+      "docs/MAP3_ESCAPE.md"
+    ],
+    "original": "geo_01c.ctm; Commando07Delta"
+  },
+  {
+    "id": "K10",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "GEO_01C: Wachraum und Türbrechmanöver",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Begegnung, Heilangebote, lokale Navigation und koordinierter Dreirollen-Türbrechablauf eingebunden.",
+    "limit": "Allgemeine Breach-Marker, alternative Taktiken und vollständige Animation/KI offen.",
+    "code": [
+      "crates/rc-game/src/map3_guard.rs",
+      "crates/rc-game/src/map3_breach.rs"
+    ],
+    "evidence": [
+      "docs/MAP3_GUARD.md",
+      "docs/MAP3_BREACH.md"
+    ],
+    "original": "BreachDoor; Marker-Manöver"
+  },
+  {
+    "id": "K11",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "GEO_01C: Balkon, Scharfschütze und Sun Fac",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "AA-Raum, Schild-/Scharfschützenposition, Sevs Schuss, Jäger und Absturz führen zum Zielabschluss.",
+    "limit": "Ausgewählte Szenenlogik; keine vollständige allgemeine Scharfschützen-/Fahrzeug-/Bosslogik.",
+    "code": [
+      "crates/rc-game/src/map3_balcony.rs",
+      "crates/rc-game/src/map3_finale.rs"
+    ],
+    "evidence": [
+      "docs/MAP3_BALCONY.md",
+      "docs/MAP3_FINALE.md"
+    ],
+    "original": "SunFac; GeoFighter; Snipe-Manöver"
+  },
+  {
+    "id": "K12",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "GEO_01C: Fabrikaufzug und Missionsende",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Alle sieben ausgewählten C-Ziele, Aufzug-/Türfreigabe und tatsächlicher C→GEO_03A-Wechsel mit Zustandsübernahme.",
+    "limit": "Vollständige Originalparität des Aufzugs-/Mover-Systems bleibt getrennt.",
+    "code": [
+      "crates/rc-game/src/map3_elevator.rs",
+      "crates/rc-game/src/transition.rs"
+    ],
+    "evidence": [
+      "docs/MAP3_ELEVATOR.md",
+      "docs/FIRST_MISSION_COMPLETE.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "Teleporter39; GEO_03A.ctm#playerstart"
+  },
+  {
+    "id": "K13",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "GEO_03A: Einstieg in die Fabrik",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originalwelt, Einstieg, Bewegung, Waffe und übernommener Squad im Eintrittsbereich vorhanden.",
+    "limit": "Aufgaben, Gegnerfabriken, Aufzugsskripte und weiterer Fabrikverlauf fehlen.",
+    "code": [
+      "crates/rc-game/src/map_runtime.rs",
+      "crates/rc-game/src/transition.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "geo_03a.ctm"
+  },
+  {
+    "id": "K14",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "Weitere Geonosis-Karten",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originaldateien sind lesbar und inventarisiert.",
+    "limit": "Keine durchgängige spielbare Integration der nachfolgenden Fabrik-/Kernschiffabschnitte belegt.",
+    "code": [
+      "config/scene-builds.json"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "geo_03c/d; geo_04a-d; geo_05a-c"
+  },
+  {
+    "id": "K15",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "Republic-Assault-Ship-Kampagne",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "RAS-Karten, Klassen und Assets im Originalkatalog vorhanden.",
+    "limit": "Kein integrierter RAS-Kampagnenlauf oder entsprechendes Releasepaket gefunden.",
+    "code": [
+      "config/scene-builds.json"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "ras_01a bis ras_04d"
+  },
+  {
+    "id": "K16",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "Kashyyyk-Kampagne",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "YYY-Karten, Klassen und Assets im Originalkatalog vorhanden.",
+    "limit": "Kein integrierter Kashyyyk-Kampagnenlauf oder entsprechendes Releasepaket gefunden.",
+    "code": [
+      "config/scene-builds.json"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "yyy_01b bis yyy_35c"
+  },
+  {
+    "id": "K17",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "Briefings, Prolog, Epilog und Filme",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Dateien und zugehörige Script-/Menüklassen sind inventarisiert.",
+    "limit": "Keine vollständige Original-Briefing-/Film-/Abspannabfolge im Port belegt.",
+    "code": [
+      "config/scene-builds.json"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "pro; epilogue; *_briefing; ACTION_PlayMovie"
+  },
+  {
+    "id": "K18",
+    "section": "Kampagne und Missionsinhalte",
+    "feature": "Beliebige Originalkarte unmittelbar spielbar laden",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Paket-/Geometrieanalyse deckt alle 79 CTM-Dateien ab.",
+    "limit": "Android-Spielbetrieb nutzt vier vorbereitete Szenen; kein allgemeiner ausführbarer CTM-Kampagnenloader.",
+    "code": [
+      "crates/rc-inspect/src/main.rs",
+      "config/scene-builds.json"
+    ],
+    "evidence": [
+      "docs/PORTING.md",
+      "docs/BUILD.md"
+    ],
+    "original": "ULevel; 79 CTM-Dateien"
+  },
+  {
+    "id": "P01",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Gehen, Laufen, Seitwärts- und Rückwärtsbewegung",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originalparameter und Yaw-bezogene Eingabe mit Geh-/Richtungsfaktoren; in A/B/C spielbar.",
+    "limit": "Controller, Kollisionssolver und Teilbereiche der Integration bleiben Portregeln.",
+    "code": [
+      "crates/rc-package/src/controller.rs",
+      "crates/rc-package/src/pawn_motion.rs"
+    ],
+    "evidence": [
+      "docs/MOVEMENT_PROFILE.md",
+      "docs/PAWN_MOTION.md"
+    ],
+    "original": "PlayerController.PlayerWalking; APawn::physWalking"
+  },
+  {
+    "id": "P02",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Beschleunigung, Bremsen und Bodenreibung",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte native calcVelocity-Rechnung rekonstruiert und an eigenen Bewegungsadapter angebunden.",
+    "limit": "Keine vollständige physWalking-/Callback-/Gleitkomma-Parität.",
+    "code": [
+      "crates/rc-package/src/pawn_velocity.rs",
+      "crates/rc-package/src/pawn_motion.rs"
+    ],
+    "evidence": [
+      "docs/WALKING_VELOCITY.md",
+      "docs/WALKING_BRIDGE.md"
+    ],
+    "original": "APawn::calcVelocity"
+  },
+  {
+    "id": "P03",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Springen und Landen",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originale DoJump-Zweige, JumpZ und Fallrechnung mit statischer Körperkollision integriert.",
+    "limit": "Vollständige Event-, Sound-, Pawn-Basis- und native Flugparität offen.",
+    "code": [
+      "crates/rc-package/src/pawn_jump.rs",
+      "crates/rc-package/src/falling_collision.rs"
+    ],
+    "evidence": [
+      "docs/JUMP_SCRIPT.md",
+      "docs/FALLING_COLLISION.md"
+    ],
+    "original": "Pawn.DoJump; Pawn.Landed"
+  },
+  {
+    "id": "P04",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Schwerkraft, Fallgeschwindigkeit und Volumes",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originale Parameter und ausgewählte statische Volumenauswahl eingebunden.",
+    "limit": "Wasser, aufwärts-/seitwärts gerichtete Schwerkraft, bewegte Volumes und native Auswahlreihenfolge eingeschränkt.",
+    "code": [
+      "crates/rc-package/src/volumes.rs",
+      "crates/rc-package/src/falling.rs"
+    ],
+    "evidence": [
+      "docs/PHYSICS_VOLUMES.md",
+      "docs/VOLUME_MOTION.md"
+    ],
+    "original": "PhysicsVolume; APawn::physFalling"
+  },
+  {
+    "id": "P05",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Ducken und wieder aufstehen",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originalmaße, Höhenkompensation, Geschwindigkeitsfaktor und Prüfung des freien Kopfraums integriert.",
+    "limit": "FarMoveActor-/Encroachment-Callbacks und vollständige native Kollisionsparität offen.",
+    "code": [
+      "crates/rc-package/src/crouch.rs",
+      "crates/rc-package/src/crouch_motion.rs"
+    ],
+    "evidence": [
+      "docs/CROUCH_COLLISION.md",
+      "docs/CROUCH_MOTION.md"
+    ],
+    "original": "Pawn.StartCrouch; Pawn.EndCrouch"
+  },
+  {
+    "id": "P06",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Automatisches Ducken an Hindernissen",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "CanCrouchWalk-/HitWall-/Notify-Gates auf expliziten Snapshots rekonstruiert.",
+    "limit": "Allgemeine dynamische Controller-/Eventkette und Gameplayabdeckung fehlen.",
+    "code": [
+      "crates/rc-package/src/auto_crouch.rs",
+      "crates/rc-package/src/hit_wall.rs"
+    ],
+    "evidence": [
+      "docs/AUTO_CROUCH.md",
+      "docs/HIT_WALL.md"
+    ],
+    "original": "APawn::processHitWall; CanCrouchWalk"
+  },
+  {
+    "id": "P07",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Treppen, Rampen und Gleiten an Wänden",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Statischer Sweep-/Stufenadapter und Kontaktgeschwindigkeitskorrektur halten den Missionsweg begehbar.",
+    "limit": "Eigene Toleranzen und Kontaktregeln; keine komplette native StepUp-/MoveActor-Parität.",
+    "code": [
+      "crates/rc-package/src/movement.rs",
+      "crates/rc-package/src/contact_velocity.rs"
+    ],
+    "evidence": [
+      "docs/STEP_UP.md",
+      "docs/MISSION_PHYSICS_ANDROID.md"
+    ],
+    "original": "MoveActor; StepUp; Hull-Sweeps"
+  },
+  {
+    "id": "P08",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Körperkollision gegen Welt und StaticMeshes",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "BSP-Hüllen, transformierte Mesh-Hüllen, Sweeps und Vollständigkeitsfehler vorhanden.",
+    "limit": "Generische Pawn-Ausweichkollision, sämtliche Formvarianten und Engine-Trace-Parität offen.",
+    "code": [
+      "crates/rc-package/src/world_collision.rs",
+      "crates/rc-package/src/hull.rs"
+    ],
+    "evidence": [
+      "docs/WORLD_COLLISION.md",
+      "docs/HULL_SWEEPS.md"
+    ],
+    "original": "ULevel::MoveActor; UStaticMesh::LineCheck"
+  },
+  {
+    "id": "P09",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Zylinderkollision von Bacta-Stationen",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Originalradius/-höhe und analytischer Pawn-/Stationszylindersweep im Tutorial; Original-Sollposition wird erreicht.",
+    "limit": "Begrenzter Stationspfad; Welt-BSP und andere Formen verwenden ihre jeweiligen Adapter.",
+    "code": [
+      "crates/rc-package/src/cylinder.rs",
+      "crates/rc-game/src/bacta.rs"
+    ],
+    "evidence": [
+      "docs/MISSION_PHYSICS_ANDROID.md"
+    ],
+    "original": "BactaDispenser.CollisionRadius/Height"
+  },
+  {
+    "id": "P10",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Spawnplatzierung und sichere freie Position",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "FindSpot-/CheckSlice-Entscheidungen rekonstruiert; eigene vollständige Weltprüfungen für Spieler/Squad/Factories.",
+    "limit": "Actor-Hash, Encroachment und vollständige FarMoveActor-Ausführung offen.",
+    "code": [
+      "crates/rc-package/src/placement.rs"
+    ],
+    "evidence": [
+      "docs/LEVEL_BINDING_AND_BODY.md",
+      "docs/INTRO_ACTORS.md"
+    ],
+    "original": "ULevel::FindSpot; CheckSlice"
+  },
+  {
+    "id": "P11",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Ego-Kamera und Blickbegrenzung",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Spielerhöhe, Yaw/Pitch, Blickgrenzen und Touch-Blick in den Szenen vorhanden.",
+    "limit": "Vollständige PlayerCalcView-/UpdateEyeHeight-/Kamerablending-Parität offen.",
+    "code": [
+      "crates/rc-game/src/lib.rs",
+      "crates/rc-package/src/controller.rs"
+    ],
+    "evidence": [
+      "docs/CAMERA.md",
+      "docs/CAMPAIGN_MENU.md"
+    ],
+    "original": "PlayerController.PlayerCalcView; Pawn.UpdateEyeHeight"
+  },
+  {
+    "id": "P12",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Waffenwippen, Rückstoß und ViewShake",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Einzelne Kamera-/Waffenanimationen und Trefferblitze existieren.",
+    "limit": "Keine vollständige originale WeaponBob-/Rückstoß-/ViewShake-Kette im Spielbetrieb belegt.",
+    "code": [
+      "crates/rc-game/src/presentation.rs"
+    ],
+    "evidence": [
+      "docs/COMBAT_SCENE.md",
+      "docs/BACTA_USING_ITEM.md"
+    ],
+    "original": "Pawn.WeaponBob; PlayerController.ViewShake"
+  },
+  {
+    "id": "P13",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Zoom, Zielfernrohr und FOV-Umschaltung",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Scope-Materialien können im Assetimport vorkommen.",
+    "limit": "Keine bedienbare allgemeine Waffen-Zoom-/Scharfschützenansicht im aktuellen Eingabeschema.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "Weapon.Zoom; PlayerController.ToggleZoom"
+  },
+  {
+    "id": "P14",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Helmlampe",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originale Klasse und ToggleHeadlamp-Funktionen inventarisiert.",
+    "limit": "Kein entsprechender Spielerinput und kein integrierter Lampen-/Lichtpfad gefunden.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "CloneHeadlamp; CTPlayer.ToggleHeadlamp"
+  },
+  {
+    "id": "P15",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Taktische Sicht / Visormodi",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originale GotoVisionMode-/Visor-Funktionen inventarisiert.",
+    "limit": "Keine vollständige bedienbare taktische Sicht oder Original-Posteffektkette belegt.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "CTPlayer.GotoVisionMode; PlayerController.Visor"
+  },
+  {
+    "id": "P16",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Leitern, Klettern und Schwimmen",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Entsprechende Engine-States und Pawn-Funktionen sind vorhanden.",
+    "limit": "Kein integrierter Climbing-/Swimming-Spielpfad; Wasser wird im Bewegungsadapter begrenzt behandelt.",
+    "code": [
+      "crates/rc-package/src/volumes.rs"
+    ],
+    "evidence": [
+      "docs/VOLUME_MOTION.md"
+    ],
+    "original": "PlayerClimbing; Pawn.AnimateSwimming"
+  },
+  {
+    "id": "P17",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Geschützturm als Spieler bedienen",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Geschütz-/Turret-Klassen und ManningTurret-State inventarisiert.",
+    "limit": "Keine allgemeine Spielerübernahme, Turret-Kamera und Turret-Bedienung belegt.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "PlayerManningTurret; GOAL_ManTurret"
+  },
+  {
+    "id": "P18",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Benutzen halten / loslassen",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Ein gemeinsamer Input führt Tutorial, Sprengen, Slice, Befehle und Wiederbelebung im jeweils gebundenen Host aus.",
+    "limit": "Keine allgemeine Ausführung beliebiger UsedBy-/Marker-Klassen.",
+    "code": [
+      "crates/rc-game/src/lib.rs",
+      "crates/rc-game/src/bacta.rs"
+    ],
+    "evidence": [
+      "docs/BACTA_USING_ITEM.md",
+      "docs/DEMOLITION_MISSION.md"
+    ],
+    "original": "CTPlayer.Use; CTPlayer.StopUse"
+  },
+  {
+    "id": "P19",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Bacta: Bewegung und Blick sperren/führen",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Originale UsingItem-Zielberechnung, Beschleunigung und begrenzte Ausrichtung; Loslassen gibt Steuerung zurück.",
+    "limit": "HandSignal-Waffenwechsel und vollständige Spieleranimationskopplung bleiben offen.",
+    "code": [
+      "crates/rc-game/src/bacta.rs"
+    ],
+    "evidence": [
+      "docs/BACTA_USING_ITEM.md",
+      "docs/MISSION_PHYSICS_ANDROID.md"
+    ],
+    "original": "CTPlayer.UsingItem.PlayerMove/PlayerTick"
+  },
+  {
+    "id": "P20",
+    "section": "Spielerbewegung, Kamera und Eingabe",
+    "feature": "Tastatur-/Maus- und Controller-Konfiguration",
+    "status": "E",
+    "status_label": "Plattformersatz / Portinfrastruktur",
+    "scope": "Android besitzt eigene Touch-Eingabe und gespeicherte Empfindlichkeit.",
+    "limit": "Originale PC-Bindings, Gamepadprofile, Achsenoptionen und Rumble sind nicht vollständig übertragen.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/ControlSettings.java",
+      "android/app/src/main/java/org/rcport/diagnostic/TouchLayout.java"
+    ],
+    "evidence": [
+      "docs/CAMPAIGN_MENU.md"
+    ],
+    "original": "defaultctrl.ini; PlayerInput"
+  },
+  {
+    "id": "D01",
+    "section": "Gesundheit, Schaden und Spielregeln",
+    "feature": "Lebenspunkte und Spielertod",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Gesundheit, Schaden, Niederlage, Neustart und missionsabhängige Kampfunfähigkeit vorhanden.",
+    "limit": "Missionsspieler verwendet teilweise MaxHealth100; nicht alle Originaldefaults/Dead-State-Zweige ausgeführt.",
+    "code": [
+      "crates/rc-game/src/lib.rs",
+      "crates/rc-game/src/revival.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md",
+      "docs/REVIVAL_PARITY.md"
+    ],
+    "original": "Pawn.TakeDamage; Pawn.Died"
+  },
+  {
+    "id": "D02",
+    "section": "Gesundheit, Schaden und Spielregeln",
+    "feature": "Schilde und verzögerte Regeneration",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Vorbereitete f32-Rechnung, Schildüberlauf und Spieler-/Squad-Regenerationswerte in ausgewählten Kampfszenen.",
+    "limit": "Keine einheitliche vollständige Anwendung aller Regeln in jedem A/B/C-Kampfhost.",
+    "code": [
+      "crates/rc-package/src/pawn_damage.rs",
+      "crates/rc-game/src/combat.rs"
+    ],
+    "evidence": [
+      "docs/MELEE_SCENE.md",
+      "docs/GAME_RULES_SCENE.md"
+    ],
+    "original": "Pawn.SetShields; PlayerCommando"
+  },
+  {
+    "id": "D03",
+    "section": "Gesundheit, Schaden und Spielregeln",
+    "feature": "DamageVariance und DamageType-Vererbung",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Native Include-/Exclude-Reihenfolge, Wildcards, Klassenabgleich und Multiplikation rekonstruiert; ausgewählte Listen eingebunden.",
+    "limit": "Nicht alle Waffen, Gegner und Missionsadapter führen den vollständigen Pfad aus.",
+    "code": [
+      "crates/rc-package/src/damage_variance.rs",
+      "crates/rc-game/src/combat.rs"
+    ],
+    "evidence": [
+      "docs/DAMAGE_PATH.md",
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "Actor.CalculateDamageFrom"
+  },
+  {
+    "id": "D04",
+    "section": "Gesundheit, Schaden und Spielregeln",
+    "feature": "Knochentreffer, Kopfschuss und Rüstungsfaktor",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Vorbereitete Pawn-Schadensrechnung berücksichtigt Knochenfaktor und ArmorFactor; ausgewählte Kampfprofile.",
+    "limit": "Allgemeine exakte Skeletal-Hitboxes und sämtliche aktuellen Hitscan-Hosts bleiben unvollständig.",
+    "code": [
+      "crates/rc-package/src/pawn_damage.rs",
+      "crates/rc-game/src/combat.rs"
+    ],
+    "evidence": [
+      "docs/DAMAGE_PATH.md",
+      "docs/BALLISTICS_SCENE.md"
+    ],
+    "original": "Pawn.DamageMultipliers; Pawn.TakeDamage"
+  },
+  {
+    "id": "D05",
+    "section": "Gesundheit, Schaden und Spielregeln",
+    "feature": "Schwierigkeitsabhängiger Schaden",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originalwerte für leicht/normal/schwer und Operationsreihenfolge in vorbereiteten SP-Kampfszenen geprüft.",
+    "limit": "Keine allgemeine Schwierigkeitsauswahl im aktuellen Kampagnenmenü und keine Gesamtmission-Balanceabnahme.",
+    "code": [
+      "crates/rc-game/src/game_rules.rs"
+    ],
+    "evidence": [
+      "docs/GAME_RULES_SCENE.md"
+    ],
+    "original": "PlayerCommando.CalculateDamageFrom; DifficultyDamageModifier"
+  },
+  {
+    "id": "D06",
+    "section": "Gesundheit, Schaden und Spielregeln",
+    "feature": "GameInfo.ReduceDamage und neutrale Zonen",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte God-/Neutral-/NetDamage-Reihenfolge und statische Volumenflags als Hostgrenze.",
+    "limit": "Dynamische GameRules-Ketten, Multiplayer-Teamregeln und beliebige Runtime-Scripts fehlen.",
+    "code": [
+      "crates/rc-game/src/game_rules.rs"
+    ],
+    "evidence": [
+      "docs/GAME_RULES_SCENE.md"
+    ],
+    "original": "GameInfo.ReduceDamage; GameRules.NetDamage"
+  },
+  {
+    "id": "D07",
+    "section": "Gesundheit, Schaden und Spielregeln",
+    "feature": "Friendly Fire und Teambeziehungen",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Freundliche Figuren werden lokal berücksichtigt; einzelne Schussbahnen können durch Spieler/Squad blockiert werden.",
+    "limit": "Vollständige Team-/FriendlyFire-Schadens-, Warn- und Vertrauensregeln nicht rekonstruiert.",
+    "code": [
+      "crates/rc-game/src/squad.rs",
+      "crates/rc-game/src/map_runtime.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "CTPlayer.FriendlyFireCallback; CTTeamInfo"
+  },
+  {
+    "id": "D08",
+    "section": "Gesundheit, Schaden und Spielregeln",
+    "feature": "Explosionen und Flächenschaden",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Granaten-, Bunker- und ausgewählte Missionsschäden; Karma-Radiusimpuls mit Entfernung und Sichtprüfung.",
+    "limit": "Allgemeine HurtRadius-/DamageType-/Team-/Abdeckungsparität unvollständig.",
+    "code": [
+      "crates/rc-game/src/detonator.rs",
+      "crates/rc-game/src/rigid_interaction.rs"
+    ],
+    "evidence": [
+      "docs/DETONATOR_AND_GUN_POSITION.md",
+      "docs/KARMA_INTERACTIONS.md"
+    ],
+    "original": "Actor.HurtRadius"
+  },
+  {
+    "id": "D09",
+    "section": "Gesundheit, Schaden und Spielregeln",
+    "feature": "Fallschaden",
+    "status": "U",
+    "status_label": "Nicht einzeln bewertet",
+    "scope": "Originale Pawn-/Geonosian-Funktionen sind erfasst.",
+    "limit": "Kein eigenständig belegter vollständiger Fallschadenspfad für die aktuelle Kampagne.",
+    "code": [
+      "crates/rc-game/src/lib.rs",
+      "crates/rc-package/src/falling.rs"
+    ],
+    "evidence": [
+      "docs/FALLING.md"
+    ],
+    "original": "Pawn.TakeFallingDamage"
+  },
+  {
+    "id": "D10",
+    "section": "Gesundheit, Schaden und Spielregeln",
+    "feature": "Skriptbedingte Verwundbarkeit / Unverwundbarkeit",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte Schutzwechsel, Tutorialverletzung und CannotDie-/Missionsflags integriert.",
+    "limit": "Beliebige Actor-/DamageType-Ausnahmen und Scriptvarianten offen.",
+    "code": [
+      "crates/rc-game/src/crash.rs",
+      "crates/rc-game/src/opening.rs"
+    ],
+    "evidence": [
+      "docs/ORIGINAL_CRASH_MISSION.md",
+      "docs/MISSION_PRESENTATION.md"
+    ],
+    "original": "ACTION_SetCannotDie; Pawn.TakeDamage"
+  },
+  {
+    "id": "D11",
+    "section": "Gesundheit, Schaden und Spielregeln",
+    "feature": "Kampfunfähigkeit und Hilfe anfordern",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Scorch-/Spielerpfad mit Eingabesperren, Hilferuf, Annäherung und gemeinsamer Niederlage vorhanden.",
+    "limit": "Nicht für alle Karten/Teamkonstellationen in allgemeiner Original-KI umgesetzt.",
+    "code": [
+      "crates/rc-game/src/squad.rs",
+      "crates/rc-game/src/revival.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md",
+      "docs/REVIVAL_PARITY.md"
+    ],
+    "original": "Pawn.Incapacitated; CTPlayer.CtrlIncapacitated"
+  },
+  {
+    "id": "D12",
+    "section": "Gesundheit, Schaden und Spielregeln",
+    "feature": "Wiederbelebung: Dauer, Animation und Gesundheitsrampe",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originale Notify-/Animationsdauer und Reviving-Rampe im ausgewählten A-Squadpfad; B/C besitzen eigene vereinfachte Hosts.",
+    "limit": "Nicht alle Schadensausnahmen und Karten verwenden identische vollständige Reviving-Regeln.",
+    "code": [
+      "crates/rc-game/src/revival.rs",
+      "crates/rc-game/src/map_runtime.rs"
+    ],
+    "evidence": [
+      "docs/REVIVAL_PARITY.md",
+      "docs/MAP2_GAMEPLAY.md"
+    ],
+    "original": "Pawn.Reviving.Tick/EndState; CloneCommando.Revive"
+  },
+  {
+    "id": "D13",
+    "section": "Gesundheit, Schaden und Spielregeln",
+    "feature": "Statusschäden: EMP, Feuer, Strom, Betäubung, Säure",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "DamageType-/StatusEffect-Klassen inventarisiert.",
+    "limit": "Keine allgemeine kombinierte Statussimulation mit Effekten, Tickschaden und KI-Reaktion belegt.",
+    "code": [
+      "crates/rc-game/src/combat.rs"
+    ],
+    "evidence": [
+      "docs/DAMAGE_PATH.md"
+    ],
+    "original": "StatusEffect_Electrocute/Immolate/Stun; CTDamageAcid"
+  },
+  {
+    "id": "D14",
+    "section": "Gesundheit, Schaden und Spielregeln",
+    "feature": "Todesbedingungen, Zerstückelung und Ragdoll",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originale DeathCondition-/DeathEffect-Klassen sowie Animations-/Karma-Daten erfasst.",
+    "limit": "Keine vollständige originale Todesauswahl, Zerstückelung oder Skeletal-Ragdoll-Simulation.",
+    "code": [
+      "crates/rc-game/src/visual.rs",
+      "crates/rc-game/src/rigid.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md",
+      "docs/KARMA_INTERACTIONS.md"
+    ],
+    "original": "DeathCondition_*; DeathEffect_*; Pawn.GoRagDoll"
+  },
+  {
+    "id": "W01",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "DC-15s: Ladung, Kühlung und automatisches Aufladen",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Originalkapazität5, Regeneration1,5/s, ausgewählte Tickreihenfolge und Freigabeflags in A/B/C/Fabrikeinstieg.",
+    "limit": "Geltungsbereich ist Energieverwaltung; keine vollständige Weapon.NormalFire-Parität.",
+    "code": [
+      "crates/rc-game/src/dc15.rs"
+    ],
+    "evidence": [
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "DC15Ammo; CTAmmoRecharging"
+  },
+  {
+    "id": "W02",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "DC-15s: Schaden und Schussabstand",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Originalbasisschaden55 und Schussabstand0,2s im aktuellen Trefferadapter; manuelles Magazinnachladen deaktiviert.",
+    "limit": "Halbautomatik, Halten-Logik, Hitscan/Projektil und sämtliche Modifikatoren bleiben separat.",
+    "code": [
+      "crates/rc-game/src/dc15.rs",
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "DC15s.Fire; DC15Proj.Damage"
+  },
+  {
+    "id": "W03",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "DC-15s: sichtbare Waffe und Audio",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originale Waffenassets, Schussgeräusch und ausgewählte Aktionsclips eingebunden.",
+    "limit": "Vollständige Arms-/Muzzle-/Lauf-/Holsteranimation und Waffenmaterialeffekte offen.",
+    "code": [
+      "crates/rc-game/src/visual.rs",
+      "crates/rc-game/src/presentation.rs"
+    ],
+    "evidence": [
+      "docs/TEXTURES_AND_WEAPON_AUDIO.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "HudArmsDC15sSet; DC15s"
+  },
+  {
+    "id": "W04",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "DC-17m Blaster",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Vorbereitete Gefechtsszene und Squad verwenden Originalassets, ausgewählte Werte, Projektile, Reload-/Soundnotifies.",
+    "limit": "Kein allgemeiner vom Spieler bedienbarer Wechsel vom aktuellen DC-15s-Kampagnenprofil.",
+    "code": [
+      "crates/rc-game/src/combat.rs",
+      "crates/rc-game/src/squad.rs"
+    ],
+    "evidence": [
+      "docs/COMBAT_SCENE.md",
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "DC17mBlaster; DC17BlasterProj"
+  },
+  {
+    "id": "W05",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "DC-17m Scharfschützenaufsatz",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Waffen-, Munitions-, Scope- und Pickupklassen im Originalkatalog.",
+    "limit": "Sevs Skript-Scharfschützenmanöver ersetzt keine spielbare Scharfschützenwaffe.",
+    "code": [
+      "crates/rc-game/src/map3_finale.rs"
+    ],
+    "evidence": [
+      "docs/MAP3_FINALE.md"
+    ],
+    "original": "DC17mSniper; DC17mSniperScope"
+  },
+  {
+    "id": "W06",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "DC-17m Anti-Armor-Aufsatz",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Waffen-, Munitions-, Projektil- und Pickupklassen erfasst.",
+    "limit": "Kein spielbarer allgemeiner Anti-Armor-Waffenpfad belegt.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "DC17mAntiArmor; AntiArmorProj"
+  },
+  {
+    "id": "W07",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Waffenwechsel und Aufsatzwechsel",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Aktuelle Kampagne verwendet ein festes Waffenprofil; getrennte ältere Testszenen existieren.",
+    "limit": "Kein vollständiges Inventar mit Next/Prev/ToggleWeapon und Wechselanimationen.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "PlayerController.SwitchWeapon; Weapon.WeaponChange"
+  },
+  {
+    "id": "W08",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Waffennahkampf / Klingenangriff des Spielers",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originale Weapon.AltFire-/Melee-Funktionen erfasst.",
+    "limit": "Kein eigener AltFire-/Melee-Input und vollständiger Spieler-Nahkampfhost im aktuellen Spiel.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "Weapon.AltFire; Weapon.DoMeleeAttack"
+  },
+  {
+    "id": "W09",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Thermaldetonator: Inventar und Aufnahme",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Startbestand, originale Kiste, Aufnahmebegrenzung, HUD und ausgewählte Missionsdialoge eingebunden.",
+    "limit": "Allgemeine Pickupklassen und mehrere auswählbare Granatenarten bleiben offen.",
+    "code": [
+      "crates/rc-game/src/grenade_pickup.rs",
+      "crates/rc-game/src/grenade_runtime.rs"
+    ],
+    "evidence": [
+      "docs/ORIGINAL_GRENADE_MISSION.md"
+    ],
+    "original": "ThermalDetonatorBox; ThermalDetonatorAmmo"
+  },
+  {
+    "id": "W10",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Thermaldetonator: Wurf und Animationsfreigabe",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originalclip und Release-Notify; Eingabe, kollisionsgeprüfter Flug, Abprall, Zünder und Explosion integriert.",
+    "limit": "Kein vollständiger generischer Projectile-/Touch-/Materialreaktionspfad.",
+    "code": [
+      "crates/rc-game/src/grenade_throw.rs",
+      "crates/rc-game/src/detonator_flight.rs"
+    ],
+    "evidence": [
+      "docs/LIVE_GRENADE_THROW.md",
+      "docs/DETONATOR_FLIGHT_AND_RELEASE.md"
+    ],
+    "original": "Weapon.ReleaseGrenade; GrenadeProj"
+  },
+  {
+    "id": "W11",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Thermaldetonator: Impulse auf bewegliche Körper",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originalimpuls800, Aufwärtsanteil700, Entfernung, Radius und Sichtprüfung für vier Barrieren.",
+    "limit": "Allgemeine Karma-Akteure und MathEngine-Kontaktparität offen.",
+    "code": [
+      "crates/rc-game/src/rigid_interaction.rs"
+    ],
+    "evidence": [
+      "docs/KARMA_INTERACTIONS.md"
+    ],
+    "original": "ThermalDetonatorProj; Actor.HurtRadius"
+  },
+  {
+    "id": "W12",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "EMP-Granate",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originale Klassen und Assets erfasst.",
+    "limit": "Auswahl, Wurf, Droiden-/Schildwirkung und Effekte nicht spielbar belegt.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "EMPGrenade; EMPGrenadeProj"
+  },
+  {
+    "id": "W13",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Flashbang / Blendgranate",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originale Klassen und Assets erfasst.",
+    "limit": "Auswahl, Blend-/Stunwirkung und KI-Reaktion nicht spielbar belegt.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "FlashBang; FlashBangProj"
+  },
+  {
+    "id": "W14",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Sonischer Detonator",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originale Klassen und Assets erfasst.",
+    "limit": "Auswahl, Flächenwirkung, Material-/Gegnerreaktion und Effekte nicht spielbar belegt.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "SonicDetonator; SonicDetonatorProj"
+  },
+  {
+    "id": "W15",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Weitere Granaten-/Minenklassen der Installation",
+    "status": "U",
+    "status_label": "Nicht einzeln bewertet",
+    "scope": "Sticky-/Incindeary-/LandMine-/ProxCharge-Klassen katalogisiert.",
+    "limit": "Tatsächliche Verwendung im veröffentlichten PC-Spiel und Portumsetzung nicht einzeln bewertet.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "StickyGrenade; IncindearyGrenade; LandMine; ProxChargeInventory"
+  },
+  {
+    "id": "W16",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Eingesammelte Fremdwaffen",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Shotgun, SMG, Bowcaster, TrandoshanRifle, ConcussionRifle, RocketLauncher und EliteBeam katalogisiert.",
+    "limit": "Aufnahme, Auswahl, Schießen, Nachladen und Abwerfen dieser Spielerwaffen fehlen als allgemeines System.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "ctinventory: Fremdwaffen-/Pickupklassen"
+  },
+  {
+    "id": "W17",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Feindwaffen und stationäre Waffen",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Droiden-/Squad-Schussfeedback sowie ausgewählte Artillerie-/Geschützadapter vorhanden.",
+    "limit": "Viele SBDBlaster-/Droideka-/Wookiee-/Trandoshan-/Turret-Waffentypen nicht integriert.",
+    "code": [
+      "crates/rc-game/src/enemy_feedback.rs",
+      "crates/rc-game/src/artillery.rs"
+    ],
+    "evidence": [
+      "docs/PHONE_TEST_BLOCKERS.md",
+      "docs/ARTILLERY_MISSION.md"
+    ],
+    "original": "BattleDroidBlaster; SBDBlaster; EWebTurret; GeoTurret"
+  },
+  {
+    "id": "W18",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Magazin, Reserve und Reload-Zustandsmaschine",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ältere DC-17-/Legacy-Profile besitzen Magazine, Reserve, Reloadclip/-notifies und AnimEnd-Abschluss.",
+    "limit": "Kein vollständiges gemeinsames System sämtlicher Waffen; DC-15s verwendet korrekt Energie.",
+    "code": [
+      "crates/rc-game/src/combat.rs",
+      "crates/rc-game/src/dc15.rs"
+    ],
+    "evidence": [
+      "docs/COMBAT_SCENE.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "Weapon.Reloading; Ammunition"
+  },
+  {
+    "id": "W19",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Munitionskisten und Pickupregeln",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte Blaster-/Granatenkisten in Mission1 versorgen den lokalen Inventarhost.",
+    "limit": "Vollständige waffenspezifische HandlePickupQuery-/Respawn-/MaxAmmo-Regeln offen.",
+    "code": [
+      "crates/rc-game/src/map_runtime.rs",
+      "crates/rc-game/src/grenade_pickup.rs"
+    ],
+    "evidence": [
+      "docs/MAP2_GAMEPLAY.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "CTPickup; Ammunition.HandlePickupQuery"
+  },
+  {
+    "id": "W20",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Schussursprung, Offset und Retikelkorrektur",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte GetFireStart-/FPFireOffset-/Retikelrechnung im Projektil-Gefechtspfad.",
+    "limit": "Aktueller DC-15s-Hitscan und andere lokale Kampfhosts sind davon getrennt.",
+    "code": [
+      "crates/rc-package/src/projectile_motion.rs",
+      "crates/rc-game/src/combat.rs"
+    ],
+    "evidence": [
+      "docs/BALLISTICS_SCENE.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "Weapon.GetFireStart; Ammunition.GetOffsetOrigin"
+  },
+  {
+    "id": "W21",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Zielhilfe, Streuung und Genauigkeit",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Einzelne Aim-/Retikelbausteine und Originalwerte sind erfasst.",
+    "limit": "Vollständige native AdjustAim-/AdjustWeaponAccuracy-/Streuungs-/Lock-on-Regeln fehlen.",
+    "code": [
+      "crates/rc-game/src/combat.rs"
+    ],
+    "evidence": [
+      "docs/BALLISTICS_SCENE.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "PlayerController.AdjustAim; Weapon.AdjustWeaponAccuracy"
+  },
+  {
+    "id": "W22",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Laser-/Projektilflug und Treffer",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte physProjectile-Arithmetik, Lebensdauer und kontinuierliche statische Wegprüfung; Squadprojektile.",
+    "limit": "Native RSQRT-/Kontakt-/Reflexions-/Actor-Dispatch-Parität und alle Waffentypen offen.",
+    "code": [
+      "crates/rc-package/src/projectile_motion.rs",
+      "crates/rc-game/src/combat.rs"
+    ],
+    "evidence": [
+      "docs/BALLISTICS_SCENE.md",
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "AProjectile::BoundProjectileVelocity; Projectile.ProcessTouch"
+  },
+  {
+    "id": "W23",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Treffer-FX, Einschläge und Materialgeräusche",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Trefferblitze, ausgewählte Gegner-Schussspuren/-sounds und Missions-Explosionseffekte.",
+    "limit": "Generische materialabhängige Decals, Funken, Staub und Treffergeräusche unvollständig.",
+    "code": [
+      "crates/rc-game/src/enemy_feedback.rs",
+      "crates/rc-game/src/world_effects.rs"
+    ],
+    "evidence": [
+      "docs/PHONE_TEST_BLOCKERS.md",
+      "docs/MISSION_PRESENTATION.md"
+    ],
+    "original": "Projectile.SpawnEffect; PhysicalMaterial"
+  },
+  {
+    "id": "W24",
+    "section": "Waffen, Munition und Inventar",
+    "feature": "Waffenaufnahme, Abwerfen und Inventarverwaltung",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Einzelne lokale Pickup-/Munitionszustände vorhanden.",
+    "limit": "Keine allgemeine Actor-/Weapon-Inventarliste mit DropFrom, GiveTo und vollständigen Reiseinformationen.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "Pawn.AddInventory; Weapon.GiveTo; Weapon.DropFrom"
+  },
+  {
+    "id": "A01",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Battle Droid: Missionsgegner",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "A/B/C nutzen Originalmesh/-texturen, Fabrikspawns, lokalen Fernkampf und gekoppeltes Schussfeedback.",
+    "limit": "Vollständiger StateBattleDroidAttack, Treffer-/Todesanimationen und Verhaltensvielfalt offen.",
+    "code": [
+      "crates/rc-game/src/crash_runtime.rs",
+      "crates/rc-game/src/enemy_feedback.rs",
+      "crates/rc-game/src/map_runtime.rs"
+    ],
+    "evidence": [
+      "docs/ORIGINAL_CRASH_MISSION.md",
+      "docs/PHONE_TEST_BLOCKERS.md"
+    ],
+    "original": "BattleDroid; BattleDroidBot"
+  },
+  {
+    "id": "A02",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Geonosian Warrior: Angriffsentscheidung",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte native Prioritäten, Zufallszweige, BurstCount und Nahkampf-/Sprung-/Lunge-Auswahl rekonstruiert und in A integriert.",
+    "limit": "ComputeEssentials, Gesamtzustandsmaschine und vollständige dynamische Umwelt fehlen.",
+    "code": [
+      "crates/rc-package/src/geonosian_attack.rs",
+      "crates/rc-game/src/warrior_ai.rs"
+    ],
+    "evidence": [
+      "docs/GEONOSIAN_ATTACK.md",
+      "docs/WARRIOR_AI_MISSION.md",
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "StateGeonosianWarriorAttack"
+  },
+  {
+    "id": "A03",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Warrior: Nahkampf und Hit-Notifies",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originale Angriffclips, MeleeHit-Zeitpunkte und ausgewähltes Goal-Zeitbudget.",
+    "limit": "Kein vollständiger allgemeiner GoalQueue-/Nahkampfhost aller Gegner.",
+    "code": [
+      "crates/rc-package/src/melee_goal.rs",
+      "crates/rc-game/src/melee.rs"
+    ],
+    "evidence": [
+      "docs/MELEE_SCENE.md",
+      "docs/BOT_GOALS_SCENE.md"
+    ],
+    "original": "GOAL_MeleeAttack; ForcePike"
+  },
+  {
+    "id": "A04",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Warrior: Lunge / Ausfallschritt",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originalclips/-Root-Kurven mit Unterbrechung und Kollisionsprüfung; A-Integration vorhanden.",
+    "limit": "Root-/Kontakt-/Zielbewertung verwendet begrenzte Hosts.",
+    "code": [
+      "crates/rc-game/src/lunge.rs"
+    ],
+    "evidence": [
+      "docs/LUNGE_SCENE.md",
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "Lunge; MeleeAttack"
+  },
+  {
+    "id": "A05",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Warrior: offensiver und defensiver Sprung",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "JumpDest-Daten, TakeOff-/Fall-/Landclips, ausgewählte Flug- und Landeentscheidungen integriert.",
+    "limit": "Allgemeine Perch-/Flug-/GoalQueue-Logik und alle Kartensituationen offen.",
+    "code": [
+      "crates/rc-game/src/jump.rs",
+      "crates/rc-package/src/defensive_jump.rs"
+    ],
+    "evidence": [
+      "docs/DEFENSIVE_JUMP_SCENE.md",
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "GOAL_JumpTo; DoDefensiveJump"
+  },
+  {
+    "id": "A06",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Wahrnehmung, Sichtlinie und letzte Sichtposition",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Sichtlinien, lokale Zielwahl und zeitlich begrenzte Verfolgung in Warrior-/Squadhosts.",
+    "limit": "Keine vollständige native Stimulus-/Threat-/LocalSituation-Simulation.",
+    "code": [
+      "crates/rc-game/src/warrior_ai.rs",
+      "crates/rc-game/src/squad.rs"
+    ],
+    "evidence": [
+      "docs/WARRIOR_AI_MISSION.md",
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "CTBot; LocalSituation"
+  },
+  {
+    "id": "A07",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Navigation und PathNode-/ReachSpec-Daten",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originalknoten, gerichtete Links und körpergeprüfte Gehgraphen für ausgewählte Karten.",
+    "limit": "Keine vollständige originale ReachSpec-/FollowLinks-/Perch-Ausführung oder generische dynamische Pfadfindung.",
+    "code": [
+      "crates/rc-game/src/navigation.rs",
+      "crates/rc-game/src/mission_motion.rs"
+    ],
+    "evidence": [
+      "docs/NAVIGATION_SCENE.md",
+      "docs/MAP2_CONTINUOUS_PLAYTHROUGH.md"
+    ],
+    "original": "PathNode; ReachSpec; GOAL_FollowLink"
+  },
+  {
+    "id": "A08",
+    "section": "Gegner und allgemeine KI",
+    "feature": "KI-Kontakte, Duckziele und HitWall-Reaktion",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Ausgewählte Kontakt-/Notify-/AutoCrouch-Gates auf geprüften Snapshots und statischen Proben.",
+    "limit": "Native Callback-Reihenfolge, dynamische Pawn-Kontakte und allgemeines Recovery fehlen.",
+    "code": [
+      "crates/rc-package/src/ai_contact.rs",
+      "crates/rc-package/src/hit_wall.rs"
+    ],
+    "evidence": [
+      "docs/AI_CONTACT.md",
+      "docs/AI_DUCK_TARGETS.md"
+    ],
+    "original": "NotifyHitWall; processHitWall"
+  },
+  {
+    "id": "A09",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Generische CTBot-State- und GoalQueue-Maschine",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Einzelne Goals, States und Entscheidungsteile sind rekonstruiert.",
+    "limit": "Keine Engine, die beliebige CTBot-/GoalObject-Klassen vollständig ausführt.",
+    "code": [
+      "crates/rc-game/src/bot.rs",
+      "crates/rc-package/src/melee_goal.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "CTBot; GoalQueue; StateObject; GoalObject"
+  },
+  {
+    "id": "A10",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Patrouille, Untersuchen, Flucht und Deckung",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Lokale Verfolgungs-/Folgeplanung vorhanden; Originalstates inventarisiert.",
+    "limit": "Allgemeine Patrol-/Investigate-/Retreat-/Tether-/Cover-Logik nicht vollständig umgesetzt.",
+    "code": [
+      "crates/rc-game/src/warrior_ai.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "StatePatrol; StateInvestigate; StateRetreat; StateTether"
+  },
+  {
+    "id": "A11",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Gegnergranaten und taktische Waffenwahl",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originalgoals und Inventarklassen katalogisiert.",
+    "limit": "Keine allgemeine Grenade-Feasibility-, Ziel-, Wurf- und ChangeWeapon-Planung belegt.",
+    "code": [
+      "crates/rc-game/src/warrior_ai.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "GOAL_ThrowGrenade; GOAL_ChangeWeapon"
+  },
+  {
+    "id": "A12",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Super Battle Droid und halber SBD",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "C enthält den synchronisierten SBD-Auftritt, Originalmaße/400HP und einen begrenzten Kampfhost samt weiteren Fabrik-SBDs.",
+    "limit": "Vollständige StateSBDAttack-/Waffen-/Rüstungslogik, alle Notifyeffekte und SBDHalf-Verhalten offen.",
+    "code": [
+      "crates/rc-game/src/map3_guard.rs",
+      "crates/rc-inspect/src/bin/rc-map3-guard-build.rs"
+    ],
+    "evidence": [
+      "docs/MAP3_GUARD.md"
+    ],
+    "original": "SuperBattleDroid; SBDHalf; StateSBDAttack"
+  },
+  {
+    "id": "A13",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Droideka und Schutzschild-KI",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Klassen und Assets katalogisiert.",
+    "limit": "Keine vollständige Roll-/Aufstell-/Schild-/Waffen-Zustandsmaschine.",
+    "code": [
+      "crates/rc-game/src/map_runtime.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "Droideka; StateDroidekaAttack"
+  },
+  {
+    "id": "A14",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Geonosian Drone / fliegende Drohnen",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Klassen, Perches und Waffen erfasst.",
+    "limit": "Kein allgemeiner Flug-, Spuck-, Perch- und Nahkampfhost.",
+    "code": [
+      "crates/rc-game/src/warrior_ai.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "GeonosianDrone; DronePerch; StateDroneAttack"
+  },
+  {
+    "id": "A15",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Geonosian Elite / Beamgegner",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Klassen und Waffen erfasst.",
+    "limit": "Kein vollständiger Flug-/Perch-/Beam-Angriffspfad.",
+    "code": [
+      "crates/rc-game/src/warrior_ai.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "GeonosianElite; StateEliteAttack"
+  },
+  {
+    "id": "A16",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Spider / Dwarf Spider Droid",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählter animierter Artillerieauftritt und vier schädigende Geschosse in A.",
+    "limit": "Vollständige mobile Boss-/Raketen-/Beam-KI und Dwarf-Variante offen.",
+    "code": [
+      "crates/rc-game/src/artillery.rs"
+    ],
+    "evidence": [
+      "docs/ARTILLERY_MISSION.md"
+    ],
+    "original": "SpiderDroid; DwarfSpiderDroid"
+  },
+  {
+    "id": "A17",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Automatische Geschütze und Turret-Bots",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte Missionsstellung und Artillerie werden durch lokale Hosts behandelt.",
+    "limit": "Allgemeiner AutoTurretBot-/StateTurretAttack-/Manning-Pfad fehlt.",
+    "code": [
+      "crates/rc-game/src/gunner.rs",
+      "crates/rc-game/src/artillery.rs"
+    ],
+    "evidence": [
+      "docs/GUN_POSITION_MISSION.md",
+      "docs/ARTILLERY_MISSION.md"
+    ],
+    "original": "AutoTurret; AutoTurretBot; StateTurretAttack"
+  },
+  {
+    "id": "A18",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Trandoshan Slaver / Mercenary / Heavy",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originalklassen, Schadens-/Waffen- und Animationsdaten sind katalogisiert.",
+    "limit": "Keine spielbare vollständige RAS-/Kashyyyk-KI für diese Gegnertypen belegt.",
+    "code": [
+      "crates/rc-game/src/map_runtime.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "TrandoshanSlaver; TrandoshanMercenary; TrandoshanHeavy"
+  },
+  {
+    "id": "A19",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Scavenger-Droiden und Seeker",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originalklassen und Ausrüstung erfasst.",
+    "limit": "Keine vollständige Andock-/Saug-/Licht-/Spielerbesitz- und Fluglogik.",
+    "code": [
+      "crates/rc-game/src/map_runtime.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "TrandoshanScav; SeekerDroid; StateScavDroidAttack"
+  },
+  {
+    "id": "A20",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Grievous-Wachen",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originalklassen, Staff-/Missile-Waffen und Perches erfasst.",
+    "limit": "Keine integrierte GrievousGuard-Kampf-/Sprung-/Ausweich-KI.",
+    "code": [
+      "crates/rc-game/src/map_runtime.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "GrievousGuard; StateGrievousGuardAttack"
+  },
+  {
+    "id": "A21",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Wookiees und weitere verbündete NPCs",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originalklassen und Waffen katalogisiert.",
+    "limit": "Keine allgemeine Wookiee-/CloneTrooper-/Ambient-Verbündeten-KI im Port belegt.",
+    "code": [
+      "crates/rc-game/src/map_runtime.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "Wookiee; CloneTrooper; CloneAdvisor; AmbientBot"
+  },
+  {
+    "id": "A22",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Fauna und Ambient-NPCs",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Orray, Kreetle, Mynock und weitere Klassen inventarisiert.",
+    "limit": "Keine vollständige autonome Ambient-/Beast-Logik im aktuellen Spielbetrieb belegt.",
+    "code": [
+      "crates/rc-game/src/map_runtime.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "Beast; Orray; Kreetle; Mynock; SwampBlurrg"
+  },
+  {
+    "id": "A23",
+    "section": "Gegner und allgemeine KI",
+    "feature": "Fahrzeuge und geskriptete Flugobjekte",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Gunship-/Fighter-/Spider-Auftritte und Sun-Fac-Abflug in ausgewählten Missionssequenzen.",
+    "limit": "Keine allgemeine Fahrzeug-/Dropship-/Piloten-/Transport-/Kollisions-KI.",
+    "code": [
+      "crates/rc-game/src/intro.rs",
+      "crates/rc-game/src/map3_finale.rs"
+    ],
+    "evidence": [
+      "docs/INTRO_ACTORS.md",
+      "docs/MAP3_FINALE.md"
+    ],
+    "original": "Gunship; GeoFighter; Dropship; ATTEWalker"
+  },
+  {
+    "id": "S01",
+    "section": "Squad und taktische Befehle",
+    "feature": "Scorch, Fixer und Sev beitreten lassen",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Alle drei Mitglieder treten in den ausgewählten A/B/C-Ketten bei und werden über Kartenwechsel übernommen.",
+    "limit": "Nicht als allgemeiner beliebiger Squad-Rekrutierungs-/Scriptmechanismus umgesetzt.",
+    "code": [
+      "crates/rc-game/src/rendezvous.rs",
+      "crates/rc-game/src/map3_opening.rs",
+      "crates/rc-game/src/transition.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "Commando62Delta; Commando40Delta; Commando07Delta"
+  },
+  {
+    "id": "S02",
+    "section": "Squad und taktische Befehle",
+    "feature": "Folgen und physische Wegsuche",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Körpergeprüfte Gehschritte, lokale Graphen, Umwege und Spielerwegpunkte; drei Mitglieder am Fabrikeinstieg.",
+    "limit": "Keine vollständige Formation-/FollowLinks-/dynamische Pawn-Ausweichparität.",
+    "code": [
+      "crates/rc-game/src/squad.rs",
+      "crates/rc-game/src/mission_motion.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md",
+      "docs/MAP2_CONTINUOUS_PLAYTHROUGH.md"
+    ],
+    "original": "GOAL_SquadFollow; StanceFormUp"
+  },
+  {
+    "id": "S03",
+    "section": "Squad und taktische Befehle",
+    "feature": "Halten und Folgen umschalten",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Nähe-/Ziel-basiertes Benutzen schaltet Scorch im A-Host zwischen Halten und Folgen.",
+    "limit": "Kein vollständiges Original-Stance-/Befehlsmenü über alle Mitglieder/Karten.",
+    "code": [
+      "crates/rc-game/src/squad.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "StanceHold; CTSquadNative.SetStance"
+  },
+  {
+    "id": "S04",
+    "section": "Squad und taktische Befehle",
+    "feature": "Fokusfeuer auf Gegner",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Gezieltes Benutzen priorisiert einen Warrior für Scorch; lokale Verfolgung und Projektile.",
+    "limit": "Keine allgemeine EngageTarget-/Threat-/Zielwahlparität aller Squadmitglieder.",
+    "code": [
+      "crates/rc-game/src/squad.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "CTSquadNative.EngageTarget"
+  },
+  {
+    "id": "S05",
+    "section": "Squad und taktische Befehle",
+    "feature": "Search & Destroy / offensive Haltung",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originale CTPlayer-/Stance-Funktionen erfasst.",
+    "limit": "Keine allgemeine spielbare offensive Squad-Haltung mit vollständiger Planung.",
+    "code": [
+      "crates/rc-game/src/squad.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "SetStanceOffensive; StanceSearchAndDestroy"
+  },
+  {
+    "id": "S06",
+    "section": "Squad und taktische Befehle",
+    "feature": "Form Up / defensive Haltung",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Folgeadapter bildet grundlegendes Mitkommen ab.",
+    "limit": "Originale FormUp-Varianten, enge/lose Formation und komplette Befehlssemantik offen.",
+    "code": [
+      "crates/rc-game/src/squad.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "SetStanceDefensive; StanceFormUpTight/Loose"
+  },
+  {
+    "id": "S07",
+    "section": "Squad und taktische Befehle",
+    "feature": "Secure Position / Position sichern",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originale EngageLocation-/SecurePosition-States katalogisiert.",
+    "limit": "Kein allgemeiner frei platzierbarer Positionssicherungsbefehl.",
+    "code": [
+      "crates/rc-game/src/squad.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "SquadEngage; StanceSecurePosition"
+  },
+  {
+    "id": "S08",
+    "section": "Squad und taktische Befehle",
+    "feature": "Recall / Befehle abbrechen",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Lokale Hosts beenden einzelne Befehle und wechseln zu Folgen.",
+    "limit": "Kein vollständiger CancelAllMarkers-/CancelAllOrders-/Recall-Pfad aller Marker.",
+    "code": [
+      "crates/rc-game/src/squad.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "CTSquadNative.Recall; CancelAllMarkers"
+  },
+  {
+    "id": "S09",
+    "section": "Squad und taktische Befehle",
+    "feature": "Sprengmanöver und Fernzünder",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Scorchs A-Manöver mit Originalclips; weitere B/C-Sprengpunkte lokal angebunden.",
+    "limit": "Keine allgemeine frei wiederverwendbare Marker-Reservierungs-/GoalQueue-Umsetzung.",
+    "code": [
+      "crates/rc-game/src/demolition.rs",
+      "crates/rc-game/src/map_gameplay.rs"
+    ],
+    "evidence": [
+      "docs/DEMOLITION_MISSION.md",
+      "docs/MAP2_GAMEPLAY.md"
+    ],
+    "original": "GOAL_ExecuteMarker; DemolitionChargeObject"
+  },
+  {
+    "id": "S10",
+    "section": "Squad und taktische Befehle",
+    "feature": "Slice / Hacken",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Fixer-Beitritt und ausgewählte Konsolen-/Türaktionen mit Benutzdauer und Ereignisfreigabe.",
+    "limit": "B verwendet lokale Sechs-Sekunden-Regel; vollständiger animierter Marker-/Skill-Pfad offen.",
+    "code": [
+      "crates/rc-game/src/map_gameplay.rs",
+      "crates/rc-game/src/map3_planning.rs"
+    ],
+    "evidence": [
+      "docs/MAP2_GAMEPLAY.md",
+      "docs/MAP3_PLANNING.md"
+    ],
+    "original": "HackTerminal; HackDoor"
+  },
+  {
+    "id": "S11",
+    "section": "Squad und taktische Befehle",
+    "feature": "Türbrechmanöver",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Koordinierter lokaler Dreirollen-Ablauf in C mit Tür-/Missionsfortschritt.",
+    "limit": "Allgemeine Rollenzuweisung, alternative Türen und dynamische Fehlerbehandlung offen.",
+    "code": [
+      "crates/rc-game/src/map3_breach.rs"
+    ],
+    "evidence": [
+      "docs/MAP3_BREACH.md"
+    ],
+    "original": "BreachDoor; DoorChargeObject"
+  },
+  {
+    "id": "S12",
+    "section": "Squad und taktische Befehle",
+    "feature": "Scharfschützenposition",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Sev erreicht ausgewählte Position und führt Sun-Fac-Skriptabschuss aus.",
+    "limit": "Kein allgemeiner Sniper-Marker-/Waffen-/Zielwahlhost.",
+    "code": [
+      "crates/rc-game/src/map3_balcony.rs",
+      "crates/rc-game/src/map3_finale.rs"
+    ],
+    "evidence": [
+      "docs/MAP3_BALCONY.md",
+      "docs/MAP3_FINALE.md"
+    ],
+    "original": "Sniper-Marker; GOAL_ExecuteMarker"
+  },
+  {
+    "id": "S13",
+    "section": "Squad und taktische Befehle",
+    "feature": "Granaten-, Geschütz- und weitere taktische Marker",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Marker-/Goal-Klassen aus Originalpaketen erfasst.",
+    "limit": "Keine vollständige generische Ausführung, Reservierung, Abbruch- und Wiederholungslogik.",
+    "code": [
+      "crates/rc-game/src/mission_tactics.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "GOAL_ThrowGrenade; GOAL_ManTurret; CTMarker"
+  },
+  {
+    "id": "S14",
+    "section": "Squad und taktische Befehle",
+    "feature": "Squad zu Bacta schicken",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte Heil-/Bacta-Angebote in C und lokale Squadheilung vorhanden.",
+    "limit": "Keine allgemeine originale GOAL_GetBacta-/MarkerGetBacta-Planung für alle Mitglieder.",
+    "code": [
+      "crates/rc-game/src/map3_breach.rs"
+    ],
+    "evidence": [
+      "docs/MAP3_BREACH.md"
+    ],
+    "original": "GOAL_GetBacta; MarkerGetBacta"
+  },
+  {
+    "id": "S15",
+    "section": "Squad und taktische Befehle",
+    "feature": "Squad-/Spielerwiederbelebung",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Gegenseitige Wiederbelebung und A-Animations-/Gesundheitsrampe; vereinfachte Varianten in B/C.",
+    "limit": "Vollständige Mehrmitgliedsplanung, Schadensausnahmen und alle Kartenabläufe offen.",
+    "code": [
+      "crates/rc-game/src/squad.rs",
+      "crates/rc-game/src/revival.rs"
+    ],
+    "evidence": [
+      "docs/REVIVAL_PARITY.md",
+      "docs/MAP2_GAMEPLAY.md"
+    ],
+    "original": "GOAL_HealOther; MarkerReviveOther"
+  },
+  {
+    "id": "S16",
+    "section": "Squad und taktische Befehle",
+    "feature": "Squadfeuer und Munition",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originale DC17-Geometrie, ausgewählte Projektile, Schussgeräusche und Abschussereignisse.",
+    "limit": "Vollständige Zielhilfe, Waffenwahl, Munitionsteilung und Friendly-Fire-Regeln offen.",
+    "code": [
+      "crates/rc-game/src/squad.rs",
+      "crates/rc-game/src/map_runtime.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "Weapon.UseSquadAmmo; CTSquadNative"
+  },
+  {
+    "id": "S17",
+    "section": "Squad und taktische Befehle",
+    "feature": "Squad-HUD und Zustandsanzeige",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Mitgliedschaft, Gesundheit, Befehl und Wiederbelebungsfortschritt werden lokal dargestellt.",
+    "limit": "Vollständige Original-SquadCommandPrompts, Symbole und sämtliche Markerzustände offen.",
+    "code": [
+      "crates/rc-game/src/presentation.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "CTHUD; BlinkHUDSquad"
+  },
+  {
+    "id": "S18",
+    "section": "Squad und taktische Befehle",
+    "feature": "Handzeichen und Waffen-Holster beim Befehlen",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originale HandSignal-/StartHandSignal-Kette erfasst.",
+    "limit": "Vollständiger Waffenwechsel, Handanimation und Rückkehr zur vorherigen Waffe fehlen.",
+    "code": [
+      "crates/rc-game/src/bacta.rs"
+    ],
+    "evidence": [
+      "docs/MISSION_PHYSICS_ANDROID.md",
+      "docs/BACTA_USING_ITEM.md"
+    ],
+    "original": "CTPlayer.StartHandSignal; HandSignal"
+  },
+  {
+    "id": "S19",
+    "section": "Squad und taktische Befehle",
+    "feature": "Squad-Stimmen, situationsabhängige Kommentare",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte geskriptete Originaldialoge und Cue-Zuordnung integriert.",
+    "limit": "Allgemeine UpdateVoice-, Idle-/Combat-Banter- und Prioritätsplanung offen.",
+    "code": [
+      "crates/rc-game/src/opening.rs",
+      "crates/rc-game/src/map_runtime.rs"
+    ],
+    "evidence": [
+      "docs/OWNED_AUDIO.md",
+      "docs/MAP2_GAMEPLAY.md"
+    ],
+    "original": "CTSquadNative.UpdateVoice; VoicePacks"
+  },
+  {
+    "id": "S20",
+    "section": "Squad und taktische Befehle",
+    "feature": "Gesamter vierköpfiger Squad als autonome KI",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Spieler und drei sichtbare übernommene Mitglieder vorhanden.",
+    "limit": "Vollständige gemeinsame GoalQueue-, Deckungs-, Befehls-, Kampf- und Travel-Parität fehlt.",
+    "code": [
+      "crates/rc-game/src/squad.rs",
+      "crates/rc-game/src/transition.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md",
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "CTSquadNative; CTBot; CTSquad"
+  },
+  {
+    "id": "I01",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Bacta öffnen, heilen, abbrechen und schließen",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Tutorial nutzt Load→FinishAnim→Heilung→Holster, sechs originale Notifies, erneute Benutzung und Checkpoints.",
+    "limit": "Andere Karten besitzen teilweise einfachere Bacta-Hosts.",
+    "code": [
+      "crates/rc-game/src/bacta.rs"
+    ],
+    "evidence": [
+      "docs/BACTA_LIFECYCLE.md",
+      "docs/MISSION_PHYSICS_ANDROID.md"
+    ],
+    "original": "BactaDispenser.Active"
+  },
+  {
+    "id": "I02",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Bacta-Dauerton, Eye-/Body-Partikel und FadeOut",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "14 ausgewählte Originaltemplates, animierter Eye-Anker, gespeicherte Partikel und auslaufender Body-Tail.",
+    "limit": "Keine vollständige globale Spielerpose, kein globaler Original-RNG und keine samplegenaue Wiedergabeposition.",
+    "code": [
+      "crates/rc-game/src/particles.rs",
+      "crates/rc-game/src/bacta.rs"
+    ],
+    "evidence": [
+      "docs/BACTA_AMBIENT.md",
+      "docs/MISSION_PRESENTATION.md"
+    ],
+    "original": "BactaEmitter; SpriteEmitter; PawnEffect"
+  },
+  {
+    "id": "I03",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Bacta-Vorrat, Wiederaufladen und Disabled-State",
+    "status": "U",
+    "status_label": "Nicht einzeln bewertet",
+    "scope": "Originale DepleteBacta-/Recharging-/Disabled-Funktionen katalogisiert.",
+    "limit": "Keine Einzelabnahme aller Vorrats-/Entlade-/Timer-/Triggerzweige über sämtliche Stationen.",
+    "code": [
+      "crates/rc-game/src/bacta.rs"
+    ],
+    "evidence": [
+      "docs/BACTA_LIFECYCLE.md"
+    ],
+    "original": "BactaDispenser.DepleteBacta; Recharging; Disabled"
+  },
+  {
+    "id": "I04",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Trigger, Counter und Missionsziele",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte Originalketten mit Wartezeiten, einmaligen Events, Zählern und Abschlussbedingungen.",
+    "limit": "Kein generischer Interpreter aller Trigger-/Action-/Objective-Klassen.",
+    "code": [
+      "crates/rc-game/src/opening.rs",
+      "crates/rc-game/src/map_gameplay.rs"
+    ],
+    "evidence": [
+      "docs/MAP2_GAMEPLAY.md",
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "Trigger; Counter; MissionObjectives"
+  },
+  {
+    "id": "I05",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "PawnFactories und SpawnPoints",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte A/B/C-Fabriken mit Kapazität, Intervallen, Tags, Zählern und sicherer Platzierung.",
+    "limit": "Nicht alle Factory-States, verdecktes Spawnen, Actor-Arten und Runtime-Sonderfälle.",
+    "code": [
+      "crates/rc-game/src/crash_runtime.rs",
+      "crates/rc-game/src/map_runtime.rs"
+    ],
+    "evidence": [
+      "docs/CRASH_SITE_FLOW.md",
+      "docs/MAP2_GAMEPLAY.md"
+    ],
+    "original": "Factory; PawnFactory; SpawnPoint"
+  },
+  {
+    "id": "I06",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Ausgangstür in A: Bewegung und Kollisionskörper",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Zwei translationsbewegte Türen nutzen Originaldelay, MoveTime, KeyPos und Glide-Kurve; Ton einmalig; Checkpoint mitten in Bewegung.",
+    "limit": "Kein generischer rotierender Mover mit Encroachment/Pushing.",
+    "code": [
+      "crates/rc-game/src/world_effects.rs",
+      "crates/rc-game/src/dynamic.rs"
+    ],
+    "evidence": [
+      "docs/MISSION_PRESENTATION.md"
+    ],
+    "original": "Mover.Open; AMover::physMovingBrush"
+  },
+  {
+    "id": "I07",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Weitere Türen und Mover",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte B/C-Türen, Endposen, lokale Breach-/Elevatorbewegung und Kollision.",
+    "limit": "Allgemeine Mover-States, Rotation, Gruppen, Quetschen und Push-Callbacks unvollständig.",
+    "code": [
+      "crates/rc-game/src/dynamic.rs",
+      "crates/rc-game/src/map3_breach.rs"
+    ],
+    "evidence": [
+      "docs/MAP2_GAMEPLAY.md",
+      "docs/MAP3_ELEVATOR.md"
+    ],
+    "original": "Mover; ActivateDoor; HackDoor"
+  },
+  {
+    "id": "I08",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Tunnelwand, Bunker und zerstörbare Props",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte Zustandswechsel, Render-/Kollisionsumbau und zehn originale Factory-/Prop-Effekte in A.",
+    "limit": "Nicht sämtliche Zerstörungsanimationen, Debris-/Lifespan-/Karma-Varianten integriert.",
+    "code": [
+      "crates/rc-game/src/dynamic.rs",
+      "crates/rc-game/src/world_effects.rs"
+    ],
+    "evidence": [
+      "docs/DEMOLITION_MISSION.md",
+      "docs/MISSION_PRESENTATION.md"
+    ],
+    "original": "Prop; AnimProp; FXFactory"
+  },
+  {
+    "id": "I09",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Vier fallende Karma-Barrieren in A",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Originalmaße, Masse, Trägheit und Freigabe; freie Bewegung/Rotation mit Welt-/Körperkontakten und persistentem Schlafzustand.",
+    "limit": "Eigener Starrkörpersolver für diese vier Körper; keine numerische MathEngine-Parität.",
+    "code": [
+      "crates/rc-game/src/rigid.rs",
+      "crates/rc-package/src/karma_mesh.rs"
+    ],
+    "evidence": [
+      "docs/MISSION_PHYSICS_ANDROID.md",
+      "docs/KARMA_INTERACTIONS.md"
+    ],
+    "original": "KarmaProp909/910/912/913; Blockade03"
+  },
+  {
+    "id": "I10",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Schüsse, Explosionen und Schieben der Barrieren",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originale KAddImpulse-Arithmetik, Schadensschwelle und DC-15s-/Granatenimpulse; Spielerberührung weckt Körper.",
+    "limit": "Pawnkontakt ist eigener Adapter; andere Karma-Akteure/Primitive und vollständige Enginephysik fehlen.",
+    "code": [
+      "crates/rc-game/src/rigid_interaction.rs",
+      "crates/rc-package/src/karma_impulse.rs"
+    ],
+    "evidence": [
+      "docs/KARMA_INTERACTIONS.md"
+    ],
+    "original": "KarmaProp.AffectKarma; Actor.KAddImpulse"
+  },
+  {
+    "id": "I11",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Generische Karma-Starrkörper und Constraints",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Ausgewählte Serializer und Impulsbausteine vorhanden.",
+    "limit": "Keine allgemeine MathEngine, Constraints, alle Formarten oder beliebige KarmaProps im Spielbetrieb.",
+    "code": [
+      "crates/rc-game/src/rigid.rs",
+      "crates/rc-package/src/karma_mesh.rs"
+    ],
+    "evidence": [
+      "docs/KARMA_INTERACTIONS.md"
+    ],
+    "original": "KParams; KConstraint; KarmaProp"
+  },
+  {
+    "id": "I12",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Skeletal-Ragdolls und Gliedmaßenphysik",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Skelettdaten und originale K*-Funktionen katalogisiert.",
+    "limit": "Keine integrierte allgemeine Ragdoll-/Joint-/BoneLifter-Simulation.",
+    "code": [
+      "crates/rc-game/src/rigid.rs"
+    ],
+    "evidence": [
+      "docs/KARMA_INTERACTIONS.md"
+    ],
+    "original": "KSetSkelVel; KBreakRagdollJoint; Pawn.GoRagDoll"
+  },
+  {
+    "id": "I13",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Glas und Energieschilde",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte C-Schild-/Glaszustände beeinflussen Darstellung, Treffer und Kollisionsfreigabe.",
+    "limit": "Vollständige Shader, Bruchpartikel und generische ForceField-/Glasregeln offen.",
+    "code": [
+      "crates/rc-game/src/map3_balcony.rs",
+      "crates/rc-game/src/map_runtime.rs"
+    ],
+    "evidence": [
+      "docs/MAP3_BALCONY.md",
+      "docs/MAP2_GAMEPLAY.md"
+    ],
+    "original": "ForceField; Glas-Props"
+  },
+  {
+    "id": "I14",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Hacken, Fallen aktivieren und entschärfen",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte Hack-/Sprenginteraktionen im Missionspfad.",
+    "limit": "Generische ActivateTrap-/DisarmTrap-/UseActor-Klassen und alle Zeit-/Animationsregeln offen.",
+    "code": [
+      "crates/rc-game/src/map_gameplay.rs"
+    ],
+    "evidence": [
+      "docs/MAP2_GAMEPLAY.md"
+    ],
+    "original": "HackTerminal; ActivateTrap; DisarmTrap; GOAL_UseActor"
+  },
+  {
+    "id": "I15",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Teleporter und Kartenwechsel",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Transaktionale A→B→C→Fabrik-Übergaben übernehmen Ressourcen, DC-15s-Zeit und Squadzustand.",
+    "limit": "Eigene versionierte Receipts; kein allgemeiner nativer TravelInfo-/URL-/Actor-Travel-Host.",
+    "code": [
+      "crates/rc-game/src/transition.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "Teleporter; TravelPreAccept; TravelPostAccept"
+  },
+  {
+    "id": "I16",
+    "section": "Interaktionen, dynamische Welt und Physik",
+    "feature": "Bewegte Plattformen und Pawn-Basen",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Ausgewählte Tür-/Aufzugsequenzen vorhanden.",
+    "limit": "Allgemeines Mitfahren, BasedActors, Rotation, BaseChange und dynamische Encroachment-Kette nicht belegt.",
+    "code": [
+      "crates/rc-game/src/map3_elevator.rs"
+    ],
+    "evidence": [
+      "docs/MAP3_ELEVATOR.md"
+    ],
+    "original": "Actor.SetBase; Pawn.BaseChange; Mover"
+  },
+  {
+    "id": "N01",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "SkeletalMesh- und Animationsarchive lesen",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Originale Skelett-/Sequenz-/Track-/LOD-Daten werden in begrenzten unterstützten Formaten gelesen und für ausgewählte Actors genutzt.",
+    "limit": "Nicht alle Assetvarianten und nativen Laufzeit-/Allocatorzustände abgedeckt.",
+    "code": [
+      "crates/rc-package/src/skeletal_mesh.rs",
+      "crates/rc-package/src/skeletal_animation.rs"
+    ],
+    "evidence": [
+      "docs/ORIGINAL_ANIMATION_TRACKS.md",
+      "docs/SKELETAL_LOD_ARCHIVES.md"
+    ],
+    "original": "USkeletalMesh; UMeshAnimation; FSkelAnimSeq"
+  },
+  {
+    "id": "N02",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "Quaterniondecode und Trackinterpolation",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "FAnimRot/GetRotPos/Slerp und konkrete skalare Operationsfolgen rekonstruiert.",
+    "limit": "x87-/RSQRT-/Bibliotheksgrenzen und durchgehende Enginepose bleiben explizit.",
+    "code": [
+      "crates/rc-package/src/quaternion_animation.rs",
+      "crates/rc-package/src/skeletal_track.rs"
+    ],
+    "evidence": [
+      "docs/QUATERNION_ANIMATION.md",
+      "docs/SKELETAL_TRACK.md"
+    ],
+    "original": "FAnimRot; FQuat::Slerp; FSkelAnimSeq::GetRotPos"
+  },
+  {
+    "id": "N03",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "Animationen abspielen, loopen und Kanäle wählen",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte Originalclips im Gameplay; umfangreiche isolierte native Kanal-/Playback-Bausteine.",
+    "limit": "Kein universeller MeshInstance-/PlayAnim-/LoopAnim-Controller für alle Actors.",
+    "code": [
+      "crates/rc-game/src/visual.rs",
+      "crates/rc-package/src/channel_playback.rs"
+    ],
+    "evidence": [
+      "docs/ANIMATION_CALLS.md",
+      "docs/CHANNEL_PLAYBACK.md"
+    ],
+    "original": "Actor.PlayAnim; ULodMeshInstance::PlayAnim"
+  },
+  {
+    "id": "N04",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "UpdateAnimation, Tick und AnimEnd",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Native Tick-, Übergangs- und Hostblöcke auf expliziten Laufzeitbildern rekonstruiert.",
+    "limit": "Gesamte native Callback-/Tickschleife und universelle Live-Anbindung nicht vollständig.",
+    "code": [
+      "crates/rc-package/src/skeletal_animation_tick.rs",
+      "crates/rc-package/src/skeletal_lod_tick.rs"
+    ],
+    "evidence": [
+      "docs/SKELETAL_TICK_TRANSITIONS.md",
+      "docs/SKELETAL_LOD_TICK.md"
+    ],
+    "original": "ULodMeshInstance::UpdateAnimation"
+  },
+  {
+    "id": "N05",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "AnimNotifies und einmalige Soundereignisse",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte Waffen-, Gegner-, Intro- und Bacta-Notifies im festen Spieltakt mit Loop-/Grenzbehandlung.",
+    "limit": "Nicht alle Notifyklassen und visuellen/physikalischen Folgen ausgeführt.",
+    "code": [
+      "crates/rc-game/src/visual.rs",
+      "crates/rc-game/src/bacta.rs"
+    ],
+    "evidence": [
+      "docs/COMBAT_SCENE.md",
+      "docs/BACTA_LIFECYCLE.md"
+    ],
+    "original": "AnimNotify; AnimEnd; AnimLoopEnd"
+  },
+  {
+    "id": "N06",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "Root-Motion und Actorbewegung",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte Originalkurven für Intro, Rappel, Warrior und Squad; doppelte Introanwendung behoben.",
+    "limit": "Generischer physRootMotion-Dispatcher, alle Collision-/Sphyll-Callbacks und Spielercontroller offen.",
+    "code": [
+      "crates/rc-package/src/root_motion.rs",
+      "crates/rc-game/src/intro.rs"
+    ],
+    "evidence": [
+      "docs/SKELETAL_ROOT_ENTRY.md",
+      "docs/SECOND_PHONE_TEST.md"
+    ],
+    "original": "AActor::physRootMotion; APawn continuation"
+  },
+  {
+    "id": "N07",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "Vollständige Spieler-Körperanimation",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Ausgewählte Egoarme, Bacta-Bodypose und Intro-/Reviveclips vorhanden.",
+    "limit": "Keine vollständige Lauf-/Steh-/Kletter-/Waffen-/Handsignal-/Körper-Zustandsmaschine.",
+    "code": [
+      "crates/rc-game/src/visual.rs",
+      "crates/rc-game/src/particles.rs"
+    ],
+    "evidence": [
+      "docs/MISSION_PRESENTATION.md",
+      "docs/MISSION_PHYSICS_ANDROID.md"
+    ],
+    "original": "Pawn.ChangeAnimation; PlayerCommando"
+  },
+  {
+    "id": "N08",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "Knochenhierarchie, volle Pose und Referenzcache",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "ApplyAnimation-Vorbereitung, Channels, Hierarchie und Cache auf vorbereiteten Daten rekonstruiert.",
+    "limit": "Keine automatisch vollständige Integration sämtlicher Gameplay-Posepfade.",
+    "code": [
+      "crates/rc-package/src/skeletal_full_pose.rs",
+      "crates/rc-package/src/skeletal_reference_cache.rs"
+    ],
+    "evidence": [
+      "docs/SKELETAL_FULL_POSE.md",
+      "docs/SKELETAL_REFERENCE_CACHE.md"
+    ],
+    "original": "USkeletalMeshInstance::ApplyAnimation"
+  },
+  {
+    "id": "N09",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "Directors, Bone-Look und Bone-Manipulation",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "ApplyDirector, Rotationsgrenzen, Welttransforms und SetBonePlace auf expliziten Snapshots.",
+    "limit": "Universelle Blick-/Aim-/Skalierungssteuerung aller Figuren und Callbacks fehlt.",
+    "code": [
+      "crates/rc-package/src/skeletal_director_apply.rs",
+      "crates/rc-package/src/skeletal_set_bone_place.rs"
+    ],
+    "evidence": [
+      "docs/SKELETAL_DIRECTOR_APPLICATION.md",
+      "docs/SKELETAL_SET_BONE_PLACE.md"
+    ],
+    "original": "ApplyDirector; SetBonePlace"
+  },
+  {
+    "id": "N10",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "Skinning und Skeletal-Rendergeometrie",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Rigid-/Weighted-Skin-Kernel und LOD-Kommandos rekonstruiert; ausgewählte Originalfiguren renderbar.",
+    "limit": "Alle originalen Renderpfade, Materialeffekte und Hardwarepräzision nicht vollständig angebunden.",
+    "code": [
+      "crates/rc-package/src/skeletal_skin.rs",
+      "crates/rc-game/src/visual.rs"
+    ],
+    "evidence": [
+      "docs/SKELETAL_RIGID_SKIN.md",
+      "docs/SKELETAL_WEIGHTED_SKIN.md"
+    ],
+    "original": "ComputeSkinVerts; Skeletal Render"
+  },
+  {
+    "id": "N11",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "Bounds, LOD und Weltveröffentlichung",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Vorbereitete lokale/gerichtete/Weltbounds und LOD-/Tickteile vorhanden.",
+    "limit": "Komplette native Sichtbarkeits-/LOD-/Renderlebensdauer bleibt offen.",
+    "code": [
+      "crates/rc-package/src/skeletal_world_bounds.rs",
+      "crates/rc-package/src/skeletal_lod_tick.rs"
+    ],
+    "evidence": [
+      "docs/SKELETAL_WORLD_BOUNDS.md",
+      "docs/SKELETAL_LOD_TICK.md"
+    ],
+    "original": "ApplyAnimation bounds; LOD"
+  },
+  {
+    "id": "N12",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "Waffen und Effekte an Knochen befestigen",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Squadwaffen an weaponAttach_R; Bacta-Eyeanker aus animiertem Originalknochen.",
+    "limit": "Generisches AttachToBone-/SpawnSkeletalEffect-System aller Accessoires offen.",
+    "code": [
+      "crates/rc-game/src/visual.rs",
+      "crates/rc-game/src/bacta.rs"
+    ],
+    "evidence": [
+      "docs/ENEMIES_AND_SQUAD.md",
+      "docs/MISSION_PRESENTATION.md"
+    ],
+    "original": "Actor.AttachToBone; SpawnSkeletalEffect"
+  },
+  {
+    "id": "N13",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "VertexMesh-Animation und GetFrame",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Frame-/Cache-/Interpolations-/LOD-/Index- und Drawpfade auf vorbereiteten Inputs rekonstruiert.",
+    "limit": "Keine allgemeine universelle VertexMesh-Liveintegration sämtlicher Originalobjekte.",
+    "code": [
+      "crates/rc-package/src/vertmesh_render.rs",
+      "crates/rc-package/src/vertmesh_frame.rs"
+    ],
+    "evidence": [
+      "docs/VERTMESH_RENDER.md",
+      "docs/VERTMESH_FRAME.md"
+    ],
+    "original": "UVertMeshInstance::GetFrame; Render"
+  },
+  {
+    "id": "N14",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "Props und animierte Zustandswechsel",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte zerstörbare Objekte und Animationen in Missionshosts; BeginState-Bausteine rekonstruiert.",
+    "limit": "Generische Prop-/AnimProp-/Stateausführung aller Klassen fehlt.",
+    "code": [
+      "crates/rc-package/src/prop_state.rs",
+      "crates/rc-game/src/dynamic.rs"
+    ],
+    "evidence": [
+      "docs/PROP_TRANSITIONS.md",
+      "docs/ANIM_PROP_TRANSITIONS.md"
+    ],
+    "original": "Prop; AnimProp"
+  },
+  {
+    "id": "N15",
+    "section": "Animation, Meshes und Charakterdarstellung",
+    "feature": "Animationsreplikation",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Ausgewählte ReplicateAnim-Gates und Paketfelder auf Snapshots rekonstruiert.",
+    "limit": "Kein Netzwerktransport und kein Multiplayer-Animationssystem.",
+    "code": [
+      "crates/rc-package/src/animation_replication.rs"
+    ],
+    "evidence": [
+      "docs/ANIMATION_REPLICATION.md"
+    ],
+    "original": "Actor.ReplicateAnim"
+  },
+  {
+    "id": "G01",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "BSP- und StaticMesh-Weltgeometrie",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originalgeometrie, Instanzen, Actortransforms und vier vorbereitete Welten renderbar.",
+    "limit": "Renderbare Geometrie deckt noch nicht sämtliche Originallicht-/Material-/Sichtbarkeitseffekte ab.",
+    "code": [
+      "crates/rc-package/src/geometry.rs",
+      "crates/rc-package/src/mesh.rs"
+    ],
+    "evidence": [
+      "docs/MAP_FORMAT.md",
+      "docs/STATIC_MESHES.md"
+    ],
+    "original": "UModel; UStaticMesh"
+  },
+  {
+    "id": "G02",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Texturen, Paletten und BC1/BC2/BC3",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Originalmips und unterstützte komprimierte Formate werden dekodiert.",
+    "limit": "Andere Materialfunktionen und Texturqualitätsprofil sind getrennte Aufgaben.",
+    "code": [
+      "crates/rc-package/src/texture.rs"
+    ],
+    "evidence": [
+      "docs/TEXTURES.md"
+    ],
+    "original": "Texture; MipMap; DXT1/3/5"
+  },
+  {
+    "id": "G03",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Basis-Diffuse und UV-Zuordnung",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originale Oberflächentexturen statt isolierter Lightmaps; aufgelöste Materialwrapper und UV-Kanäle.",
+    "limit": "Keine vollständige mehrschichtige Shader-/Combiner-Auswertung.",
+    "code": [
+      "crates/rc-inspect/src/assets.rs"
+    ],
+    "evidence": [
+      "docs/TEXTURES_AND_WEAPON_AUDIO.md",
+      "docs/SECOND_PHONE_TEST.md"
+    ],
+    "original": "Texture; Shader; FinalBlend"
+  },
+  {
+    "id": "G04",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Opak, maskiert und transparent unterscheiden",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Gemeinsame Originaldefault-Entscheidung für statische/animierte Importe; Korrekturstufen A/B/C/Fabrik.",
+    "limit": "Ungeklärte Materialien bleiben erhalten; vollständige visuelle Flächenabnahme steht aus.",
+    "code": [
+      "crates/rc-inspect/src/assets.rs",
+      "config/scene-builds.json"
+    ],
+    "evidence": [
+      "docs/SECOND_PHONE_TEST.md"
+    ],
+    "original": "bMasked; FinalBlend; Shader opacity"
+  },
+  {
+    "id": "G05",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Originale Texturauflösung und Qualitätsprofile",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Mips werden gelesen; Exportpfade begrenzen auf unterschiedliche Größen, Standard-Diffuse64px.",
+    "limit": "Einheitliches höheres Profil für Wracks und Gerätespeicherbudget offen.",
+    "code": [
+      "crates/rc-inspect/src/assets.rs"
+    ],
+    "evidence": [
+      "docs/SECOND_PHONE_TEST.md"
+    ],
+    "original": "Texture.Mips; StaticMesh-Materialien"
+  },
+  {
+    "id": "G06",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Vollständige Shader-/Combiner-Materialien",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Ausgewählte Material- und Hardwarebausteine sind vorhanden.",
+    "limit": "Keine universelle sichtbare Umsetzung sämtlicher Combiner-, Specular-, Bump-, Falloff- und SelfIllumination-Ketten.",
+    "code": [
+      "crates/rc-inspect/src/assets.rs",
+      "crates/rc-package/src/hardware_material.rs"
+    ],
+    "evidence": [
+      "docs/SECOND_PHONE_TEST.md",
+      "docs/MATERIAL_STATES.md"
+    ],
+    "original": "Shader; Combiner; HardwareShader"
+  },
+  {
+    "id": "G07",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Laufende UV-Panner und Oszillatoren",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "TexPanner, Panner2D und OT_Jitter-Matrixrechnung sowie zeitabhängige Importproben.",
+    "limit": "Vollständige kontinuierliche Materialanimation sämtlicher Gameplayflächen nicht belegt.",
+    "code": [
+      "crates/rc-package/src/material_panner.rs",
+      "crates/rc-package/src/material_uv.rs",
+      "crates/rc-package/src/material_jitter.rs"
+    ],
+    "evidence": [
+      "docs/MATERIAL_PANNER.md",
+      "docs/MATERIAL_PANNER2D.md",
+      "docs/MATERIAL_JITTER.md"
+    ],
+    "original": "UTexPanner::GetMatrix; UTexOscillator"
+  },
+  {
+    "id": "G08",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Hologramme und Hs-Materialien",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Originale Hologramm-/Konstantfarbsemantik und begrenzte CPU-vs/ps-Diagnose mit Rasterpfad.",
+    "limit": "Keine vollständige universelle GLES-Hologramm-/Falloff-Darstellung aller Missionsflächen.",
+    "code": [
+      "crates/rc-package/src/material_hologram.rs",
+      "crates/rc-render/src/hologram_pass.rs"
+    ],
+    "evidence": [
+      "docs/MATERIAL_HOLOGRAM.md",
+      "docs/HOLOGRAM_DRAW.md"
+    ],
+    "original": "HsHologram; DynamicHologram"
+  },
+  {
+    "id": "G09",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Originale Vertex-/Pixelshader ausführen",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Begrenzte vs.1.0-/ps.1.1-Diagnoseinterpreter für ausgewählte Hologrammprogramme.",
+    "limit": "Kein allgemeiner D3D8-Shaderübersetzer und keine Garantie alter GPU-Präzision.",
+    "code": [
+      "crates/rc-package/src/vertex_shader.rs",
+      "crates/rc-package/src/pixel_shader.rs"
+    ],
+    "evidence": [
+      "docs/VERTEX_SHADER.md",
+      "docs/PIXEL_SHADER.md"
+    ],
+    "original": "vs.1.0; ps.1.1"
+  },
+  {
+    "id": "G10",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Shaderkonstanten, Wellen und Matrixarithmetik",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Ausgewählte native Konstantenbänke, Licht-/Nebel-/Kamerakonstanten und SSE/x87-Reihenfolgen.",
+    "limit": "GPU-Anbindung aller Originalmaterialien und vollständige Szene-/Lichtzustände offen.",
+    "code": [
+      "crates/rc-package/src/shader_constants.rs",
+      "crates/rc-package/src/material_constants.rs"
+    ],
+    "evidence": [
+      "docs/COMPLETE_CONSTANTS.md",
+      "docs/SHADER_MATRIX_COMPOSITION.md"
+    ],
+    "original": "D3DDrv HardwareShader constants"
+  },
+  {
+    "id": "G11",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Lightmaps und vollständige Weltbeleuchtung",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Welttexturen und vereinfachte sichtbare Beleuchtung vorhanden.",
+    "limit": "Originale Lightmapkombination, vollständiges dynamisches Licht, Schatten und Materialbeleuchtung nicht umgesetzt belegt.",
+    "code": [
+      "crates/rc-render/src/lib.rs",
+      "crates/rc-inspect/src/assets.rs"
+    ],
+    "evidence": [
+      "docs/COMBAT_SCENE.md",
+      "docs/TEXTURES_AND_WEAPON_AUDIO.md"
+    ],
+    "original": "LightMap; Light; Shader lights"
+  },
+  {
+    "id": "G12",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Schatten und Projektoren",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originale Klassen/Renderoptionen katalogisiert; einzelne Exportpfade lassen Effektflächen aus.",
+    "limit": "Kein allgemeiner sichtbarer Shadow-/Projector-/Decalpfad der Originalengine.",
+    "code": [
+      "crates/rc-render/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "Projector; EnableShadows; EnableProjectors"
+  },
+  {
+    "id": "G13",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Nebel, Bloom, Blur und Visor-Posteffekte",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Ausgewählte Nebelkonstanten isoliert rekonstruiert.",
+    "limit": "Keine vollständige originale Nebel-/Bloom-/Blur-/Visorkette im Android-Spielbild.",
+    "code": [
+      "crates/rc-package/src/shader_scene.rs",
+      "crates/rc-render/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/SCENE_CONSTANTS.md"
+    ],
+    "original": "Fog; Bloom; Blur; CameraEffect"
+  },
+  {
+    "id": "G14",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Spritepartikel: ausgewählte Bacta-/Missions-FX",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "14 Bacta-Templates und zehn Factory-/Prop-Effekte mit Geburt, Kurven, Atlas, Lebensdauer und Persistenz.",
+    "limit": "Andere Emittertypen, alle Original-FX und globaler Engine-RNG bleiben offen.",
+    "code": [
+      "crates/rc-game/src/particles.rs",
+      "crates/rc-game/src/world_effects.rs"
+    ],
+    "evidence": [
+      "docs/MISSION_PRESENTATION.md"
+    ],
+    "original": "ParticleEmitter; SpriteEmitter; FXFactory"
+  },
+  {
+    "id": "G15",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Partikelblending, Tiefentest und Atlasblending",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "CPU/GLES unterstützen ausgewählte Alpha-/Additive-/Darken-/Screen-Modi, emitterbezogenen ZTest/AlphaTest und Atlasinterpolation.",
+    "limit": "Gilt für den gelieferten Partikelvertrag, keine universelle Originalrenderer-Parität.",
+    "code": [
+      "crates/rc-render/src/effects.rs",
+      "android/app/src/main/java/org/rcport/diagnostic/GpuSceneView.java"
+    ],
+    "evidence": [
+      "docs/MISSION_PRESENTATION.md",
+      "docs/WORLD_EFFECTS.md"
+    ],
+    "original": "D3D-ParticleMaterial; PTDS_*"
+  },
+  {
+    "id": "G16",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Andere Emitter: Beam, Trail, Mesh und Volumetrik",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Klassen und Assets katalogisiert; einzelne Shader-/Partikel-Diagnosebausteine vorhanden.",
+    "limit": "Keine allgemeine Umsetzung sämtlicher Emitterklassen und volumetrischer Effektflächen.",
+    "code": [
+      "crates/rc-game/src/particles.rs"
+    ],
+    "evidence": [
+      "docs/MISSION_PRESENTATION.md",
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "BeamEmitter; MeshEmitter; TrailEmitter; volumetric effects"
+  },
+  {
+    "id": "G17",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Seile, Spezial-DrawTypes und Hilfsobjekte",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Versteckte Marker und falsche DefaultProp-Hilfsmeshes werden gezielt vom Weltimport ausgeschlossen.",
+    "limit": "Vollständige Rope-/Spezialprimitive-/EndLevelIcon-Darstellung nicht belegt.",
+    "code": [
+      "crates/rc-inspect/src/play_scene.rs"
+    ],
+    "evidence": [
+      "docs/MAP3_INTEGRATION.md"
+    ],
+    "original": "Rope; EndLevelIconProp; DrawType"
+  },
+  {
+    "id": "G18",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Sichtbarkeit, Portale, Occlusion und LOD-Auswahl",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Frustum-/Rastergrenzen und isolierte LOD-Bausteine vorhanden.",
+    "limit": "Keine vollständige native BSP-Zonen-/Portal-/Occlusion-/LOD-Pipeline im Spielrenderer.",
+    "code": [
+      "crates/rc-render/src/lib.rs",
+      "crates/rc-package/src/vertmesh_lod.rs"
+    ],
+    "evidence": [
+      "docs/GPU_SCENE.md",
+      "docs/VERTMESH_LOD.md"
+    ],
+    "original": "FSceneNode; BSP visibility; LOD"
+  },
+  {
+    "id": "G19",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Direct3D8-Renderer auf Android ersetzen",
+    "status": "E",
+    "status_label": "Plattformersatz / Portinfrastruktur",
+    "scope": "OpenGL-ES-Welt-/Actor-/Effekt-/Waffen-/HUD-Pfade; CPU-Referenzrenderer und Framevertrag.",
+    "limit": "D3D8-API wird ersetzt; vollständiges Originalmaterialverhalten muss separat übertragen werden.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/GpuSceneView.java",
+      "crates/rc-render/src/gpu.rs"
+    ],
+    "evidence": [
+      "docs/GPU_SCENE.md",
+      "docs/WORLD_EFFECTS.md"
+    ],
+    "original": "D3DDrv → GLES"
+  },
+  {
+    "id": "G20",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "D3D-Statecache, Renderpässe und Bufferverwaltung",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Umfangreiche isolierte Rekonstruktion von Cache-, Pool-, Upload-, Ring- und Drawplanung auf erfassten x86-Zuständen.",
+    "limit": "Geplante COM-/D3D-Aufrufe sind keine laufende Android-GPU-Integration dieser Enginepfade.",
+    "code": [
+      "crates/rc-package/src/d3d_static.rs",
+      "crates/rc-package/src/d3d_dynamic_draw.rs",
+      "crates/rc-package/src/d3d_complete.rs"
+    ],
+    "evidence": [
+      "docs/D3D_STATIC_PIPELINE.md",
+      "docs/D3D_DYNAMIC_DRAW.md",
+      "docs/D3D_PASS_COMPLETION.md"
+    ],
+    "original": "D3DDrv native renderer"
+  },
+  {
+    "id": "G21",
+    "section": "Grafik, Materialien und Effekte",
+    "feature": "Transform-, Inverse- und Projektionsrechnung",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Ausgewählte Originalmatrizen, Projektion/Deprojektion und SSE-/x87-Reihenfolgen rekonstruiert.",
+    "limit": "Nicht jede Render-/Actortransformation im Gameplay verwendet bereits alle Originalpfade.",
+    "code": [
+      "crates/rc-package/src/scene_projection.rs",
+      "crates/rc-package/src/renderer_inverse_draw.rs"
+    ],
+    "evidence": [
+      "docs/SCENE_PROJECTION.md",
+      "docs/RENDERER_INVERSE.md"
+    ],
+    "original": "FSceneNode::Project/Deproject; D3D inverse"
+  },
+  {
+    "id": "T01",
+    "section": "Audio, Sprache und Musik",
+    "feature": "Originale WAV-/PCM-Samples und Cue-Bindung",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Originalsamples werden extrahiert; ausgewählte Cues über Quellidentität, PCM-Fingerprint und Laufzeit gebunden.",
+    "limit": "Keine Aussage über die vollständige Soundbank sämtlicher Kampagnen und SoundCue-Varianten.",
+    "code": [
+      "crates/rc-inspect/src/opening_audio.rs",
+      "crates/rc-game/src/opening.rs"
+    ],
+    "evidence": [
+      "docs/SECOND_PHONE_TEST.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "Sound; SoundCue; PlayOwnedCue"
+  },
+  {
+    "id": "T02",
+    "section": "Audio, Sprache und Musik",
+    "feature": "Dialogreihenfolge und PlayOwnedSound-Schutz",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originalwartezeit plus0,1s, akteurbezogener Schutz/Ersetzung und verworfene Untertitel im Opening rekonstruiert.",
+    "limit": "Allgemeine Slot-/Prioritäts-/Soundkonkurrenz in allen Missionen und subjektive Hörabnahme offen.",
+    "code": [
+      "crates/rc-game/src/opening.rs",
+      "android/app/src/main/java/org/rcport/diagnostic/SoundOwnership.java"
+    ],
+    "evidence": [
+      "docs/OWNED_AUDIO.md"
+    ],
+    "original": "ACTION_PlaySound; Actor.PlayOwnedSound"
+  },
+  {
+    "id": "T03",
+    "section": "Audio, Sprache und Musik",
+    "feature": "Untertitel und Dialogzeiten",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte A/B/C-Dialogtexte, Warte-/Anzeigezeiten und HUD-Ausgabe vorhanden.",
+    "limit": "Nicht sämtliche Sprachvarianten, Zeichensätze, Layouts und Originaluntertitelregeln.",
+    "code": [
+      "crates/rc-game/src/opening.rs",
+      "crates/rc-game/src/map3_opening.rs"
+    ],
+    "evidence": [
+      "docs/OWNED_AUDIO.md",
+      "docs/MAP3_OPENING.md"
+    ],
+    "original": "subtitles.ini; PotentialSubtitledSoundPlayed"
+  },
+  {
+    "id": "T04",
+    "section": "Audio, Sprache und Musik",
+    "feature": "Waffen-, Reload- und Gegnergeräusche",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte originale Spieler-/Squad-/Droidensamples und AnimNotifies.",
+    "limit": "Weitere Gegner, Materialtreffer, Waffenarten und SoundMultiple-Auswahl unvollständig.",
+    "code": [
+      "crates/rc-game/src/enemy_feedback.rs",
+      "crates/rc-game/src/visual.rs"
+    ],
+    "evidence": [
+      "docs/COMBAT_SCENE.md",
+      "docs/PHONE_TEST_BLOCKERS.md"
+    ],
+    "original": "SoundMultiple; weapon/foley cues"
+  },
+  {
+    "id": "T05",
+    "section": "Audio, Sprache und Musik",
+    "feature": "Bacta-Energiedauerton",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Start nach Öffnen, Stopp, Pause und zustandsbasierter Wiederaufbau nach Fortsetzen integriert.",
+    "limit": "Laufende PCM-Position wird nicht samplegenau gespeichert.",
+    "code": [
+      "crates/rc-game/src/bacta.rs",
+      "android/app/src/main/java/org/rcport/diagnostic/AmbientLoops.java"
+    ],
+    "evidence": [
+      "docs/BACTA_AMBIENT.md"
+    ],
+    "original": "Bacta energy loop"
+  },
+  {
+    "id": "T06",
+    "section": "Audio, Sprache und Musik",
+    "feature": "Ausgewählte Missions-Ambient- und Explosionsgeräusche",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Originale Factory-/Prop-Quellen und ausgewählte Explosionen mit Ereignis-/Loop-Lebensdauer angeschlossen.",
+    "limit": "Vollständige ambiente Klangkulisse jeder Karte und alle Effekte offen.",
+    "code": [
+      "crates/rc-game/src/world_effects.rs",
+      "android/app/src/main/java/org/rcport/diagnostic/AmbientLoops.java"
+    ],
+    "evidence": [
+      "docs/MISSION_PRESENTATION.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "FXFactory; AmbientSound"
+  },
+  {
+    "id": "T07",
+    "section": "Audio, Sprache und Musik",
+    "feature": "Fußschritte und Oberflächen-Foley",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte Intro-/Rappel-Foley-Notifies vorhanden.",
+    "limit": "Allgemeine materialabhängige Spieler-/Gegner-Fußschritte und Wasser-/Landesounds nicht vollständig belegt.",
+    "code": [
+      "crates/rc-game/src/rappel.rs",
+      "crates/rc-game/src/visual.rs"
+    ],
+    "evidence": [
+      "docs/RAPPEL_RECONSTRUCTION.md",
+      "docs/COMBAT_SCENE.md"
+    ],
+    "original": "FootstepInfo; footstepprops; physicalmaterials"
+  },
+  {
+    "id": "T08",
+    "section": "Audio, Sprache und Musik",
+    "feature": "Raumklang, Distanzdämpfung und Prioritäten",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "SoundPool-Wiedergabe im Androidhost vorhanden.",
+    "limit": "Originale AudioParams, 3D-Dämpfung, Occlusion, Doppler und Prioritäts-/Likelihood-Regeln fehlen weitgehend.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/SceneAudio.java"
+    ],
+    "evidence": [
+      "docs/COMBAT_SCENE.md"
+    ],
+    "original": "ALAudio; AudioEnv; SoundRadius"
+  },
+  {
+    "id": "T09",
+    "section": "Audio, Sprache und Musik",
+    "feature": "Hall / EAX und Audiozonen",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Reverb-/AudioEnv-Klassen und Parameter katalogisiert.",
+    "limit": "Keine vollständige Android-Umsetzung der originalen Raumakustik.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/SceneAudio.java"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "reverb.u; audioenv.u; EAX"
+  },
+  {
+    "id": "T10",
+    "section": "Audio, Sprache und Musik",
+    "feature": "Musik und dynamische Kampfmusik",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Einzelne Musikereignisnamen werden in Missionsketten gesetzt.",
+    "limit": "Kein vollständiger Music-/iMUSE-/BattleEngine-Player mit Übergängen und Flourishes.",
+    "code": [
+      "crates/rc-game/src/map3_finale.rs"
+    ],
+    "evidence": [
+      "docs/MAP3_FINALE.md"
+    ],
+    "original": "Actor.SetImuseState; EnableBattleEngine; ForceBattleFlourish"
+  },
+  {
+    "id": "T11",
+    "section": "Audio, Sprache und Musik",
+    "feature": "Filmton und vollständige Filmwiedergabe",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "PlayMovie-/Movie-Menüfunktionen inventarisiert.",
+    "limit": "Keine vollständige Film-/Ton-Synchronisierung im Androidport belegt.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/MainActivity.java"
+    ],
+    "evidence": [
+      "docs/CAMPAIGN_MENU.md"
+    ],
+    "original": "ACTION_PlayMovie; PlayerController.PlayMovie"
+  },
+  {
+    "id": "T12",
+    "section": "Audio, Sprache und Musik",
+    "feature": "Audiolaufzeit nach Pause und Laden",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ereignisse einmalig, Streams gestoppt und ausgewählte Ambientloops aus Zustand wiederaufgebaut.",
+    "limit": "Keine samplegenaue Fortsetzung laufender Sprache/Musik und kein physischer Latenz-/Hörnachweis für0.53.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/SceneAudio.java",
+      "android/app/src/main/java/org/rcport/diagnostic/AudioTimeline.java"
+    ],
+    "evidence": [
+      "docs/CHECKPOINTS.md",
+      "docs/BACTA_AMBIENT.md"
+    ],
+    "original": "Audio lifecycle; PlayOwnedSound"
+  },
+  {
+    "id": "U01",
+    "section": "HUD, Menüs und Einstellungen",
+    "feature": "Lebenspunkte, Schilde und Trefferanzeigen",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Nativer HUD mit ausgewählten Spieler-/Kampfwerten und Schadens-/Trefferblitzen.",
+    "limit": "Vollständiges Original-Helm-HUD mit allen Animationen, Effekten und Zustandsvarianten offen.",
+    "code": [
+      "crates/rc-game/src/presentation.rs"
+    ],
+    "evidence": [
+      "docs/COMBAT_SCENE.md",
+      "docs/ENEMIES_AND_SQUAD.md"
+    ],
+    "original": "CTHUD"
+  },
+  {
+    "id": "U02",
+    "section": "HUD, Menüs und Einstellungen",
+    "feature": "Waffen-, Energie- und Granatenanzeige",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Aktueller Bestand und DC-15s-Prozent-/Ladeanzeige in nativem HUD und Androidoberfläche.",
+    "limit": "Gilt für vorhandene Waffen-/Granatenprofile; vollständige Originalanzeige aller Waffen offen.",
+    "code": [
+      "crates/rc-game/src/presentation.rs",
+      "android/app/src/main/java/org/rcport/diagnostic/PlayActivity.java"
+    ],
+    "evidence": [
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "CTHUD; Weapon.AmmoStatus"
+  },
+  {
+    "id": "U03",
+    "section": "HUD, Menüs und Einstellungen",
+    "feature": "Ziele, Tracker und Interaktionshinweise",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte Ziele, Hinweise, Marker und Fortschrittsanzeigen im Missionslauf.",
+    "limit": "Alle Original-HUDPrompts, Actor-/Positiontracker und Prioritätsregeln nicht vollständig.",
+    "code": [
+      "crates/rc-game/src/presentation.rs",
+      "crates/rc-game/src/opening.rs"
+    ],
+    "evidence": [
+      "docs/ORIGINAL_LANDING_MISSION.md",
+      "docs/MAP3_OPENING.md"
+    ],
+    "original": "ShowActorObjectiveTracker; ShowPrompt"
+  },
+  {
+    "id": "U04",
+    "section": "HUD, Menüs und Einstellungen",
+    "feature": "Hauptmenü: neue Mission und Fortsetzen",
+    "status": "E",
+    "status_label": "Plattformersatz / Portinfrastruktur",
+    "scope": "Androidmenü startet importierte Mission1 oder gültigen gespeicherten Fortschritt.",
+    "limit": "Originale animierte Menüstruktur, Profile und gesamte Kampagnenauswahl werden nicht nachgebildet.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/MainActivity.java"
+    ],
+    "evidence": [
+      "docs/CAMPAIGN_MENU.md"
+    ],
+    "original": "xinterfacectmenus → Android-Menü"
+  },
+  {
+    "id": "U05",
+    "section": "HUD, Menüs und Einstellungen",
+    "feature": "Pause, Neustart und Recoverydialoge",
+    "status": "E",
+    "status_label": "Plattformersatz / Portinfrastruktur",
+    "scope": "Pausiertes Wiederaufnehmen, Kartenneustart, manuelles Laden und sichtbare Fehler-/Recoveryaktionen.",
+    "limit": "Kein vollständiger originaler Menü-/Profil-/Save-Slot-Baum.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/PlayActivity.java"
+    ],
+    "evidence": [
+      "docs/CHECKPOINT_RECOVERY.md",
+      "docs/CAMPAIGN_MENU.md"
+    ],
+    "original": "ShowMenu; RestartLevel"
+  },
+  {
+    "id": "U06",
+    "section": "HUD, Menüs und Einstellungen",
+    "feature": "Kapitelauswahl und freigeschalteter Fortschritt",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Ein festes Vier-Szenen-Kampagnenpaket ist importierbar.",
+    "limit": "Keine vollständige Auswahl/freigeschaltete Progression aller Originalmissionen.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/CampaignRoutes.java"
+    ],
+    "evidence": [
+      "docs/CAMPAIGN_MENU.md"
+    ],
+    "original": "SetLevelProgress; HasReachedLevel; GetNextLevel"
+  },
+  {
+    "id": "U07",
+    "section": "HUD, Menüs und Einstellungen",
+    "feature": "Spielerprofile und mehrere Save-Slots",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Ein privater Fortsetzungs-/Sicherheits-/manueller Speicherfluss vorhanden.",
+    "limit": "Originale Profilverwaltung und frei verwaltete mehrfache Spielstände fehlen.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/CheckpointStore.java"
+    ],
+    "evidence": [
+      "docs/PHONE_TEST_BLOCKERS.md"
+    ],
+    "original": "GetCurrentProfileName; MenuProfiles; GetSaveGames"
+  },
+  {
+    "id": "U08",
+    "section": "HUD, Menüs und Einstellungen",
+    "feature": "Schwierigkeit im Menü auswählen",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Drei Faktoren in vorbereiteten Szenenprofilen rekonstruiert.",
+    "limit": "Keine allgemein bedienbare Schwierigkeitswahl für das aktuelle Kampagnenpaket.",
+    "code": [
+      "crates/rc-game/src/game_rules.rs",
+      "android/app/src/main/java/org/rcport/diagnostic/MainActivity.java"
+    ],
+    "evidence": [
+      "docs/GAME_RULES_SCENE.md",
+      "docs/CAMPAIGN_MENU.md"
+    ],
+    "original": "GetDifficultyLevel; SetDifficultyLevel"
+  },
+  {
+    "id": "U09",
+    "section": "HUD, Menüs und Einstellungen",
+    "feature": "Audio-, Musik- und Sprachlautstärkeoptionen",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Androidsystem-Lautstärke und feste Hostlautstärken wirken.",
+    "limit": "Keine vollständigen getrennten Originalregler und Audioqualitätsoptionen im Portmenü.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/SceneAudio.java"
+    ],
+    "evidence": [
+      "docs/COMBAT_SCENE.md",
+      "docs/CAMPAIGN_MENU.md"
+    ],
+    "original": "SetSoundVolume; SetMusicVolume; SetVoiceVolume"
+  },
+  {
+    "id": "U10",
+    "section": "HUD, Menüs und Einstellungen",
+    "feature": "Grafikoptionen: Texturen, Schatten, Bloom, Gamma, VSync",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Interne Qualitäts-/Renderpfade und CPU-/GPU-Diagnoseoptionen vorhanden.",
+    "limit": "Keine vollständige originale oder entsprechende Android-Grafikeinstellungsoberfläche.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/MainActivity.java"
+    ],
+    "evidence": [
+      "docs/GPU_SCENE.md",
+      "docs/CAMPAIGN_MENU.md"
+    ],
+    "original": "SetTextureDetail; EnableShadows; SetBloomQuality"
+  },
+  {
+    "id": "U11",
+    "section": "HUD, Menüs und Einstellungen",
+    "feature": "Blickempfindlichkeit und Touchlayout",
+    "status": "E",
+    "status_label": "Plattformersatz / Portinfrastruktur",
+    "scope": "Kleine Touchoberfläche, Mindestzielgrößen und gespeicherte dichteunabhängige Empfindlichkeit.",
+    "limit": "Freie Layoutanpassung, Linkshändigkeit, Gamepad-/Inversionsoptionen und physischer Komfort nicht vollständig abgenommen.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/TouchLayout.java",
+      "android/app/src/main/java/org/rcport/diagnostic/ControlSettings.java"
+    ],
+    "evidence": [
+      "docs/CAMPAIGN_MENU.md"
+    ],
+    "original": "Android-Ersatz für PC-Eingabeoptionen"
+  },
+  {
+    "id": "U12",
+    "section": "HUD, Menüs und Einstellungen",
+    "feature": "Vollständige Lokalisierung und Zeichensätze",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Ausgewählte Originaluntertitel und deutschsprachige Portbedienung vorhanden.",
+    "limit": "Nicht sämtliche Originalsprachen, Texte, Fonts und Sonderzeichen-/Layoutregeln abgenommen.",
+    "code": [
+      "crates/rc-game/src/presentation.rs"
+    ],
+    "evidence": [
+      "docs/OWNED_AUDIO.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "Localized strings; subtitles.ini; CTHUD fonts"
+  },
+  {
+    "id": "U13",
+    "section": "HUD, Menüs und Einstellungen",
+    "feature": "Ladebildschirme, Tipps, Titelkarten und Debriefing",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Szenenladen und lokaler Abschlussstatus vorhanden.",
+    "limit": "Keine vollständigen Original-Ladehinweise, TitleCards und Debriefing-/Statistikseiten.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/MainActivity.java"
+    ],
+    "evidence": [
+      "docs/CAMPAIGN_MENU.md"
+    ],
+    "original": "ShowTitleCardScreen; ShowDebriefingScreen; GetNewLoadingHint"
+  },
+  {
+    "id": "U14",
+    "section": "HUD, Menüs und Einstellungen",
+    "feature": "Extras, Credits und Originalfilmmenüs",
+    "status": "U",
+    "status_label": "Nicht einzeln bewertet",
+    "scope": "Entsprechende Originalmenüpakete inventarisiert.",
+    "limit": "Einzelfunktionen und tatsächliche PC-Verfügbarkeit sind nicht separat klassifiziert; keine vollständige Portoberfläche.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/MainActivity.java"
+    ],
+    "evidence": [
+      "docs/CAMPAIGN_MENU.md"
+    ],
+    "original": "xinterfacectmenus"
+  },
+  {
+    "id": "L01",
+    "section": "Speichern, Laden und Androidbetrieb",
+    "feature": "Vollständiger Checkpoint innerhalb der Karte",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Spieler, Gegner, Squad, Missionszeiten, dynamische Welt, RNG, Partikel, Energie, Bewegung und gepufferte Eingaben gespeichert.",
+    "limit": "Port-Snapshotformat statt originalem SaveGame-Format; keine vollständige Engineobjektserialisierung.",
+    "code": [
+      "crates/rc-game/src/checkpoint.rs",
+      "android/app/src/main/java/org/rcport/diagnostic/CheckpointStore.java"
+    ],
+    "evidence": [
+      "docs/CHECKPOINTS.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "SaveGame/LoadGame → Port-Snapshot"
+  },
+  {
+    "id": "L02",
+    "section": "Speichern, Laden und Androidbetrieb",
+    "feature": "Sicherer automatischer Speicherpunkt",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Getrennter Safe-Speicher und Kampf-/Gesundheits-/Gefahrenprüfung; Prozessresume überschreibt ihn nicht.",
+    "limit": "Sicherheitsheuristik benötigt freien Handytest einschließlich der gemeldeten Todesschleife.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/CheckpointPolicy.java"
+    ],
+    "evidence": [
+      "docs/PHONE_TEST_BLOCKERS.md"
+    ],
+    "original": "AutoSave; Checkpoint"
+  },
+  {
+    "id": "L03",
+    "section": "Speichern, Laden und Androidbetrieb",
+    "feature": "Manuell speichern und laden",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Eigener manueller Speicherpfad und sichtbare Ladeauswahl; Niederlage beschädigt sichere Stände nicht.",
+    "limit": "Kein vollständiger originaler Save-Slot-/Profilmanager.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/CheckpointStore.java",
+      "android/app/src/main/java/org/rcport/diagnostic/PlayActivity.java"
+    ],
+    "evidence": [
+      "docs/PHONE_TEST_BLOCKERS.md"
+    ],
+    "original": "QuickSave; QuickLoad"
+  },
+  {
+    "id": "L04",
+    "section": "Speichern, Laden und Androidbetrieb",
+    "feature": "Vorherigen Stand und Karteneinstieg wiederherstellen",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Backupgenerationen, Szenenreparatur und Rückkehr zum übernommenen Eintrittszustand.",
+    "limit": "Ungültige oder inkompatible spätere Formate benötigen den sichtbaren Recoveryweg.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/CheckpointStore.java"
+    ],
+    "evidence": [
+      "docs/CHECKPOINT_RECOVERY.md"
+    ],
+    "original": "LoadGame; RestartMission"
+  },
+  {
+    "id": "L05",
+    "section": "Speichern, Laden und Androidbetrieb",
+    "feature": "Atomare Speicherdateien und beschädigte Daten",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Längen/Hashes, Validierung vor Zustandswechsel, synchronisierte temporäre Dateien und geprüfte Backups.",
+    "limit": "Keine Behauptung vollständiger Ausfallsicherheit beliebiger Dateisystem-/Gerätefehler.",
+    "code": [
+      "crates/rc-game/src/checkpoint.rs",
+      "android/app/src/main/java/org/rcport/diagnostic/CheckpointStore.java"
+    ],
+    "evidence": [
+      "docs/CHECKPOINTS.md",
+      "docs/CHECKPOINT_RECOVERY.md"
+    ],
+    "original": "Port-Speicherersatz"
+  },
+  {
+    "id": "L06",
+    "section": "Speichern, Laden und Androidbetrieb",
+    "feature": "Ressourcen-/Squadübernahme bei Kartenwechsel",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "A→B→C→Fabrik übernehmen Gesundheit, Granaten, Squad und exakte DC-15s-Ladung samt Schussfrist.",
+    "limit": "Auf diese vier Routen begrenzt; keine universelle Actor-Travelserialisierung.",
+    "code": [
+      "crates/rc-game/src/transition.rs"
+    ],
+    "evidence": [
+      "docs/DC15_ENERGY.md",
+      "docs/FIRST_MISSION_COMPLETE.md"
+    ],
+    "original": "SaveSquadTravelInfo; TravelPostAccept"
+  },
+  {
+    "id": "L07",
+    "section": "Speichern, Laden und Androidbetrieb",
+    "feature": "Historische Szenen und Spielstände",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Ausgewählte echte historische Szene-/Snapshotpaare und optionale neue Module bleiben kompatibel.",
+    "limit": "Alter Spielstand behält alte Szene und erhält neue Szeneneffekte nicht automatisch.",
+    "code": [
+      "crates/rc-game/src/checkpoint.rs",
+      "crates/rc-game/src/dc15.rs"
+    ],
+    "evidence": [
+      "docs/DC15_ENERGY.md",
+      "docs/KARMA_INTERACTIONS.md"
+    ],
+    "original": "Legacy Port-Szenen"
+  },
+  {
+    "id": "L08",
+    "section": "Speichern, Laden und Androidbetrieb",
+    "feature": "Originale PC-Spielstände direkt übernehmen",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Original- und Portdateien liegen getrennt vor.",
+    "limit": "Kein Import vollständiger Original-PC-Saves in das Port-Snapshotformat belegt.",
+    "code": [
+      "crates/rc-game/src/checkpoint.rs"
+    ],
+    "evidence": [
+      "docs/CHECKPOINTS.md"
+    ],
+    "original": "Original SaveGame serialization"
+  },
+  {
+    "id": "L09",
+    "section": "Speichern, Laden und Androidbetrieb",
+    "feature": "App-Pause, Hintergrundwechsel und Prozessverlust",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Pausieren, Eingaben verwerfen, Prozessresume, kalter Neustart und Wiederherstellung im x86_64-APK geprüft.",
+    "limit": "Physische ARM64-Abnahme für den aktuellen Stand bleibt offen.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/PlayActivity.java"
+    ],
+    "evidence": [
+      "docs/CHECKPOINT_RECOVERY.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "Android lifecycle adaptation"
+  },
+  {
+    "id": "L10",
+    "section": "Speichern, Laden und Androidbetrieb",
+    "feature": "Grafikkontext verlieren und neu aufbauen",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "GL-Ressourcenfreigabe, Neuaufbau und wiederholte CPU/GPU-Proben vorhanden.",
+    "limit": "Keine aktuelle Langzeit-/Thermal-/Treiberabnahme auf mehreren physischen GPUs.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/GpuSceneView.java"
+    ],
+    "evidence": [
+      "docs/GPU_SCENE.md"
+    ],
+    "original": "Android EGL/GLES lifecycle"
+  },
+  {
+    "id": "L11",
+    "section": "Speichern, Laden und Androidbetrieb",
+    "feature": "Szenenpaket importieren und prüfen",
+    "status": "E",
+    "status_label": "Plattformersatz / Portinfrastruktur",
+    "scope": "Vier kanonische Szenen, Größen/Hashes, native Kartenkennung und atomare Veröffentlichung.",
+    "limit": "Android-Import vorbereiteter Portdateien; kein direkter allgemeiner Originaldatenimport auf dem Handy.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/CampaignStore.java"
+    ],
+    "evidence": [
+      "docs/CAMPAIGN_MENU.md",
+      "docs/BUILD.md"
+    ],
+    "original": "PC-Datenvorbereitung → RCCAMPAIGN1"
+  },
+  {
+    "id": "L12",
+    "section": "Speichern, Laden und Androidbetrieb",
+    "feature": "ARM64- und x86_64-Build",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Beide ABIs im aktuellen APK; Offline-Gesamtbau und vorhandene Releasezuordnung0.53.0.",
+    "limit": "Lauffähiger Build ist keine physische ARM64-Gesamtabnahme.",
+    "code": [
+      "scripts/Build-Android.ps1"
+    ],
+    "evidence": [
+      "docs/DC15_ENERGY.md",
+      "docs/BUILD.md"
+    ],
+    "original": "Android-Plattformport"
+  },
+  {
+    "id": "L13",
+    "section": "Speichern, Laden und Androidbetrieb",
+    "feature": "Freier physischer Handy-Gesamtdurchlauf",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Frühere Nutzertests zeigen reale Spielfähigkeit und Qualitätslücken.",
+    "limit": "Für0.53.0 kein vollständiger manueller A/B/C-Hör-/Touch-/Bild-Abnahmenachweis vorhanden.",
+    "code": [
+      "scripts/Test-CampaignAndroid.py"
+    ],
+    "evidence": [
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "Abnahme des vollständigen Spielerlebnisses"
+  },
+  {
+    "id": "L14",
+    "section": "Speichern, Laden und Androidbetrieb",
+    "feature": "Langzeitleistung, Speicher und Wärme",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Profiler, Parsergrenzen, kurze Heap-/Kontextproben und Replaymessungen vorhanden.",
+    "limit": "Keine repräsentative0.53-Handy-Langzeitmessung für FPS-Verteilung, Thermalverhalten und Speicherwachstum.",
+    "code": [
+      "crates/rc-package/src/performance.rs",
+      "android/app/src/main/java/org/rcport/diagnostic/GpuSceneView.java"
+    ],
+    "evidence": [
+      "docs/BASELINE_AND_PROFILING.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "Engine-/Android-Leistung"
+  },
+  {
+    "id": "M01",
+    "section": "Multiplayer und Netzwerk",
+    "feature": "Deathmatch",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "DMGame-/MPPlayer-/Scoreboard-Klassen und DM-Karten inventarisiert.",
+    "limit": "Kein spielbarer Netzwerk- oder lokaler Deathmatchmodus.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "mpgame.DMGame"
+  },
+  {
+    "id": "M02",
+    "section": "Multiplayer und Netzwerk",
+    "feature": "Team Deathmatch",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "TDGame-/Team-/HUD-Klassen vorhanden.",
+    "limit": "Kein spielbarer Teammodus mit Teams, Score und Respawn.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "mpgame.TDGame"
+  },
+  {
+    "id": "M03",
+    "section": "Multiplayer und Netzwerk",
+    "feature": "Capture the Flag",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "CTFGame, CTFFlag, CTFBase und CTF-Karten vorhanden.",
+    "limit": "Keine vollständige Flaggen-, Punkte-, Rückkehr- und Teamlogik.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "mpgame.CTFGame"
+  },
+  {
+    "id": "M04",
+    "section": "Multiplayer und Netzwerk",
+    "feature": "Assault / Angriff",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "ASGame-/ASFlag-/ASHUD- und Objective-Klassen vorhanden.",
+    "limit": "Kein spielbarer Assaultmodus oder allgemeiner Multiplayer-Objectivehost.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "mpgame.ASGame"
+  },
+  {
+    "id": "M05",
+    "section": "Multiplayer und Netzwerk",
+    "feature": "Multiplayer-Spieler, Waffen und Respawn",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "MPPawn-/MPPlayer-/MPGame-Definitionen katalogisiert.",
+    "limit": "Kein integrierter Multiplayer-Lebenszyklus mit Join, Spawn, Tod und Wiederbeitritt.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "MPPawn; MPPlayer; MPGame"
+  },
+  {
+    "id": "M06",
+    "section": "Multiplayer und Netzwerk",
+    "feature": "LAN-Spiel, Listen-/Dedicated-Server",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "IpDrv und Server-/Browserklassen inventarisiert.",
+    "limit": "Kein Portnetzwerktreiber, Serverlauf oder Join-/Host-Oberfläche.",
+    "code": [
+      "crates/rc-native/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "IpDrv; MenuLanGames; DedicatedServer"
+  },
+  {
+    "id": "M07",
+    "section": "Multiplayer und Netzwerk",
+    "feature": "Actor-Replikation und RPC",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Einzelne Animations-/Bewegungsmetadaten analysiert.",
+    "limit": "Keine allgemeine Actor-Replikation, RPC-Ausführung oder NetDriver-Simulation.",
+    "code": [
+      "crates/rc-package/src/animation_replication.rs"
+    ],
+    "evidence": [
+      "docs/ANIMATION_REPLICATION.md"
+    ],
+    "original": "NetDriver; Actor.Role/RemoteRole"
+  },
+  {
+    "id": "M08",
+    "section": "Multiplayer und Netzwerk",
+    "feature": "Prediction, ServerMove und Lag-Korrektur",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originale PlayerController-Netzwerkfunktionen erfasst.",
+    "limit": "Kein integrierter Client-/Serverbewegungs- oder Reconciliationpfad.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "ServerMove; ReplicateMove; ClientAdjustPosition"
+  },
+  {
+    "id": "M09",
+    "section": "Multiplayer und Netzwerk",
+    "feature": "Serverbrowser, GameSpy und Matchmaking",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originale GameSpy-/Interfacepakete und Funktionen inventarisiert.",
+    "limit": "Kein entsprechender Androiddienst oder Portbackend; historische Dienstverfügbarkeit wird hier nicht bewertet.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/MainActivity.java"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "gamespymgr; xinterfacegamespy"
+  },
+  {
+    "id": "M10",
+    "section": "Multiplayer und Netzwerk",
+    "feature": "Chat, Teamchat und Voicechat",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Say-/TeamSay-/Voicefunktionen im Original erfasst.",
+    "limit": "Keine Chat-/Sprachchat-Oberfläche oder Netzwerkübertragung.",
+    "code": [
+      "crates/rc-game/src/lib.rs"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "PlayerController.Say; TeamSay; VoiceChat"
+  },
+  {
+    "id": "M11",
+    "section": "Multiplayer und Netzwerk",
+    "feature": "Scoreboards, Statistiken und Charakterwahl",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Originale MP-Menüs, Scoreboards und Spielermeldungen erfasst.",
+    "limit": "Keine vollständige spielbare Portumsetzung.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/MainActivity.java"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "DMScoreboard; TDScoreboard; MenuCustomizeCharacter"
+  },
+  {
+    "id": "M12",
+    "section": "Multiplayer und Netzwerk",
+    "feature": "Matchstart-/PendingMatch-Zustand",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Einzelner DMGame.PendingMatch.BeginState-Block auf expliziten Feldern rekonstruiert.",
+    "limit": "Kein dadurch spielbarer Match-/Multiplayer-/VM-Host.",
+    "code": [
+      "crates/rc-package/src/pending_match.rs"
+    ],
+    "evidence": [
+      "docs/STATE_TRANSITIONS.md"
+    ],
+    "original": "DMGame.PendingMatch.BeginState"
+  },
+  {
+    "id": "M13",
+    "section": "Multiplayer und Netzwerk",
+    "feature": "Xbox-Live-/Splitscreen-spezifische Paketfunktionen",
+    "status": "U",
+    "status_label": "Nicht einzeln bewertet",
+    "scope": "Entsprechende Klassen sind in der PC-Installation enthalten und werden im Index mitgeführt.",
+    "limit": "Tatsächliche PC-Freischaltung und Androidrelevanz ungeprüft; keine Portumsetzung belegt.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/MainActivity.java"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "xinterfacelive; MenuSplitscreenPlayers"
+  },
+  {
+    "id": "E01",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "Unreal-Paketheader, Namen, Imports und Exports",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Frischer Scan aller938 Dateien mit273 Paketen ohne Lesefehler; Version-/SWRC-Varianten berücksichtigt.",
+    "limit": "Paketlesen ist keine automatische Ausführung aller Inhalte.",
+    "code": [
+      "crates/rc-package/src/lib.rs",
+      "crates/rc-inspect/src/main.rs"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "UPackage; FPackageFileSummary"
+  },
+  {
+    "id": "E02",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "TaggedProperties und Klassendefaults",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "3170 Klassendefaultlisten in vorhandenen Audits lesbar; skalare Vererbung und Properties-/Instanzoverlays.",
+    "limit": "Beliebige Compound-Defaults, CDO-Konstruktoren und Runtime-Configausführung bleiben begrenzt.",
+    "code": [
+      "crates/rc-package/src/properties.rs",
+      "crates/rc-package/src/defaults.rs"
+    ],
+    "evidence": [
+      "docs/CLASS_DEFAULTS.md"
+    ],
+    "original": "UClass; DefaultProperties; Properties overrides"
+  },
+  {
+    "id": "E03",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "Originale ScriptText-Quellen extrahieren",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Vorhandene Core.TextBuffer-Quellen werden aus Originalpaketen exportiert; frischer Inventarscan liegt bei.",
+    "limit": "Quelltextverfügbarkeit beweist keine Übereinstimmung jedes kompilierten/native Zweigs.",
+    "code": [
+      "crates/rc-inspect/src/main.rs"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "Core.TextBuffer; ScriptText"
+  },
+  {
+    "id": "E04",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "UnrealScript-Bytecode lesen",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Begrenzter v159-Funktionsreader mit Ausdrucksbäumen, Referenz- und Sprunggrenzen.",
+    "limit": "Keine vollständige Bytecode-VM; unbekannte Varianten werden abgewiesen.",
+    "code": [
+      "crates/rc-package/src/script.rs"
+    ],
+    "evidence": [
+      "docs/JUMP_BYTECODE.md",
+      "docs/CLASS_DEFAULTS.md"
+    ],
+    "original": "UFunction; SerializeExpr"
+  },
+  {
+    "id": "E05",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "Generische UnrealScript-VM und ProcessEvent",
+    "status": "O",
+    "status_label": "Offen / keine Spielintegration belegt",
+    "scope": "Ausgewählte Originalaktionen und arithmetische Blöcke in Rust nachgebildet.",
+    "limit": "Kein universeller Interpreter für alle6810 Funktionen, latente Aktionen, Delegation und native Aufrufe.",
+    "code": [
+      "crates/rc-package/src/script.rs",
+      "crates/rc-game/src/opening.rs"
+    ],
+    "evidence": [
+      "docs/PORTING.md",
+      "docs/STATE_TRANSITIONS.md"
+    ],
+    "original": "UObject::ProcessEvent; ProcessInternal"
+  },
+  {
+    "id": "E06",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "UState-Identität, Masken, Children und Hashes",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Native Namenindizes, State-/Children-Präfixe, Masken und Link-/Lookupbausteine rekonstruiert.",
+    "limit": "Allgemeines native PostLoad/Link/CDO und beliebige Runtime-Zustände nicht vollständig.",
+    "code": [
+      "crates/rc-package/src/state_link.rs",
+      "crates/rc-package/src/state_masks.rs",
+      "crates/rc-package/src/name_bindings.rs"
+    ],
+    "evidence": [
+      "docs/ORIGINAL_STATE_LINK.md",
+      "docs/ORIGINAL_STATE_MASKS.md",
+      "docs/NATIVE_NAMES.md"
+    ],
+    "original": "UState; FName; FindFunction"
+  },
+  {
+    "id": "E07",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "GotoState, BeginState und EndState",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Ausgewählte Zielwahl, Übergänge und Prop-/PendingMatch-Handler auf expliziten Hostzuständen.",
+    "limit": "Keine vollständige Label-/Bytecodeausführung, alle virtuellen Overrides und allgemeine Gameplayintegration.",
+    "code": [
+      "crates/rc-package/src/state_transition.rs",
+      "crates/rc-package/src/script_state.rs"
+    ],
+    "evidence": [
+      "docs/STATE_TRANSITIONS.md",
+      "docs/LIFECYCLE_HANDLERS.md"
+    ],
+    "original": "UObject::GotoState; BeginState; EndState"
+  },
+  {
+    "id": "E08",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "Actor-Lebenszyklus, Spawn, Destroy und Timer",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Lokale Missions-/Factory-/Effekthosts führen ihre benötigten Lebenszyklen aus.",
+    "limit": "Kein allgemeines Actorregister mit beliebigen Klassen, Timern, Touch-/Trigger-/Destroycallbacks.",
+    "code": [
+      "crates/rc-game/src/map_runtime.rs",
+      "crates/rc-game/src/world_effects.rs"
+    ],
+    "evidence": [
+      "docs/MAP2_GAMEPLAY.md",
+      "docs/MISSION_PRESENTATION.md"
+    ],
+    "original": "Actor.Spawn; Destroy; SetTimer"
+  },
+  {
+    "id": "E09",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "RNG und Reproduzierbarkeit",
+    "status": "T",
+    "status_label": "Teilweise / begrenzter Spielhost",
+    "scope": "Lokale Warrior-/Partikelzufallszustände und feste60-Hz-Simulation mit Replay-/Snapshotprüfungen.",
+    "limit": "Kein vollständiger globaler Original-RNG mit identischer Engine-Aufrufreihenfolge.",
+    "code": [
+      "crates/rc-game/src/particles.rs",
+      "crates/rc-game/src/replay.rs"
+    ],
+    "evidence": [
+      "docs/MISSION_PRESENTATION.md",
+      "docs/BASELINE_AND_PROFILING.md"
+    ],
+    "original": "rand; FRand; Engine tick"
+  },
+  {
+    "id": "E10",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "Originale x86-/SSE-/x87-Rechenbausteine",
+    "status": "B",
+    "status_label": "Rekonstruierter Analysebaustein",
+    "scope": "Zahlreiche begrenzte native Instruktions-Replays und explizite Rundungs-/Operationsfolgen.",
+    "limit": "Solche Replays führen nicht die gesamte Original-DLL, VM, FPU-Umgebung oder Engine aus.",
+    "code": [
+      "crates/rc-package/src/karma_impulse.rs",
+      "crates/rc-package/src/pawn_velocity.rs"
+    ],
+    "evidence": [
+      "docs/KARMA_INTERACTIONS.md",
+      "docs/WALKING_VELOCITY.md"
+    ],
+    "original": "Engine/Core/CTGame native routines"
+  },
+  {
+    "id": "E11",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "Szenen-/Asset-Buildpipeline",
+    "status": "E",
+    "status_label": "Plattformersatz / Portinfrastruktur",
+    "scope": "Deklarierte30 Stufen, gepinnte Eingaben, Originaldatenpfade und zusammengehörige Releaseartefakte.",
+    "limit": "PC-Vorbereitung ist Bestandteil des derzeitigen Ports; allgemeiner In-App-Originalimport offen.",
+    "code": [
+      "config/scene-builds.json",
+      "build.ps1"
+    ],
+    "evidence": [
+      "docs/BUILD.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "Originalassets → RCPLAY/RCCAMPAIGN"
+  },
+  {
+    "id": "E12",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "Native Schnittstelle und JNI",
+    "status": "E",
+    "status_label": "Plattformersatz / Portinfrastruktur",
+    "scope": "Rust-C-ABI, kontrollierte Handles, Status-/Audio-/GPU-/Checkpoint-Transfers und Android-JNI.",
+    "limit": "Ersetzt ursprüngliche Windows-/Engine-ABI; keine binäre Ausführung der PC-DLL auf ARM64.",
+    "code": [
+      "crates/rc-native/src/lib.rs",
+      "android/app/src/main/java/org/rcport/diagnostic/PlayActivity.java"
+    ],
+    "evidence": [
+      "docs/BUILD.md",
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "Windows x86 → Rust C-ABI / JNI"
+  },
+  {
+    "id": "E13",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "Automatisierte Prüfung und Originalnachweise",
+    "status": "I",
+    "status_label": "Integriert im angegebenen Umfang",
+    "scope": "Vorhandene0.53-Berichte:1175 Debug-/Release-Bibliothekstests,25 Missions-Checkpointproben,39 Ansichten und Android-x86_64-Proben.",
+    "limit": "Diese Übersicht führt den Gesamtbau nicht erneut aus; freie physische Abnahme bleibt eine eigene Evidenzstufe.",
+    "code": [
+      "scripts/Test-CampaignAndroid.py",
+      "build.ps1"
+    ],
+    "evidence": [
+      "docs/DC15_ENERGY.md"
+    ],
+    "original": "Projektinterne Verifikation"
+  },
+  {
+    "id": "E14",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "Editor, UnrealEd, UWindow und Debugmenüs",
+    "status": "U",
+    "status_label": "Nicht einzeln bewertet",
+    "scope": "In der Installation vorhandene Klassen und Funktionen werden vollständig mitinventarisiert.",
+    "limit": "Kein Androideditor geplant/belegt; tatsächliche Notwendigkeit für das Zielspiel nicht einzeln entschieden.",
+    "code": [
+      "crates/rc-inspect/src/main.rs"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "editor.u; unrealed.u; uwindow.u; udebugmenu.u"
+  },
+  {
+    "id": "E15",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "Windowsstart, DirectInput, OpenAL und C-Runtime",
+    "status": "E",
+    "status_label": "Plattformersatz / Portinfrastruktur",
+    "scope": "Android-App, Touch, SoundPool, GLES und Rust übernehmen die benötigten Plattformaufgaben.",
+    "limit": "Keine1:1-Portierung der alten Windows-/Treiber-/Herstellerbibliotheken erforderlich; Funktionsparität der Spielpfade separat.",
+    "code": [
+      "android/app/src/main/java/org/rcport/diagnostic/MainActivity.java",
+      "android/app/src/main/java/org/rcport/diagnostic/SceneAudio.java"
+    ],
+    "evidence": [
+      "docs/BUILD.md",
+      "docs/COMBAT_SCENE.md"
+    ],
+    "original": "WinDrv; ALAudio; D3DDrv; MSVCRT"
+  },
+  {
+    "id": "E16",
+    "section": "Enginegrundlagen, Analyse und Werkzeuge",
+    "feature": "Native interne Funktionen ohne Exportnamen",
+    "status": "U",
+    "status_label": "Nicht einzeln bewertet",
+    "scope": "Ausgewählte Adressen wurden in Ghidra untersucht und dokumentiert.",
+    "limit": "Kein vollständiges Inventar oder Einzelstatus aller nicht exportierten Originalroutinen; PE-Exports sind dafür keine vollständige Ersatzmenge.",
+    "code": [
+      "crates/rc-inspect/src/pe.rs"
+    ],
+    "evidence": [
+      "docs/PORTING.md"
+    ],
+    "original": "Engine/CTGame/Core internal functions"
+  }
+]

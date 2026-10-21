@@ -1,0 +1,29 @@
+{
+  "passed": true,
+  "central_entry": "docs/original-function-status/README.md",
+  "central_file_links_checked": 652,
+  "optional_local_evidence_links": 1,
+  "missing_central_links": [],
+  "feature_rows": 240,
+  "original_functions": 6810,
+  "original_maps": 79,
+  "current_release_hashes_verified": true,
+  "artifact_sha256": {
+    "docs/ORIGINAL_FUNCTION_STATUS.md": "ae38e7b52766e033a2a50c5490ad2d65759ed238aca1fe00f17f5488ddc106e5",
+    "docs/original-function-status/README.md": "af54cc5878ce8b0f89acf3a53ffa4fc8825791e8b1beb79b9bbfca37ec03500e",
+    "docs/original-function-status/features.psv": "19e8cf98b4e0f83083fa7d875cb9523c4cebc15b1c72db1f32a4f76a9be254b7",
+    "scripts/Generate-OriginalFunctionStatus.py": "c1a7fbb571a54f51ee0f5ae4acb297f3a58baa91ad38a924a460658ae2d416a6",
+    "docs/original-function-status/data/2026-10-21/features.csv": "fac3dd79dd480952a4bea8ff19080f894ab04d5d9e4021744c09c2d4d50bab84",
+    "docs/original-function-status/data/2026-10-21/known-internal-addresses.csv": "f4c136af5b0f4e5baeb34c54f209b469c9020b783471ce1f3a0c3efb5cf3273c",
+    "docs/original-function-status/data/2026-10-21/maps.csv": "88e3aaf5c9a09bf5b77096dcbcfc17fe325b6a17bee1a44c5ac714b510daab0e",
+    "docs/original-function-status/data/2026-10-21/native-binaries.csv": "dc71aada2575eeeaaf339f539bc186980388a27bfecf9a843dacc592f4a27665",
+    "docs/original-function-status/data/2026-10-21/native-exports.csv": "9cd552c83a3730eff1ce5d2798a07394c4adf2d050a514ee076a9d8039c52db3",
+    "docs/original-function-status/data/2026-10-21/original-classes.csv": "ebdd202a57f8b666cf8b2d8a685b29bd6af7e73aa6188aeba0bc8331469dedee",
+    "docs/original-function-status/data/2026-10-21/original-functions.csv": "9e4d8010b7d4c37f1b7ccf54e8de5a42474f4ddce0dc24cc3677e99030e5b8f1",
+    "docs/original-function-status/data/2026-10-21/original-packages.csv": "1a1dcf75cf0812bd93c3491dcf4752f3fa337cba4b019f1dc486ac33ae919152",
+    "docs/original-function-status/data/2026-10-21/original-states.csv": "aeb8ccf3f98d69ba848d71e7c56e6d1bb45b15a61cc2e1bfc926c4119b580706",
+    "docs/original-function-status/data/2026-10-21/port-modules.csv": "53354e70a0abd82a3f49fdf866aafdb83cdbe163f2af2e0e9cd1736566497845",
+    "docs/original-function-status/data/2026-10-21/features.json": "1cd8d42fdb76b8e6d48ad6a9d34ff7acc2aab1af63abaeec31e7f8752aa412e4",
+    "docs/original-function-status/data/2026-10-21/audit.json": "ecdfc308beae0e64be624cefb9ba60a8906fb729f729e3df75a3b87ebb89fd03"
+  }
+}
