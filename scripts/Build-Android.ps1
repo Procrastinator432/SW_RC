@@ -9,13 +9,19 @@ $tools = [IO.Path]::GetFullPath($ToolsDirectory)
 $sdk = Join-Path $tools 'android-sdk'
 $ndkBin = Join-Path $sdk 'ndk\27.2.12479018\toolchains\llvm\prebuilt\windows-x86_64\bin'
 $savedEnvironment=@{}
-foreach($key in @('JAVA_HOME','ANDROID_HOME','GRADLE_USER_HOME','CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER','CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER')) {$savedEnvironment[$key]=[Environment]::GetEnvironmentVariable($key,'Process')}
+foreach($key in @('JAVA_HOME','ANDROID_HOME','GRADLE_USER_HOME','TEMP','TMP','CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER','CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER')) {$savedEnvironment[$key]=[Environment]::GetEnvironmentVariable($key,'Process')}
 $env:JAVA_HOME = (Get-ChildItem (Join-Path $tools 'jdk21') -Directory | Select-Object -First 1).FullName
 $env:ANDROID_HOME = $sdk
 $env:GRADLE_USER_HOME = Join-Path $tools 'gradle-home'
 $previousEncodedRustFlags = $env:CARGO_ENCODED_RUSTFLAGS
 Push-Location $projectRoot
 try {
+    # NDK clang renames intermediate objects in TEMP. Sandboxed/user temp
+    # directories may deny that rename even when the final output is writable.
+    $compilerTemp = Join-Path $projectRoot 'build/android-compiler-temp'
+    New-Item -ItemType Directory -Force -Path $compilerTemp | Out-Null
+    $env:TEMP = $compilerTemp
+    $env:TMP = $compilerTemp
     foreach ($abi in $Abis) {
     $target = if ($abi -eq 'arm64-v8a') { 'aarch64-linux-android' } else { 'x86_64-linux-android' }
     $clang = Join-Path $ndkBin "${target}26-clang.cmd"

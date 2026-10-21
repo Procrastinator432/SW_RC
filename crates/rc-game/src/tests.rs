@@ -17,7 +17,113 @@ fn dc15_profile() -> dc15::Assets {
         wait_for_recharge: false,
         damage: 55,
         shot_delay: 0.2,
+        fire_mode: None,
+        animation: None,
     }
+}
+fn semi_auto_game() -> Game {
+    let mut g = game(false);
+    let mut a = dc15_profile();
+    a.fire_mode = Some(dc15::FireMode::SemiAuto);
+    g.attach_dc15(a).unwrap();
+    g
+}
+fn trigger(g: &mut Game, down: bool, elapsed: f64) {
+    g.advance(
+        elapsed,
+        Input {
+            fire: down,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+}
+#[test]
+fn dc15_semi_auto_hold_release_cooldown_and_empty_press_are_not_queued() {
+    let mut g = semi_auto_game();
+    for _ in 0..120 {
+        trigger(&mut g, true, STEP);
+    }
+    assert_eq!(g.state.statistics.shots, 1);
+    trigger(&mut g, false, STEP);
+    trigger(&mut g, true, STEP);
+    assert_eq!(g.state.statistics.shots, 2);
+    // Too-early second press is consumed, not fired when the deadline expires.
+    trigger(&mut g, false, STEP);
+    for _ in 0..60 {
+        trigger(&mut g, true, STEP);
+    }
+    assert_eq!(g.state.statistics.shots, 2);
+    g.state.dc15.as_mut().unwrap().charge = 0.;
+    g.state.dc15.as_mut().unwrap().ticking = true;
+    g.sync_dc15();
+    trigger(&mut g, false, STEP);
+    for _ in 0..120 {
+        trigger(&mut g, true, STEP);
+    }
+    assert_eq!(g.state.statistics.shots, 2);
+    trigger(&mut g, false, STEP);
+    trigger(&mut g, true, STEP);
+    assert_eq!(g.state.statistics.shots, 3);
+}
+#[test]
+fn dc15_semi_auto_frame_rates_and_subtick_release_checkpoint_are_exact() {
+    for fps in [20, 60, 144] {
+        let mut g = semi_auto_game();
+        for _ in 0..fps {
+            trigger(&mut g, true, 1. / f64::from(fps));
+        }
+        assert_eq!(g.state.statistics.shots, 1, "{fps} FPS");
+    }
+    let mut a = semi_auto_game();
+    for _ in 0..30 {
+        trigger(&mut a, true, STEP);
+    }
+    trigger(&mut a, false, STEP * 0.2);
+    trigger(&mut a, true, STEP * 0.2);
+    let save = a.checkpoint("semi-auto").unwrap();
+    let mut b = semi_auto_game();
+    b.restore_checkpoint(&save, "semi-auto").unwrap();
+    for _ in 0..60 {
+        trigger(&mut a, true, STEP);
+        trigger(&mut b, true, STEP);
+    }
+    assert_eq!(a.state.statistics.shots, 2);
+    assert_eq!(
+        a.checkpoint("semi-auto").unwrap(),
+        b.checkpoint("semi-auto").unwrap()
+    );
+    a.restart();
+    trigger(&mut a, true, STEP);
+    assert_eq!(a.state.statistics.shots, 1);
+}
+#[test]
+fn dc15_semi_auto_handoff_retains_held_trigger_and_automatic_keeps_repeating() {
+    let mut a = semi_auto_game();
+    trigger(&mut a, true, STEP);
+    let player = a.dc15_player(serde_json::json!({}));
+    let mut b = semi_auto_game();
+    let (energy, remaining) = b
+        .dc15_handoff(&player, a.state.ammo, a.state.reserve)
+        .unwrap();
+    b.state.dc15 = energy;
+    b.state.fire_remaining = remaining;
+    b.sync_dc15();
+    for _ in 0..60 {
+        trigger(&mut b, true, STEP);
+    }
+    assert_eq!(b.state.statistics.shots, 0);
+    trigger(&mut b, false, STEP);
+    trigger(&mut b, true, STEP);
+    assert_eq!(b.state.statistics.shots, 1);
+    let mut auto = game(false);
+    let mut profile = dc15_profile();
+    profile.fire_mode = Some(dc15::FireMode::Automatic);
+    auto.attach_dc15(profile).unwrap();
+    for _ in 0..60 {
+        trigger(&mut auto, true, STEP);
+    }
+    assert!(auto.state.statistics.shots >= 4);
 }
 #[test]
 fn dc15_original_damage_energy_cadence_and_reload_input() {
@@ -69,8 +175,7 @@ fn dc15_original_damage_energy_cadence_and_reload_input() {
 }
 #[test]
 fn dc15_recharges_and_expires_shot_deadline_during_locked_opening() {
-    let mut g = game(false);
-    g.attach_dc15(dc15_profile()).unwrap();
+    let mut g = semi_auto_game();
     g.advance(
         STEP,
         Input {
@@ -107,6 +212,15 @@ fn dc15_recharges_and_expires_shot_deadline_during_locked_opening() {
     assert_eq!(g.state.fire_remaining, 0.);
     assert_eq!(g.state.pawn.body.position, position);
     assert_eq!(g.state.statistics.shots, 1);
+    g.state.opening = None;
+    trigger(&mut g, true, STEP);
+    assert_eq!(
+        g.state.statistics.shots, 1,
+        "held opening press must not fire on unlock"
+    );
+    trigger(&mut g, false, STEP);
+    trigger(&mut g, true, STEP);
+    assert_eq!(g.state.statistics.shots, 2);
 }
 #[test]
 fn dc15_checkpoint_fractional_input_continuation_and_restart_are_exact() {

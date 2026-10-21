@@ -13,6 +13,8 @@ parser.add_argument('--apk',type=Path,default=ROOT/'build/artifacts/republic-com
 parser.add_argument('--package',type=Path,default=ROOT/'build/artifacts/mission1-scenes.rcpack.zip')
 parser.add_argument('--checkpoints',type=Path,default=ROOT/'build/scenes/runtime-validation')
 parser.add_argument('--output',type=Path,default=ROOT/'build/campaign/android')
+parser.add_argument('--expect-semi-auto',action='store_true',help='Verify one shot per physical touch press for the new DC-15s profile')
+parser.add_argument('--expect-weapon-animation',action='store_true',help='Verify new weapon animation state, cold restore and idle timer in the APK')
 args=parser.parse_args();OUT=args.output;OUT.mkdir(parents=True,exist_ok=True)
 ADB=ROOT/'tools/android-sdk/platform-tools/adb.exe';APP='org.rcport.diagnostic'
 
@@ -161,6 +163,40 @@ try:
   tap('Fortsetzen');key=next(k for k in layout['keys'] if k[0]==4);tap_xy(box[0]+key[1],box[1]+key[2])
   energy_save=pause_save();assert energy_save['state']['statistics']['reloads']==before_reload and energy_save['state']['reload_remaining']==0
   capture('energy-indicator-reload-inert')
+ # Exercise the physical touch path, not a directly injected native Input.
+ semi_auto_checked=False
+ if args.expect_semi_auto:
+  assert energy_checked,'Semi-auto acceptance requires an energy weapon scene'
+  tap('Fortsetzen');time.sleep(2);ready=pause_save()
+  assert ready['state']['dc15']['charge']>=2
+  key=next(k for k in layout['keys'] if k[0]==2);fx=box[0]+key[1];fy=box[1]+key[2]
+  tap('Fortsetzen');swipe(fx,fy,fx,fy,1100);held=pause_save()
+  assert held['state']['statistics']['shots']==ready['state']['statistics']['shots']+1,'Held semi-auto touch repeated or missed its shot'
+  tap('Fortsetzen');tap_xy(fx,fy);time.sleep(.3);pressed=pause_save()
+  assert pressed['state']['statistics']['shots']==held['state']['statistics']['shots']+1,'Fresh touch press did not fire'
+  capture('semi-auto-hold-and-repress');semi_auto_checked=True
+  print('Physical touch: long hold fired once; fresh press fired again',flush=True)
+ weapon_animation_checked=False
+ if args.expect_weapon_animation:
+  assert semi_auto_checked,'Weapon animation acceptance requires the semi-auto probe'
+  assert pressed['state']['visuals'].get('weapon_animation') is not None
+  tap('Fortsetzen');time.sleep(2);anchor=pause_save()
+  assert all(abs(v)<1e-5 for v in anchor['state']['pawn']['body']['velocity']),'Idle probe must start standing still'
+  launch();tap('Fortsetzen');wait(lambda:has('GEO_03A') and has('Fortsetzen'))
+  cold=pause_save()
+  assert cold['state']['visuals']==anchor['state']['visuals'],'Cold restore changed weapon channels'
+  assert cold['state']['statistics']==anchor['state']['statistics']
+  original_idle=anchor['state']['visuals']['weapon_animation']['idle_started']
+  assert original_idle is not None
+  for _ in range(6):
+   tap('Fortsetzen');time.sleep(8);idle=pause_save()
+   marker=idle['state']['visuals']['weapon_animation']['idle_started']
+   if marker is not None and marker>original_idle:
+    assert marker-original_idle>=1200,'Fidget started before the original 20-second delay'
+    break
+  else:raise AssertionError('Original idle/fidget timer did not advance during ordinary APK execution')
+  capture('weapon-idle-after-cold-restore');weapon_animation_checked=True
+  print('Weapon channels restored exactly; original idle timer reached through normal APK execution',flush=True)
  # Genuine won snapshots select B/C/factory automatically, with actual native carry.
  transitions=[]
  for source,label,target in [('GEO_01A','A','GEO_01B'),('GEO_01B','B','GEO_01C'),('GEO_01C','C','GEO_03A')]:
@@ -180,7 +216,7 @@ try:
   capture('automatic-'+target.lower());transitions.append(dict(source=source,destination=target,carried_entry_exact=True,no_file_picker=True))
   print(f'Automatic {source} -> {target} passed',flush=True)
  log=adb('logcat','-d','-s','RCPlay:I','RCCheckpoint:I','RCTouch:I','AndroidRuntime:E','*:S');(OUT/'app.log').write_text(log);assert 'FATAL EXCEPTION' not in log
- (OUT/'validation.json').write_text(json.dumps(dict(passed=True,apk_sha256=hashlib.sha256(args.apk.read_bytes()).hexdigest(),package_sha256=hashlib.sha256(args.package.read_bytes()).hexdigest(),actual_package_picker_and_native_import=True,import_preserves_checkpoint=True,invalid_import_preserves_package_and_save=True,cold_start_keeps_package=True,new_game_without_picker=True,android_background_kill_recreates_original_intent_exactly=True,logical_display=[640,360],viewport_dp=[640,312],all_touch_targets_min_48dp=True,touch_movement_fire_jump=True,sensitivity_saved_and_density_independent=True,both_look_axes_verified=True,dc15_energy_indicator_reload_inert_and_state_carry=energy_checked,high_sensitivity_yaw_delta=delta_fast,normal_sensitivity_yaw_delta=delta_normal,automatic_transitions=transitions,limits=['Android x86_64 emulator; physical small-screen comfort remains for device testing','Map-end and factory checkpoints are genuine replay states inserted into private test storage, not a full manual touch playthrough']),indent=2))
+ (OUT/'validation.json').write_text(json.dumps(dict(passed=True,apk_sha256=hashlib.sha256(args.apk.read_bytes()).hexdigest(),package_sha256=hashlib.sha256(args.package.read_bytes()).hexdigest(),actual_package_picker_and_native_import=True,import_preserves_checkpoint=True,invalid_import_preserves_package_and_save=True,cold_start_keeps_package=True,new_game_without_picker=True,android_background_kill_recreates_original_intent_exactly=True,logical_display=[640,360],viewport_dp=[640,312],all_touch_targets_min_48dp=True,touch_movement_fire_jump=True,sensitivity_saved_and_density_independent=True,both_look_axes_verified=True,dc15_energy_indicator_reload_inert_and_state_carry=energy_checked,dc15_semi_auto_physical_touch=semi_auto_checked,weapon_animation_cold_restore_and_idle_timer=weapon_animation_checked,high_sensitivity_yaw_delta=delta_fast,normal_sensitivity_yaw_delta=delta_normal,automatic_transitions=transitions,limits=['Android x86_64 emulator; physical small-screen comfort remains for device testing','Map-end and factory checkpoints are genuine replay states inserted into private test storage, not a full manual touch playthrough']),indent=2))
  print('Package import, compact small-screen controls, saved sensitivity and all three automatic map transitions passed')
 except Exception:
  import traceback

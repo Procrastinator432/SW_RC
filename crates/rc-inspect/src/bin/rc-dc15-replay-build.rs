@@ -67,7 +67,12 @@ fn aimed_row(
         for (k, v) in look.into_iter().enumerate() {
             row[8 + k * 4..12 + k * 4].copy_from_slice(&(v as f32).to_le_bytes());
         }
-        row[16..20].copy_from_slice(&2_u32.to_le_bytes());
+        // Ordinary release/press rows for the selected human semi-auto mode.
+        let release = g.dc15.as_ref().is_some_and(|a| {
+            a.fire_mode == Some(rc_game::dc15::FireMode::SemiAuto)
+                && g.state.dc15.as_ref().is_some_and(|s| s.trigger_down)
+        });
+        row[16..20].copy_from_slice(&(if release { 0_u32 } else { 2_u32 }).to_le_bytes());
     }
     Ok((row, target))
 }
@@ -237,7 +242,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Some(i) = target {
                     seen.insert(i);
                 }
-                if !input(&shot).fire {
+                if target.is_none() {
                     break;
                 }
                 camera_dirty = true;

@@ -1,7 +1,16 @@
 //! Selected DC15Ammo/CTAmmoRecharging script path. The existing aiming and
-//! hitscan/held-trigger adapters remain separate from energy accounting.
+//! hitscan adapters remain separate from energy accounting and trigger requests.
 use crate::{Game, State as GameState};
 use serde::{Deserialize, Serialize};
+
+/// Selected human-player modes from Weapon.EFireMode. Burst and animation-driven
+/// modes are intentionally unsupported rather than silently treated as automatic.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FireMode {
+    SemiAuto,
+    Automatic,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -13,6 +22,11 @@ pub struct Assets {
     pub wait_for_recharge: bool,
     pub damage: u32,
     pub shot_delay: f32,
+    /// Absent in historical scenes: retain their held-trigger adapter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fire_mode: Option<FireMode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub animation: Option<crate::weapon_animation::Assets>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -23,9 +37,14 @@ pub struct State {
     pub no_recharge: bool,
     pub cool_and_recharge: bool,
     pub ticking: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub trigger_down: bool,
 }
 impl Assets {
     pub fn validate(&self) -> Result<(), String> {
+        if let Some(a) = &self.animation {
+            a.validate()?;
+        }
         if self.maximum == 0
             || self.maximum > crate::MAGAZINE
             || !self.recharge_rate.is_finite()
@@ -49,10 +68,19 @@ impl Assets {
             no_recharge: false,
             cool_and_recharge: false,
             ticking: true,
+            trigger_down: false,
         }
     }
 }
 impl State {
+    /// Consume the request before weapon locks, cooldown and energy gates. A
+    /// rejected semi-auto press is not queued until the weapon becomes ready.
+    pub fn trigger_request(&mut self, a: &Assets, down: bool) -> bool {
+        let request = down && (a.fire_mode != Some(FireMode::SemiAuto) || !self.trigger_down);
+        // Keep historical checkpoint bytes and replay fingerprints unchanged.
+        self.trigger_down = a.fire_mode.is_some() && down;
+        request
+    }
     pub fn validate(&self, a: &Assets) -> Result<(), String> {
         if !self.charge.is_finite()
             || !(0. ..=a.maximum as f32).contains(&self.charge)
@@ -168,6 +196,18 @@ impl Game {
         if self.dc15.is_some() || self.combat.is_some() || self.state.statistics.ticks != 0 {
             return Err("DC15 energy profile requires a fresh fallback-weapon scene".into());
         }
+        if let Some(v) = &mut self.visuals {
+            if let Some(profile) = &a.animation {
+                profile.validate_mesh(&v.weapon)?;
+            }
+            let state = self
+                .state
+                .visuals
+                .as_mut()
+                .ok_or("Missing weapon visuals")?;
+            v.weapon_animation = a.animation.is_some();
+            state.weapon_animation = v.weapon_animation.then(Default::default);
+        }
         self.state.dc15 = Some(a.initial());
         self.dc15 = Some(a);
         self.sync_dc15();
@@ -204,6 +244,8 @@ mod tests {
             wait_for_recharge: false,
             damage: 55,
             shot_delay: 0.2,
+            fire_mode: None,
+            animation: None,
         }
     }
     #[test]

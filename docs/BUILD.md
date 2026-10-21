@@ -21,6 +21,8 @@ Ergebnisse: `build/validation.json`, einzelne Protokolle unter `build/logs`. `-O
 
 ## Android
 
+Der Androidbuilder legt temporäre Compilerdateien unter `build/android-compiler-temp` an und stellt `TEMP`/`TMP` anschließend wieder her. Das vermeidet NDK-Umbenennungsfehler in eingeschränkten Windows-Tempverzeichnissen. Gradle benötigt weiterhin eine Verbindung zu seinem lokalen Buildprozess; ein Sandbox-Verbindungsfehler ist kein Spielfehler.
+
 ```powershell
 .\build.ps1 -Target Android
 # Einzelne Architektur:
@@ -53,7 +55,7 @@ Beim Konsolidieren wurden die vorhandenen Eingaben einmal ausdrücklich aus dem 
   -SceneInputs local-assets/mission1/scene-inputs.json -GameData 'D:/Pfad/GameData'
 ```
 
-Die unterstützten Stufen stehen in `config/scene-builds.json`. `mission` baut die A-Korrekturen einschließlich Bacta/Präsentation sowie B, C und den Fabrikeinstieg in deklarierter Reihenfolge; erzeugte Zwischenstände ersetzen die jeweiligen Eingabeschlüssel. Jeder externe benötigte Input wird vorab per SHA-256 geprüft. Die Pipeline validiert anschließend den vollständigen A/B/C→Fabrik-Lauf mit 25 Checkpoints, exaktem Zustand/Grafik, Fortlauf, atomarer Fehlerabweisung und Neustart. Zusätzlich prüft `rc-presentation-check` den regulären A-Eingabelauf, speichert Spieleransichten und führt den tatsächlichen A→B-Wechsel aus. Einzelstufen führen diese Gesamtläufe nicht automatisch aus. Ergebnisse und aufgelöste Eingaben stehen unter `build/scenes`.
+Die unterstützten Stufen stehen in `config/scene-builds.json`. `mission` baut die A-Korrekturen einschließlich Bacta/Präsentation sowie B, C und den Fabrikeinstieg in deklarierter Reihenfolge; erzeugte Zwischenstände ersetzen die jeweiligen Eingabeschlüssel. Jeder externe benötigte Input wird vorab per SHA-256 geprüft. Die Pipeline validiert anschließend den vollständigen A/B/C→Fabrik-Lauf mit 25 Checkpoints, exaktem Zustand/Grafik, Fortlauf, atomarer Fehlerabweisung und Neustart. Zusätzlich prüft `rc-presentation-check` den regulären A-Eingabelauf, speichert Spieleransichten und führt den tatsächlichen A→B-Wechsel aus. Der zusätzliche `rc-weapon-animation-check` prüft originale Waffenclips, getrennte Kanäle, Ruhefrist und beschädigte Checkpoints in ausdrücklich kontrollierten Darstellungsfixtures; diese ersetzen die regulären Missionsläufe nicht. Einzelstufen führen diese Gesamtläufe nicht automatisch aus. Ergebnisse und aufgelöste Eingaben stehen unter `build/scenes`.
 
 Für einzelne ältere Tools bleiben ihre positionalen Argumente bestehen. Zusätzliche Eingaben kommen aus dem Manifest; `RC_BUILD_OUTPUT` bestimmt den Ausgabeordner und `RC_GAME_DATA` die Originalinstallation. Der eigenständige `rc-throw-scene-build` verwendet ebenfalls benannte Eingaben, gehört aber nicht zur aktuellen B/C/Fabrik-Rezeptfolge.
 

@@ -48,6 +48,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err("Unsupported initial recharge state".into());
         }
     }
+    let fire_mode = match get("CTInventory.DC15s", "FireMode")? {
+        Value::Byte(0) => rc_game::dc15::FireMode::SemiAuto,
+        Value::Byte(2) => rc_game::dc15::FireMode::Automatic,
+        _ => return Err("Unsupported original DC15 fire mode".into()),
+    };
+    let Value::Name(fire_anim) = get("CTInventory.DC15s", "FireAnim")? else {
+        return Err("Missing original weapon FireAnim".into());
+    };
+    let Value::Float(idle_delay) = get("CTInventory.DC15s", "PlayIdleTime")? else {
+        return Err("Missing original weapon PlayIdleTime".into());
+    };
     let assets = rc_game::dc15::Assets {
         maximum: maximum.try_into()?,
         recharge_rate,
@@ -55,7 +66,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         wait_for_recharge,
         damage: damage as u32,
         shot_delay,
-        provenance: serde_json::json!({"defaults":receipt,"scripts":["DC15Ammo.Tick/UseCharge","CTAmmoRecharging.PostBeginPlay/Tick/UseCharge/HasAmmo","DC15s.Fire","Weapon.PlayFiring"],"scope":"Original selected energy accounting and base damage/shot delay. Existing held-trigger, hitscan, aim, hitboxes and difficulty adapters remain; not full Weapon.NormalFire or ballistic parity."}),
+        fire_mode: Some(fire_mode),
+        animation: Some(rc_game::weapon_animation::Assets {
+            fire_anim,
+            idle_delay,
+        }),
+        provenance: serde_json::json!({"defaults":receipt,"scripts":["DC15Ammo.Tick/UseCharge","CTAmmoRecharging.PostBeginPlay/Tick/UseCharge/HasAmmo","DC15s.Fire","Weapon.PlayFiring","Weapon.EFireMode/ServerFire/NormalFire.Tick/StopFire","Weapon.PlayIdleAnim/Idle.AnimEnd/NormalFire.AnimEnd"],"scope":"Original selected energy accounting and base damage/shot delay. Human semi-auto requests require a fresh press; automatic requests remain held. Requests blocked by cooldown, locks or charge are not queued. Selected non-zoom idle/walk/run/fidget and independent fire channel use original clips, rates and idle delay. Tweening, forced-fire, pawn animations, full state machine, hitscan, aim, hitboxes and difficulty adapters remain; not full Weapon.NormalFire or ballistic parity."}),
     };
     assets.validate()?;
     let raw = fs::read(&args[2])?;
@@ -65,6 +81,66 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         || (game.opening.is_none() && game.map.is_none())
     {
         return Err("Need unextended campaign weapon scene".into());
+    }
+    let weapon = &game
+        .visuals
+        .as_ref()
+        .ok_or("Need original weapon visuals")?
+        .weapon
+        .mesh;
+    let profile = assets
+        .animation
+        .as_ref()
+        .ok_or("Missing animation profile")?;
+    let missing: Vec<_> = ["Run", "Idle", profile.fire_anim.as_str()]
+        .into_iter()
+        .filter(|name| {
+            !weapon
+                .clips
+                .iter()
+                .any(|c| c.sequence.name.name.eq_ignore_ascii_case(name))
+        })
+        .collect();
+    let mut extra = vec![];
+    if !missing.is_empty() {
+        let (package, object) = weapon
+            .source
+            .split_once('.')
+            .ok_or("Invalid weapon source")?;
+        let animation = weapon
+            .clips
+            .first()
+            .ok_or("Missing original clip linkup")?
+            .source
+            .split(':')
+            .next()
+            .ok_or("Invalid original animation source")?;
+        let mut resolver = rc_inspect::assets::Assets::new(&[
+            &Path::new(&args[1]).join("Textures"),
+            &Path::new(&args[1]).join("Animations"),
+            &Path::new(&args[1]).join("System"),
+        ])?;
+        let loaded = rc_inspect::visual_assets::load_from_animation(
+            Path::new(&args[1]),
+            &format!("{package}.ukx"),
+            object,
+            &missing,
+            &mut resolver,
+            Some(animation),
+        )?;
+        if loaded.scale != weapon.scale
+            || loaded.origin != weapon.origin
+            || loaded.rotation != weapon.rotation
+            || loaded.bones.len() != weapon.bones.len()
+            || loaded
+                .bones
+                .iter()
+                .zip(&weapon.bones)
+                .any(|(a, b)| !a.name.name.eq_ignore_ascii_case(&b.name.name))
+        {
+            return Err("Additional weapon clips do not match the installed mesh".into());
+        }
+        extra = loaded.clips;
     }
     let mut result = vec![];
     let mut at = 0;
@@ -86,7 +162,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             result.extend_from_slice(&raw[end..]);
             break;
         }
-        result.extend_from_slice(&raw[at..end]);
+        if &header[..8] == b"RCPLAY02" && !extra.is_empty() {
+            let mut visuals: serde_json::Value = serde_json::from_slice(metadata)?;
+            let clips = visuals["weapon"]["clips"]
+                .as_array_mut()
+                .ok_or("Missing weapon clip array")?;
+            for clip in &extra {
+                clips.push(serde_json::to_value(clip)?);
+            }
+            let data = serde_json::to_vec(&visuals)?;
+            result.extend_from_slice(&header[..8]);
+            result.extend((data.len() as u32).to_le_bytes());
+            result.extend(data);
+        } else {
+            result.extend_from_slice(&raw[at..end]);
+        }
         at = end;
     }
     let checked = rc_game::bundle::decode(&result)?;
@@ -102,6 +192,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ),
         &result,
     )?;
+    fs::write(out.join("weapon-clips.json"), serde_json::to_vec_pretty(
+        &checked.visuals.as_ref().ok_or("Missing final weapon")?.weapon.mesh.clips.iter()
+            .map(|c| serde_json::json!({"source":c.source,"frames":c.sequence.frames,"rate":f32::from_bits(c.sequence.rate_bits)}))
+            .collect::<Vec<_>>()
+    )?)?;
     fs::write(
         out.join("dc15-energy.json"),
         serde_json::to_vec_pretty(&assets)?,

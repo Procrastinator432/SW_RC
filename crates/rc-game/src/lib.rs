@@ -59,6 +59,7 @@ pub mod transition;
 pub mod visual;
 pub mod warrior_ai;
 mod wave_bytes;
+pub mod weapon_animation;
 pub mod world_effects;
 use rc_package::{
     controller::{ControlledBody, ViewInput},
@@ -332,7 +333,11 @@ impl Game {
             enemy,
             weapon,
             texture_base: self.scene.textures.len(),
+            weapon_animation: self.dc15.as_ref().is_some_and(|a| a.animation.is_some()),
         };
+        if let Some(a) = self.dc15.as_ref().and_then(|a| a.animation.as_ref()) {
+            a.validate_mesh(&prepared.weapon)?;
+        }
         let state = prepared.state(self.state.enemies.len())?;
         for mesh in [&prepared.enemy, &prepared.weapon] {
             self.scene
@@ -482,7 +487,17 @@ impl Game {
         let old = self.state.clone();
         let mut accumulator = self.accumulator + elapsed;
         let jump = self.pending_jump || input.jump;
-        let fire = self.pending_fire || input.fire;
+        // Sample physical edges on every submitted frame, including frames
+        // shorter than STEP. Pending requests survive until the next fixed tick.
+        let semi_auto = self
+            .dc15
+            .as_ref()
+            .is_some_and(|a| a.fire_mode == Some(dc15::FireMode::SemiAuto));
+        let request = match (&self.dc15, &mut self.state.dc15) {
+            (Some(a), Some(s)) => s.trigger_request(a, input.fire),
+            _ => input.fire,
+        };
+        let fire = self.pending_fire || request;
         let reload = self.pending_reload || input.reload;
         let throw_grenade = self.pending_throw || input.throw_grenade;
         if !self.bacta_using(input.use_action) {
@@ -495,7 +510,11 @@ impl Game {
         while accumulator + 1e-12 >= STEP && ticks < 8 && self.state.phase == Phase::Playing {
             let tick_input = Input {
                 jump: if ticks == 0 { jump } else { input.jump },
-                fire: if ticks == 0 { fire } else { input.fire },
+                fire: if ticks == 0 {
+                    fire
+                } else {
+                    input.fire && !semi_auto
+                },
                 reload: if ticks == 0 { reload } else { false },
                 throw_grenade: if ticks == 0 {
                     throw_grenade
@@ -563,6 +582,7 @@ impl Game {
             input
         };
         if locked {
+            self.locked_weapon_animation_tick()?;
             self.state.statistics.ticks += 1;
             return Ok(());
         }
@@ -572,6 +592,7 @@ impl Game {
         self.intro_tick()?;
         let rappel_motion = self.rappel_tick()?;
         if rappel_motion || self.state.opening.as_ref().is_some_and(|s| s.locked) {
+            self.locked_weapon_animation_tick()?;
             self.world_effect_tick()?;
             if let Some(b) = &mut self.state.bunker {
                 for e in &mut b.explosions {
@@ -627,6 +648,7 @@ impl Game {
             properties: std::collections::BTreeMap::new(),
         };
         if self.state.squad.as_ref().is_some_and(|s| s.player_down) {
+            self.locked_weapon_animation_tick()?;
             self.state.statistics.ticks += 1;
             self.artillery_tick()?;
             self.squad_tick(input.use_action)?;
@@ -748,7 +770,14 @@ impl Game {
                 .visuals
                 .take()
                 .ok_or("Missing instance visual state")?;
-            let events = assets.tick(&self.state, &previous, &mut visual, self.combat.as_ref())?;
+            let events = assets.tick(
+                &self.state,
+                &previous,
+                &mut visual,
+                self.combat.as_ref(),
+                self.dc15.as_ref().and_then(|a| a.animation.as_ref()),
+                weapon_blocked,
+            )?;
             if let Some(c) = &mut self.state.combat {
                 for (sound, owner) in events {
                     c.emit(sound, owner, self.state.statistics.ticks);

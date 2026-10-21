@@ -155,6 +155,7 @@ impl Game {
                     let mut new = v.state(self.state.enemies.len())?;
                     if let Some(old) = &self.state.visuals {
                         new.weapon = old.weapon.clone();
+                        new.weapon_animation = old.weapon_animation.clone();
                     }
                     self.state.visuals = Some(new);
                 }

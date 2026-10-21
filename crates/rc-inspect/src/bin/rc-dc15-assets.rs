@@ -23,7 +23,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ),
         (
             "CTInventory.DC15s",
-            vec!["ShotDelay", "bCanReload", "bRapidFire", "AmmoName"],
+            vec![
+                "ShotDelay",
+                "bCanReload",
+                "bRapidFire",
+                "FireMode",
+                "FireAnim",
+                "PlayIdleTime",
+                "AmmoName",
+            ],
         ),
         ("CTInventory.DC15Proj", vec!["Damage", "Speed", "LifeSpan"]),
     ] {

@@ -29,6 +29,9 @@ pub struct PreparedAssets {
     pub enemy: PreparedMesh,
     pub weapon: PreparedMesh,
     pub texture_base: usize,
+    /// Every visual-state rebuild (encounter changes and factories included)
+    /// must initialize the optional weapon actor state consistently.
+    pub weapon_animation: bool,
 }
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct Player {
@@ -41,9 +44,11 @@ pub struct Player {
 pub struct State {
     pub enemies: Vec<Player>,
     pub weapon: Player,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weapon_animation: Option<crate::weapon_animation::State>,
 }
 impl Player {
-    fn new(mesh: &PreparedMesh, name: &str) -> Result<Self, String> {
+    pub(crate) fn new(mesh: &PreparedMesh, name: &str) -> Result<Self, String> {
         Ok(Self {
             clip: mesh.clip(name)?,
             frame: 0.,
@@ -66,7 +71,7 @@ impl Player {
         }
         Ok(())
     }
-    fn advance(
+    pub(crate) fn advance(
         &mut self,
         mesh: &PreparedMesh,
         looping: bool,
@@ -110,6 +115,7 @@ impl PreparedAssets {
                 .map(|_| Player::new(&self.enemy, "ActionBreathe"))
                 .collect::<Result<_, _>>()?,
             weapon: Player::new(&self.weapon, "ActionBreathe")?,
+            weapon_animation: self.weapon_animation.then(Default::default),
         })
     }
     pub fn tick(
@@ -118,6 +124,8 @@ impl PreparedAssets {
         old: &crate::State,
         visual: &mut State,
         combat: Option<&crate::combat::Assets>,
+        weapon_profile: Option<&crate::weapon_animation::Assets>,
+        weapon_blocked: bool,
     ) -> Result<Vec<(usize, i32)>, String> {
         let mut events = vec![];
         for (owner, ((player, e), previous)) in visual
@@ -185,6 +193,21 @@ impl PreparedAssets {
             )?;
             let interval = player.advance(&self.enemy, looping, None)?;
             notify_events(combat, false, &clip, interval, owner as i32, &mut events);
+        }
+        if let Some(a) = weapon_profile {
+            visual
+                .weapon_animation
+                .as_mut()
+                .ok_or("Missing weapon animation state")?
+                .tick(
+                    a,
+                    &self.weapon,
+                    &mut visual.weapon,
+                    now,
+                    old,
+                    weapon_blocked,
+                )?;
+            return Ok(events);
         }
         let shot = now.statistics.shots > old.statistics.shots;
         let reload = now.reload_remaining > 0.;
@@ -552,30 +575,56 @@ impl PreparedMesh {
         channel: &AnimationChannel,
         lock_root: bool,
     ) -> Result<Vec<[u32; 16]>, String> {
-        let index = channel.words[17]
-            .checked_sub(1)
-            .ok_or("Null visual sequence")? as usize;
-        let clip = self
-            .mesh
-            .clips
-            .get(index)
-            .ok_or("Unknown visual sequence")?;
-        let identity = index as u32 + 1;
-        let sequences = [ResolvedSequence {
-            identity,
-            linkup_key: 1,
-            sequence: &clip.sequence,
-        }];
-        let names = [(identity, identity)];
+        self.pose_matrices_channels(std::slice::from_ref(channel), lock_root)
+    }
+    pub fn geometry_channels(
+        &self,
+        channels: &[AnimationChannel],
+    ) -> Result<rc_render::Scene, String> {
+        let matrices = self.pose_matrices_channels(channels, false)?;
+        self.geometry_from_matrices(&matrices)
+    }
+    fn pose_matrices_channels(
+        &self,
+        channels: &[AnimationChannel],
+        lock_root: bool,
+    ) -> Result<Vec<[u32; 16]>, String> {
+        if channels.is_empty() || channels.len() > 2 {
+            return Err("Invalid visual channel count".into());
+        }
+        let mut sequences = vec![];
+        let mut names = vec![];
+        let mut linkups = vec![];
+        for channel in channels {
+            let index = channel.words[17]
+                .checked_sub(1)
+                .ok_or("Null visual sequence")? as usize;
+            let clip = self
+                .mesh
+                .clips
+                .get(index)
+                .ok_or("Unknown visual sequence")?;
+            let identity = index as u32 + 1;
+            if names.contains(&(identity, identity)) {
+                continue;
+            }
+            sequences.push(ResolvedSequence {
+                identity,
+                linkup_key: identity,
+                sequence: &clip.sequence,
+            });
+            names.push((identity, identity));
+            linkups.push(ResolvedLinkup {
+                key: identity,
+                animation_names: None,
+                mapping: clip.mapping.clone(),
+            });
+        }
         let mut host = RuntimePoseHost {
             data: RuntimeAnimationBindings {
                 sequences: &sequences,
                 names: &names,
-                linkups: Rc::new(RefCell::new(vec![ResolvedLinkup {
-                    key: 1,
-                    animation_names: None,
-                    mapping: clip.mapping.clone(),
-                }])),
+                linkups: Rc::new(RefCell::new(linkups)),
                 events: Rc::new(RefCell::new(vec![])),
             },
             reference: &self.reference,
@@ -592,7 +641,7 @@ impl PreparedMesh {
         apply_channels_prepared(
             &mut pose,
             &self.reference,
-            &mut [channel.clone()],
+            &mut channels.to_vec(),
             false,
             0,
             &mut host,

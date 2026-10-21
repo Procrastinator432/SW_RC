@@ -457,11 +457,21 @@ impl Game {
                 extra.extend(detonator);
                 faces.extend(detonator_faces);
             } else {
-                let mut mesh = assets.weapon.geometry(
-                    &assets
-                        .weapon
-                        .channel(state.weapon.clip, state.weapon.frame)?,
-                )?;
+                let base_channel = assets
+                    .weapon
+                    .channel(state.weapon.clip, state.weapon.frame)?;
+                let mut mesh = if let Some(fire) = state
+                    .weapon_animation
+                    .as_ref()
+                    .and_then(|s| s.fire.as_ref())
+                {
+                    assets.weapon.geometry_channels(&[
+                        base_channel,
+                        assets.weapon.channel(fire.clip, fire.frame)?,
+                    ])?
+                } else {
+                    assets.weapon.geometry(&base_channel)?
+                };
                 let [eye, right, up, forward] = rc_render::gpu::basis(&self.scene, view);
                 for t in &mut mesh.triangles {
                     t.points = t.points.map(|p| {

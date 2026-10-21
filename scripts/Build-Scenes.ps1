@@ -84,6 +84,10 @@ try {
         if($LASTEXITCODE -ne 0){throw 'Karma interaction validator compilation failed'}
         & (Join-Path $targetRoot 'release/rc-karma-check.exe') $resolved.map_a_scene.path $resolved.map_a_replay.path (Join-Path $out 'karma-interactions')
         if($LASTEXITCODE -ne 0){throw 'Karma interaction validation failed'}
+        & cargo build -p rc-inspect --bin rc-weapon-animation-check @options
+        if($LASTEXITCODE -ne 0){throw 'Weapon animation validator compilation failed'}
+        & (Join-Path $targetRoot 'release/rc-weapon-animation-check.exe') $resolved.factory_scene.path (Join-Path $out 'weapon-animation')
+        if($LASTEXITCODE -ne 0){throw 'Weapon animation validation failed'}
     }
     @{schema=1;passed=$true;source_manifest=$manifestPath;mission_runtime_checked=($Stage -eq 'mission');inputs=$resolved;results=$results} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $out 'validation.json') -Encoding utf8
 } finally {
