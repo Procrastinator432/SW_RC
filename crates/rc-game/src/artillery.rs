@@ -313,8 +313,14 @@ impl Game {
             .events
             .iter()
             .find_map(|e| {
-                (self.mission.as_ref().unwrap().sounds[e.sound].source == p.assets.tutorial_source)
-                    .then_some(e.tick)
+                (self
+                    .mission
+                    .as_ref()
+                    .unwrap()
+                    .sounds
+                    .get(e.sound)
+                    .is_some_and(|sound| sound.source == p.assets.tutorial_source))
+                .then_some(e.tick)
             });
         let mut sounds = vec![];
         let mut fx = vec![];

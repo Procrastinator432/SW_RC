@@ -198,18 +198,8 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
             }
             b
         }
-        0 if game.map.is_some() => {
-            let mut b = b"RCSND001".to_vec();
-            let sounds = &game.map.as_ref().unwrap().assets.sounds;
-            b.extend_from_slice(&(sounds.len() as u32).to_le_bytes());
-            for s in sounds {
-                b.extend_from_slice(&(s.wave.len() as u32).to_le_bytes());
-                b.extend_from_slice(&s.wave);
-            }
-            b
-        }
-        0 if game.mission.is_some() => {
-            let sounds = &game.mission.as_ref().unwrap().sounds;
+        0 => {
+            let sounds = game.audio_bank();
             let mut b = b"RCSND001".to_vec();
             b.extend_from_slice(&(sounds.len() as u32).to_le_bytes());
             for s in sounds {
@@ -218,14 +208,6 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
             }
             b
         }
-        0 => game.combat.as_ref().map_or_else(
-            || {
-                let mut b = b"RCSND001".to_vec();
-                b.extend_from_slice(&0u32.to_le_bytes());
-                b
-            },
-            |c| c.sound_packet(),
-        ),
         1 | 2 => {
             let mut b = if kind == 2 {
                 b"RCAUD002".to_vec()

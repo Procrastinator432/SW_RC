@@ -849,6 +849,45 @@ fn mission_audio_assets() -> mission::Assets {
     }
 }
 #[test]
+fn foley_campaign_caps_all_producers_after_tick_and_preserves_legacy_queue() {
+    for foley in [false, true] {
+        let mut g = game(false);
+        let mission = mission_audio_assets();
+        let sample = mission.sounds[0].clone();
+        g.attach_mission(mission).unwrap();
+        let mut profile = dc15_profile();
+        if foley {
+            profile.animation = Some(weapon_animation::Assets {
+                fire_anim: "Fire".into(),
+                idle_delay: 20.,
+                foley: Some(weapon_animation::Foley {
+                    groups: vec![],
+                    sounds: vec![sample],
+                    notifies: vec![],
+                }),
+            });
+        }
+        g.attach_dc15(profile).unwrap();
+        let m = g.state.mission.as_mut().unwrap();
+        m.audio_sequence = 270;
+        m.events = (1..=270)
+            .map(|sequence| combat::Event {
+                sequence,
+                tick: 0,
+                sound: 0,
+                owner: -1,
+            })
+            .collect();
+        // Mission tick adds a cue after normal weapon processing. The final
+        // step must bound that producer too, rather than only the Foley emitter.
+        g.advance(STEP, Input::default()).unwrap();
+        let m = g.state.mission.as_ref().unwrap();
+        assert_eq!(m.events.last().unwrap().sequence, 271);
+        assert_eq!(m.events.len(), if foley { 256 } else { 271 });
+        assert_eq!(m.events[0].sequence, if foley { 16 } else { 1 });
+    }
+}
+#[test]
 fn accepted_enemy_shot_has_one_damage_trace_and_original_sound_binding() {
     let mut g = game(false);
     let mut assets = mission_audio_assets();

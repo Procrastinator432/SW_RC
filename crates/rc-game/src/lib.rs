@@ -334,6 +334,12 @@ impl Game {
             weapon,
             texture_base: self.scene.textures.len(),
             weapon_animation: self.dc15.as_ref().is_some_and(|a| a.animation.is_some()),
+            weapon_sound_groups: self
+                .dc15
+                .as_ref()
+                .and_then(|a| a.animation.as_ref())
+                .and_then(|a| a.foley.as_ref())
+                .map_or(0, |f| f.groups.len()),
         };
         if let Some(a) = self.dc15.as_ref().and_then(|a| a.animation.as_ref()) {
             a.validate_mesh(&prepared.weapon)?;
@@ -533,6 +539,7 @@ impl Game {
                 self.sync_map3_elevator();
                 return Err(e);
             }
+            self.trim_weapon_audio();
             ticks += 1;
             accumulator = (accumulator - STEP).max(0.);
         }
@@ -778,7 +785,9 @@ impl Game {
                 self.dc15.as_ref().and_then(|a| a.animation.as_ref()),
                 weapon_blocked,
             )?;
-            if let Some(c) = &mut self.state.combat {
+            if self.dc15.is_some() {
+                self.emit_weapon_foley(&events)?;
+            } else if let Some(c) = &mut self.state.combat {
                 for (sound, owner) in events {
                     c.emit(sound, owner, self.state.statistics.ticks);
                 }

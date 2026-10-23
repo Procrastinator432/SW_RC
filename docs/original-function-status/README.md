@@ -2,7 +2,7 @@
 
 Dies ist der zentrale Einstieg zum Funktionsbericht des Androidports. Bewerteter Stand: **Release 0.53.0 vom 21.10.2026**. Bericht und Detailtabellen liegen gemeinsam im Dokumentationsbereich des Repositorys.
 
-**Neuere Umsetzung:** [DC-15s-Waffenanimation / Prüflieferung 0.55.0](../DC15_ANIMATION.md), zuvor [Halbautomatik / 0.54.0](../DC15_TRIGGER.md). Der folgende umfassende Katalog bleibt ausdrücklich die datierte Bestandsaufnahme von 0.53.0; seine Einzelbewertungen wurden dadurch nicht pauschal hochgestuft.
+**Neuere Umsetzung:** [SoundMultiple / Prüflieferung 0.57.0](../SOUND_SELECTION.md), zuvor [Waffen-Foley / Prüflieferung 0.56.0](../WEAPON_FOLEY.md), zuvor [DC-15s-Waffenanimation / Prüflieferung 0.55.0](../DC15_ANIMATION.md), zuvor [Halbautomatik / 0.54.0](../DC15_TRIGGER.md). Der folgende umfassende Katalog bleibt ausdrücklich die datierte Bestandsaufnahme von 0.53.0; seine Einzelbewertungen wurden dadurch nicht pauschal hochgestuft.
 
 ## Bericht lesen
 

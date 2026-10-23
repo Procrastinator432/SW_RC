@@ -43,7 +43,7 @@ pub struct Assets {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub melee: Option<crate::melee::Rules>,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Sound {
     pub source: String,

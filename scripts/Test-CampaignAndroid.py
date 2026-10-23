@@ -15,6 +15,7 @@ parser.add_argument('--checkpoints',type=Path,default=ROOT/'build/scenes/runtime
 parser.add_argument('--output',type=Path,default=ROOT/'build/campaign/android')
 parser.add_argument('--expect-semi-auto',action='store_true',help='Verify one shot per physical touch press for the new DC-15s profile')
 parser.add_argument('--expect-weapon-animation',action='store_true',help='Verify new weapon animation state, cold restore and idle timer in the APK')
+parser.add_argument('--expect-weapon-foley',action='store_true',help='Verify appended original armor/idle samples reach the Android sound host')
 args=parser.parse_args();OUT=args.output;OUT.mkdir(parents=True,exist_ok=True)
 ADB=ROOT/'tools/android-sdk/platform-tools/adb.exe';APP='org.rcport.diagnostic'
 
@@ -182,6 +183,9 @@ try:
   assert pressed['state']['visuals'].get('weapon_animation') is not None
   tap('Fortsetzen');time.sleep(2);anchor=pause_save()
   assert all(abs(v)<1e-5 for v in anchor['state']['pawn']['body']['velocity']),'Idle probe must start standing still'
+  if args.expect_weapon_foley:
+   movement_soundlog=adb('logcat','-d','-s','RCAudio:I','*:S')
+   adb('logcat','-c')  # Scope sound IDs to this cold-loaded factory bank.
   launch();tap('Fortsetzen');wait(lambda:has('GEO_03A') and has('Fortsetzen'))
   cold=pause_save()
   assert cold['state']['visuals']==anchor['state']['visuals'],'Cold restore changed weapon channels'
@@ -197,6 +201,30 @@ try:
   else:raise AssertionError('Original idle/fidget timer did not advance during ordinary APK execution')
   capture('weapon-idle-after-cold-restore');weapon_animation_checked=True
   print('Weapon channels restored exactly; original idle timer reached through normal APK execution',flush=True)
+ foley_checked=False
+ if args.expect_weapon_foley:
+  assert weapon_animation_checked,'Foley acceptance requires the real idle-timer probe'
+  # Native soundbank is loaded by the ordinary APK; each idle cycle is played
+  # by SceneAudio, not injected into a diagnostic/test activity.
+  soundlog=adb('logcat','-d','-s','RCAudio:I','*:S')
+  expected=json.loads((args.checkpoints.parent/'factory-energy/weapon-notifies.json').read_text(encoding='utf-8-sig'))
+  assert len(expected['sounds'])==9
+  assert len(expected['sound_variants'][0]['members'])==8
+  assert anchor['state']['visuals']['weapon_animation']['selection']==cold['state']['visuals']['weapon_animation']['selection']
+  bank=expected['sound_bank'];idle_role=next(s['role'] for s in bank['appended'] if s['source'].endswith('fol_GEN_dc15_idle_01'))
+  assert 'bank sounds='+str(bank['total_count']) in soundlog
+  armor_roles=[s['role'] for s in bank['appended'] if 'fol_GEN_ccFol_wlkArm_' in s['source']]
+  assert len(armor_roles)==8
+  movement_soundlog=movement_soundlog.rsplit('bank sounds='+str(bank['total_count']),1)[-1]
+  armor_ticks=[int(t) for t in re.findall(r'event sequence=\d+ tick=(\d+) sound='+'(?:'+'|'.join(map(str,armor_roles))+r') owner=-1 played_ms=\d+',movement_soundlog)]
+  touch_start=vertical['state']['statistics']['ticks'];touch_end=moved['state']['statistics']['ticks']
+  assert any(touch_start<=t<touch_end for t in armor_ticks),'Physical touch movement did not reach the original armor SoundPool cue within its simulation ticks'
+  played=re.findall(r'event sequence=\d+ tick=(\d+) sound='+str(idle_role)+r' owner=-1 played_ms=\d+',soundlog)
+  assert str(marker) in played,'Original Idle notify did not reach Android SoundPool at its animation entry tick'
+  assert 'Originalton konnte nicht geladen' not in soundlog and 'play failed' not in soundlog
+  (OUT/'weapon-foley-audio.log').write_text('Physical touch movement in factory bank:\n'+movement_soundlog+'\nCold restore and idle:\n'+soundlog)
+  foley_checked=True
+  print('Original armor and Idle notifies reached Android SoundPool through touch movement and the idle timer',flush=True)
  # Genuine won snapshots select B/C/factory automatically, with actual native carry.
  transitions=[]
  for source,label,target in [('GEO_01A','A','GEO_01B'),('GEO_01B','B','GEO_01C'),('GEO_01C','C','GEO_03A')]:
@@ -206,7 +234,7 @@ try:
    if snapshot['state']['phase']=='Won':completed.append(path)
   assert completed, f'No completed {label} checkpoint in {args.checkpoints}'
   name=max(completed,key=lambda p:int(p.stem.split('-')[1])).name
-  launch();old=fixture(name,props[source+'.sha256']);tap('Fortsetzen');wait(lambda:has(target),seconds=90)
+  launch();old=fixture(name,props[source+'.sha256']);tap('Fortsetzen');wait(lambda:has(target) and slot()['state'].get('map',{}).get('destination','').startswith(target),seconds=90)
   new=slot();assert new['state']['map']['destination'].startswith(target)
   for field in ['health','ammo','reserve']:assert new['initial'][field]==old['state'][field],(target,field)
   if old['state'].get('dc15') is not None:
@@ -216,7 +244,7 @@ try:
   capture('automatic-'+target.lower());transitions.append(dict(source=source,destination=target,carried_entry_exact=True,no_file_picker=True))
   print(f'Automatic {source} -> {target} passed',flush=True)
  log=adb('logcat','-d','-s','RCPlay:I','RCCheckpoint:I','RCTouch:I','AndroidRuntime:E','*:S');(OUT/'app.log').write_text(log);assert 'FATAL EXCEPTION' not in log
- (OUT/'validation.json').write_text(json.dumps(dict(passed=True,apk_sha256=hashlib.sha256(args.apk.read_bytes()).hexdigest(),package_sha256=hashlib.sha256(args.package.read_bytes()).hexdigest(),actual_package_picker_and_native_import=True,import_preserves_checkpoint=True,invalid_import_preserves_package_and_save=True,cold_start_keeps_package=True,new_game_without_picker=True,android_background_kill_recreates_original_intent_exactly=True,logical_display=[640,360],viewport_dp=[640,312],all_touch_targets_min_48dp=True,touch_movement_fire_jump=True,sensitivity_saved_and_density_independent=True,both_look_axes_verified=True,dc15_energy_indicator_reload_inert_and_state_carry=energy_checked,dc15_semi_auto_physical_touch=semi_auto_checked,weapon_animation_cold_restore_and_idle_timer=weapon_animation_checked,high_sensitivity_yaw_delta=delta_fast,normal_sensitivity_yaw_delta=delta_normal,automatic_transitions=transitions,limits=['Android x86_64 emulator; physical small-screen comfort remains for device testing','Map-end and factory checkpoints are genuine replay states inserted into private test storage, not a full manual touch playthrough']),indent=2))
+ (OUT/'validation.json').write_text(json.dumps(dict(passed=True,apk_sha256=hashlib.sha256(args.apk.read_bytes()).hexdigest(),package_sha256=hashlib.sha256(args.package.read_bytes()).hexdigest(),actual_package_picker_and_native_import=True,import_preserves_checkpoint=True,invalid_import_preserves_package_and_save=True,cold_start_keeps_package=True,new_game_without_picker=True,android_background_kill_recreates_original_intent_exactly=True,logical_display=[640,360],viewport_dp=[640,312],all_touch_targets_min_48dp=True,touch_movement_fire_jump=True,sensitivity_saved_and_density_independent=True,both_look_axes_verified=True,dc15_energy_indicator_reload_inert_and_state_carry=energy_checked,dc15_semi_auto_physical_touch=semi_auto_checked,weapon_animation_cold_restore_and_idle_timer=weapon_animation_checked,weapon_foley_bank_and_idle_soundpool=foley_checked,sound_multiple_eight_variants_and_cold_selection_restore=foley_checked,weapon_foley_touch_ticks=([touch_start,touch_end] if foley_checked else None),weapon_foley_armor_played_ticks=(armor_ticks if foley_checked else None),weapon_foley_idle_played_tick=(marker if foley_checked else None),high_sensitivity_yaw_delta=delta_fast,normal_sensitivity_yaw_delta=delta_normal,automatic_transitions=transitions,limits=['Android x86_64 emulator; physical small-screen comfort remains for device testing','Map-end and factory checkpoints are genuine replay states inserted into private test storage, not a full manual touch playthrough']),indent=2))
  print('Package import, compact small-screen controls, saved sensitivity and all three automatic map transitions passed')
 except Exception:
  import traceback

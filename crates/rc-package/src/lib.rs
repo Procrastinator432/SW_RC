@@ -120,6 +120,7 @@ pub mod skeletal_skin_product;
 pub mod skeletal_track;
 mod skeletal_weighted_kernels;
 pub mod skeletal_world_bounds;
+pub mod sound_multiple;
 pub mod state_children;
 pub mod state_link;
 pub mod state_masks;

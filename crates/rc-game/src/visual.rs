@@ -32,6 +32,7 @@ pub struct PreparedAssets {
     /// Every visual-state rebuild (encounter changes and factories included)
     /// must initialize the optional weapon actor state consistently.
     pub weapon_animation: bool,
+    pub weapon_sound_groups: usize,
 }
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct Player {
@@ -115,7 +116,9 @@ impl PreparedAssets {
                 .map(|_| Player::new(&self.enemy, "ActionBreathe"))
                 .collect::<Result<_, _>>()?,
             weapon: Player::new(&self.weapon, "ActionBreathe")?,
-            weapon_animation: self.weapon_animation.then(Default::default),
+            weapon_animation: self
+                .weapon_animation
+                .then(|| crate::weapon_animation::State::new(self.weapon_sound_groups)),
         })
     }
     pub fn tick(
@@ -195,7 +198,7 @@ impl PreparedAssets {
             notify_events(combat, false, &clip, interval, owner as i32, &mut events);
         }
         if let Some(a) = weapon_profile {
-            visual
+            let sounds = visual
                 .weapon_animation
                 .as_mut()
                 .ok_or("Missing weapon animation state")?
@@ -207,6 +210,7 @@ impl PreparedAssets {
                     old,
                     weapon_blocked,
                 )?;
+            events.extend(sounds.into_iter().map(|sound| (sound, -1)));
             return Ok(events);
         }
         let shot = now.statistics.shots > old.statistics.shots;

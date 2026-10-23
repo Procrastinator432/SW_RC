@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let Value::Float(idle_delay) = get("CTInventory.DC15s", "PlayIdleTime")? else {
         return Err("Missing original weapon PlayIdleTime".into());
     };
-    let assets = rc_game::dc15::Assets {
+    let mut assets = rc_game::dc15::Assets {
         maximum: maximum.try_into()?,
         recharge_rate,
         cooldown_time,
@@ -70,6 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         animation: Some(rc_game::weapon_animation::Assets {
             fire_anim,
             idle_delay,
+            foley: None,
         }),
         provenance: serde_json::json!({"defaults":receipt,"scripts":["DC15Ammo.Tick/UseCharge","CTAmmoRecharging.PostBeginPlay/Tick/UseCharge/HasAmmo","DC15s.Fire","Weapon.PlayFiring","Weapon.EFireMode/ServerFire/NormalFire.Tick/StopFire","Weapon.PlayIdleAnim/Idle.AnimEnd/NormalFire.AnimEnd"],"scope":"Original selected energy accounting and base damage/shot delay. Human semi-auto requests require a fresh press; automatic requests remain held. Requests blocked by cooldown, locks or charge are not queued. Selected non-zoom idle/walk/run/fidget and independent fire channel use original clips, rates and idle delay. Tweening, forced-fire, pawn animations, full state machine, hitscan, aim, hitboxes and difficulty adapters remain; not full Weapon.NormalFire or ballistic parity."}),
     };
@@ -142,6 +143,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         extra = loaded.clips;
     }
+    // Resolve the newly imported Run/Idle notifies against their original package.
+    let mut notify_mesh: rc_game::visual::Mesh =
+        serde_json::from_value(serde_json::to_value(weapon)?)?;
+    for clip in &extra {
+        notify_mesh
+            .clips
+            .push(serde_json::from_value(serde_json::to_value(clip)?)?);
+    }
+    let (foley, mut notify_receipt) =
+        rc_inspect::weapon_notifies::load(Path::new(&args[1]), &notify_mesh)?;
+    assets.animation.as_mut().unwrap().foley = Some(foley);
+    assets.provenance["weapon_foley"] = notify_receipt.clone();
+    assets.validate()?;
     let mut result = vec![];
     let mut at = 0;
     loop {
@@ -180,10 +194,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         at = end;
     }
     let checked = rc_game::bundle::decode(&result)?;
+    let bank = checked.audio_bank();
+    if bank.len() > 128 {
+        return Err("Extended weapon soundbank exceeds Android budget".into());
+    }
+    let base_count = bank.len() - checked.weapon_foley_sounds().len();
+    notify_receipt["sound_bank"] = serde_json::json!({
+        "base_count":base_count,"total_count":bank.len(),
+        "appended":checked.weapon_foley_sounds().iter().enumerate().map(|(i,s)|
+            serde_json::json!({"role":base_count+i,"source":s.source})).collect::<Vec<_>>()
+    });
     assert_eq!(checked.state.ammo, assets.maximum);
     assert_eq!(checked.state.reserve, 0);
     let out = Path::new(&args[3]);
     fs::create_dir_all(out)?;
+    fs::write(
+        out.join("weapon-notifies.json"),
+        serde_json::to_vec_pretty(&notify_receipt)?,
+    )?;
     fs::write(
         out.join(
             Path::new(&args[2])

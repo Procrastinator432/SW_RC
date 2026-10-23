@@ -88,6 +88,12 @@ try {
         if($LASTEXITCODE -ne 0){throw 'Weapon animation validator compilation failed'}
         & (Join-Path $targetRoot 'release/rc-weapon-animation-check.exe') $resolved.factory_scene.path (Join-Path $out 'weapon-animation')
         if($LASTEXITCODE -ne 0){throw 'Weapon animation validation failed'}
+        & cargo build -p rc-inspect --bin rc-weapon-foley-check @options
+        if($LASTEXITCODE -ne 0){throw 'Weapon Foley validator compilation failed'}
+        foreach($key in @('map_a_scene','map_b_scene','map_c_scene','factory_scene')) {
+            & (Join-Path $targetRoot 'release/rc-weapon-foley-check.exe') $resolved[$key].path (Join-Path $out "weapon-foley/$key")
+            if($LASTEXITCODE -ne 0){throw "Weapon Foley validation failed: $key"}
+        }
     }
     @{schema=1;passed=$true;source_manifest=$manifestPath;mission_runtime_checked=($Stage -eq 'mission');inputs=$resolved;results=$results} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $out 'validation.json') -Encoding utf8
 } finally {
