@@ -7,7 +7,7 @@ fn tick(g: &mut Game, velocity: [f64; 3], shot: bool, blocked: bool) -> Result<(
     g.state.pawn.body.velocity = velocity;
     g.state.statistics.shots += u32::from(shot);
     let mut visual = g.state.visuals.take().ok_or("Missing visuals")?;
-    g.visuals.as_ref().ok_or("Missing assets")?.tick(
+    let events = g.visuals.as_ref().ok_or("Missing assets")?.tick(
         &g.state,
         &old,
         &mut visual,
@@ -16,6 +16,7 @@ fn tick(g: &mut Game, velocity: [f64; 3], shot: bool, blocked: bool) -> Result<(
         blocked,
     )?;
     g.state.visuals = Some(visual);
+    g.emit_weapon_foley(&events)?;
     g.state.statistics.ticks += 1;
     Ok(())
 }

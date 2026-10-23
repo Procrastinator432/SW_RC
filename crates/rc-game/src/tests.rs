@@ -861,6 +861,7 @@ fn foley_campaign_caps_all_producers_after_tick_and_preserves_legacy_queue() {
                 fire_anim: "Fire".into(),
                 idle_delay: 20.,
                 foley: Some(weapon_animation::Foley {
+                    params: vec![],
                     groups: vec![],
                     sounds: vec![sample],
                     notifies: vec![],

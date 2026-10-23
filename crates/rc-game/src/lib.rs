@@ -1,5 +1,6 @@
 //! First playable vertical slice. Combat/encounter rules are explicit port policies,
 //! not a claim of reconstructed CTGame combat or campaign-script equivalence.
+pub mod ambient_audio;
 pub mod artillery;
 pub mod bacta;
 pub mod bot;
@@ -334,6 +335,12 @@ impl Game {
             weapon,
             texture_base: self.scene.textures.len(),
             weapon_animation: self.dc15.as_ref().is_some_and(|a| a.animation.is_some()),
+            weapon_audio: self
+                .dc15
+                .as_ref()
+                .and_then(|a| a.animation.as_ref())
+                .and_then(|a| a.foley.as_ref())
+                .is_some_and(|f| !f.params.is_empty()),
             weapon_sound_groups: self
                 .dc15
                 .as_ref()
@@ -446,6 +453,7 @@ impl Game {
         if let Some(o) = &mut self.state.opening {
             o.owned_voices.clear();
         }
+        self.trim_weapon_audio();
     }
     pub fn eye(&self) -> Point {
         let mut p = self.state.pawn.body.position;
@@ -529,7 +537,10 @@ impl Game {
                 },
                 ..input
             };
-            if let Err(e) = self.tick(tick_input) {
+            if let Err(e) = self
+                .tick(tick_input)
+                .and_then(|_| self.tick_ambient_audio())
+            {
                 self.state = old;
                 self.sync_dynamic();
                 self.sync_map3_glass();
@@ -785,6 +796,7 @@ impl Game {
                 self.dc15.as_ref().and_then(|a| a.animation.as_ref()),
                 weapon_blocked,
             )?;
+            self.state.visuals = Some(visual);
             if self.dc15.is_some() {
                 self.emit_weapon_foley(&events)?;
             } else if let Some(c) = &mut self.state.combat {
@@ -792,7 +804,6 @@ impl Game {
                     c.emit(sound, owner, self.state.statistics.ticks);
                 }
             }
-            self.state.visuals = Some(visual);
             self.lunge_motion_tick()?;
             if let Some(old_visual) = &previous.visuals {
                 self.melee_notify_tick(old_visual)?;

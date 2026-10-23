@@ -33,6 +33,8 @@ fn main() -> Result<()> {
     if args.len() != 3 {
         return Err("usage: rc-weapon-foley-check SCENE OUTPUT".into());
     }
+    let out = Path::new(&args[2]);
+    fs::create_dir_all(out)?;
     let raw = fs::read(&args[1])?;
     let mut g = rc_game::bundle::decode(&raw)?;
     let profile = g.dc15.as_ref().unwrap().animation.as_ref().unwrap().clone();
@@ -40,6 +42,7 @@ fn main() -> Result<()> {
     assert_eq!(foley.notifies.len(), 3);
     assert_eq!(foley.sounds.len(), 9);
     assert_eq!(foley.groups.len(), 1);
+    assert_eq!(foley.params.len(), 9);
     assert_eq!(foley.groups[0].members.len(), 8);
     assert_eq!(foley.notifies.iter().filter(|n| n.clip == "Run").count(), 2);
     assert_eq!(
@@ -66,6 +69,31 @@ fn main() -> Result<()> {
     assert_eq!(events(&g).len(), 1);
     assert!(armor.contains(&events(&g)[0].sound));
     let entry = g.checkpoint("weapon-foley")?;
+    let record = g
+        .state
+        .visuals
+        .as_ref()
+        .unwrap()
+        .weapon_animation
+        .as_ref()
+        .unwrap()
+        .audio
+        .as_ref()
+        .unwrap()
+        .last()
+        .unwrap();
+    assert_eq!(record.playback.volume, 0.25);
+    assert!((0.95..=1.05).contains(&record.playback.pitch));
+    assert_eq!(record.playback.radius, 100.);
+    assert_eq!(record.sequence, events(&g).last().unwrap().sequence);
+    fs::write(
+        out.join("queued-audio.rcsave"),
+        g.checkpoint(&format!(
+            "{}:{}",
+            raw.len(),
+            rc_game::replay::fingerprint(&raw)
+        ))?,
+    )?;
     let before_render = g.checkpoint("weapon-foley")?;
     g.render_frame(64, 36)?;
     assert_eq!(before_render, g.checkpoint("weapon-foley")?);
@@ -161,7 +189,7 @@ fn main() -> Result<()> {
     assert!(g.restore_checkpoint(&corrupt, "weapon-foley").is_err());
     assert_eq!(exact, g.checkpoint("weapon-foley")?);
     // Corrupt native selection state is rejected atomically, even with a valid save envelope.
-    for defect in 0..5 {
+    for defect in 0..10 {
         g.restore_checkpoint(&exact, "weapon-foley")?;
         let weapon = g
             .state
@@ -176,7 +204,12 @@ fn main() -> Result<()> {
             1 => weapon.selection.as_mut().unwrap().groups.clear(),
             2 => weapon.selection.as_mut().unwrap().groups[0].flags = 128,
             3 => weapon.selection.as_mut().unwrap().groups[0].which = 8,
-            _ => weapon.selection.as_mut().unwrap().groups[0].rendered = Some(99),
+            4 => weapon.selection.as_mut().unwrap().groups[0].rendered = Some(99),
+            5 => weapon.audio = None,
+            6 => weapon.audio.as_mut().unwrap()[0].sequence = 0,
+            7 => weapon.audio.as_mut().unwrap()[0].playback.volume = 1.1,
+            8 => weapon.audio.as_mut().unwrap()[0].playback.pitch = 0.4,
+            _ => weapon.audio.as_mut().unwrap()[0].playback.radius = 999.,
         }
         let bad = g.checkpoint("weapon-foley")?;
         g.restore_checkpoint(&exact, "weapon-foley")?;
@@ -204,7 +237,7 @@ fn main() -> Result<()> {
     fs::write(
         out.join("validation.json"),
         serde_json::to_vec_pretty(&serde_json::json!({
-            "passed":true,"sounds":9,"original_armor_variants":8,"all_variants_selected":true,"invalid_selection_checkpoints_atomic":5,"original_notifies":3,"run_events_in_101_ticks":running_events,
+            "passed":true,"sounds":9,"original_armor_variants":8,"all_variants_selected":true,"invalid_selection_checkpoints_atomic":5,"invalid_audio_parameters_atomic":5,"immutable_original_playback":true,"original_notifies":3,"run_events_in_101_ticks":running_events,
             "fire_preserves_base_notifies":true,"blocked_silent":true,"idle_entry_once":true,
             "checkpoint_before_and_after_crossing_exact":true,"render_read_only":true,
         "invalid_profiles_rejected":5,"invalid_event_batch_atomic":true,"invalid_saved_audio_role_atomic":true,"restart_clears_events":true,

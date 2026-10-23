@@ -10,3 +10,5 @@ pub mod opening_audio;
 pub mod particle_assets;
 pub mod visual_assets;
 pub mod weapon_notifies;
+
+pub mod audio_params;

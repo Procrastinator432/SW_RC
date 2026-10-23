@@ -206,14 +206,19 @@ impl Game {
                 .as_mut()
                 .ok_or("Missing weapon visuals")?;
             v.weapon_animation = a.animation.is_some();
+            v.weapon_audio = a
+                .animation
+                .as_ref()
+                .and_then(|a| a.foley.as_ref())
+                .is_some_and(|f| !f.params.is_empty());
             v.weapon_sound_groups = a
                 .animation
                 .as_ref()
                 .and_then(|a| a.foley.as_ref())
                 .map_or(0, |f| f.groups.len());
-            state.weapon_animation = v
-                .weapon_animation
-                .then(|| crate::weapon_animation::State::new(v.weapon_sound_groups));
+            state.weapon_animation = v.weapon_animation.then(|| {
+                crate::weapon_animation::State::new(v.weapon_sound_groups, v.weapon_audio)
+            });
         }
         self.state.dc15 = Some(a.initial());
         self.dc15 = Some(a);

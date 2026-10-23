@@ -16,6 +16,8 @@ parser.add_argument('--output',type=Path,default=ROOT/'build/campaign/android')
 parser.add_argument('--expect-semi-auto',action='store_true',help='Verify one shot per physical touch press for the new DC-15s profile')
 parser.add_argument('--expect-weapon-animation',action='store_true',help='Verify new weapon animation state, cold restore and idle timer in the APK')
 parser.add_argument('--expect-weapon-foley',action='store_true',help='Verify appended original armor/idle samples reach the Android sound host')
+parser.add_argument('--expect-audio-params',action='store_true',help='Verify original Foley volume/pitch reach actual SoundPool calls')
+parser.add_argument('--spatial-checkpoints',type=Path,help='Ordinary A replay snapshots from Test-SpatialAmbient.py; enables real ambient host checks')
 args=parser.parse_args();OUT=args.output;OUT.mkdir(parents=True,exist_ok=True)
 ADB=ROOT/'tools/android-sdk/platform-tools/adb.exe';APP='org.rcport.diagnostic'
 
@@ -76,7 +78,9 @@ def slot():
  for gap in [8,0]:at+=2+struct.unpack_from('>H',body,at)[0]+gap
  size=struct.unpack_from('>I',body,at)[0];return json.loads(body[at+24:at+4+size])
 def fixture(name,scene_hash):
- state=(args.checkpoints/name).read_bytes()
+ path=args.checkpoints/name
+ if not path.exists() and args.spatial_checkpoints:path=args.spatial_checkpoints/name
+ state=path.read_bytes()
  def utf(s):b=s.encode('ascii');return struct.pack('>H',len(b))+b
  body=utf(scene_hash+'.rcplay')+struct.pack('>q',int(time.time()*1000))+utf('GEO_'+('03A' if name.startswith('factory') else '01'+name[0])+' fixture')+struct.pack('>I',len(state))+state
  put('files/checkpoints/resume.save',b'RCSLOT01'+struct.pack('>I',len(body))+hashlib.sha256(body).digest()+body)
@@ -98,6 +102,13 @@ def pause_save():
 def controls():
  node=next(n for n in tree().iter('node') if n.get('content-desc','').startswith('Links Joystick'))
  log=adb('logcat','-d','-s','RCTouch:I','*:S');layout=json.loads(re.findall(r'RCTouch\s*:\s*(\{.*\})',log)[-1]);return bounds(node),layout
+def resume_touch():
+ tap('Fortsetzen')
+ # ADB input returns before the dismissed menu has finished its window animation.
+ # Wait for the actual running surface before injecting the measured gesture.
+ wait(lambda:any(n.get('class')=='android.widget.Button' and n.get('text','').casefold()=='pause' for n in tree().iter('node')))
+ time.sleep(.3)
+
 def angle(a,b):
  import math
  return math.atan2(math.sin(a-b),math.cos(a-b))
@@ -143,12 +154,12 @@ try:
  launch();fixture('factory-substep.rcsave',props['GEO_03A.sha256']);tap('Fortsetzen');wait(lambda:has('GEO_03A') and has('Fortsetzen'))
  capture('small-touch-paused');box,layout=controls();density=layout['density'];assert layout['width']/density==640 and abs(layout['height']/density-312)<1
  for role,x,y,r in layout['keys']:assert r*2/density>=48 and 0<=x-r and x+r<=layout['width'] and 0<=y-r and y+r<=layout['height']
- baseline=pause_save();tap('Fortsetzen');swipe(box[0]+layout['width']*.52,box[1]+layout['height']*.30,box[0]+layout['width']*.52+120,box[1]+layout['height']*.30,400)
- fast=pause_save();delta_fast=abs(angle(fast['state']['yaw'],baseline['state']['yaw']));assert abs(delta_fast-120/density*3/640*gain)<.04
- tap('Menü');reveal('Steuerung');tap('Steuerung');tap('Standard');tap('Fortsetzen')
+ baseline=pause_save();resume_touch();swipe(box[0]+layout['width']*.52,box[1]+layout['height']*.30,box[0]+layout['width']*.52+120,box[1]+layout['height']*.30,400)
+ fast=pause_save();delta_fast=abs(angle(fast['state']['yaw'],baseline['state']['yaw']));assert abs(delta_fast-120/density*3/640*gain)<.04, f'Look delta {delta_fast}, expected {120/density*3/640*gain}; ticks {baseline["state"]["tick"]}->{fast["state"]["tick"]}'
+ tap('Menü');reveal('Steuerung');tap('Steuerung');tap('Standard');resume_touch()
  swipe(box[0]+layout['width']*.52,box[1]+layout['height']*.30,box[0]+layout['width']*.52+120,box[1]+layout['height']*.30,400)
  normal=pause_save();delta_normal=abs(angle(normal['state']['yaw'],fast['state']['yaw']));assert abs(delta_normal-.375)<.04 and 1.8<delta_fast/delta_normal<2.2
- tap('Fortsetzen');swipe(box[0]+layout['width']*.52,box[1]+layout['height']*.30,box[0]+layout['width']*.52,box[1]+layout['height']*.30+60,400)
+ resume_touch();swipe(box[0]+layout['width']*.52,box[1]+layout['height']*.30,box[0]+layout['width']*.52,box[1]+layout['height']*.30+60,400)
  vertical=pause_save();assert abs(abs(vertical['state']['pitch']-normal['state']['pitch'])-.1875)<.04
  print(f'Sensitivity and small-screen geometry passed ({delta_fast:.3f}/{delta_normal:.3f} radians)',flush=True)
  tap('Fortsetzen');jx,jy,jr=layout['joystick'];swipe(box[0]+jx,box[1]+jy,box[0]+jx,box[1]+jy-jr*.65,800)
@@ -201,6 +212,7 @@ try:
   else:raise AssertionError('Original idle/fidget timer did not advance during ordinary APK execution')
   capture('weapon-idle-after-cold-restore');weapon_animation_checked=True
   print('Weapon channels restored exactly; original idle timer reached through normal APK execution',flush=True)
+ audio_params_checked=False
  foley_checked=False
  if args.expect_weapon_foley:
   assert weapon_animation_checked,'Foley acceptance requires the real idle-timer probe'
@@ -223,8 +235,63 @@ try:
   assert str(marker) in played,'Original Idle notify did not reach Android SoundPool at its animation entry tick'
   assert 'Originalton konnte nicht geladen' not in soundlog and 'play failed' not in soundlog
   (OUT/'weapon-foley-audio.log').write_text('Physical touch movement in factory bank:\n'+movement_soundlog+'\nCold restore and idle:\n'+soundlog)
+  if args.expect_audio_params:
+   assert len(expected['parameters'])==9
+   pattern=r'event sequence=\d+ tick=(\d+) sound=(\d+) owner=-1 played_ms=\d+ volume=([0-9.Ee+-]+) rate=([0-9.Ee+-]+) params=true'
+   armor_parameters=[(int(t),float(v),float(p)) for t,s,v,p in re.findall(pattern,movement_soundlog) if int(s) in armor_roles and touch_start<=int(t)<touch_end]
+   assert armor_parameters and all(v==0.25 and 0.95<=p<=1.05 for t,v,p in armor_parameters),'Original armor gain/pitch missing from Android sound host'
+   assert any(int(t)==marker and int(s)==idle_role and float(v)==1 and float(p)==1 for t,s,v,p in re.findall(pattern,soundlog)),'Original Idle gain/pitch missing from Android sound host'
+   audio_params_checked=True
+   print('Original armor volume 0.25 and pitch 0.95..1.05; Idle volume/pitch 1 reached Android SoundPool',flush=True)
   foley_checked=True
   print('Original armor and Idle notifies reached Android SoundPool through touch movement and the idle timer',flush=True)
+ spatial_checked=False
+ if args.spatial_checkpoints:
+  launch();original=fixture('A-ambient-fire.rcsave',props['GEO_01A.sha256']);tap('Fortsetzen');wait(lambda:has('GEO_01A') and has('Fortsetzen'))
+  cold=pause_save();assert cold['state']['opening']['ambient_audio']==original['state']['opening']['ambient_audio']
+  box,layout=controls();density=layout['density'];adb('logcat','-c');tap('Fortsetzen');time.sleep(.8)
+  swipe(box[0]+layout['width']*.52,box[1]+layout['height']*.30,box[0]+layout['width']*.52+160,box[1]+layout['height']*.30,650);time.sleep(.8)
+  turned=pause_save();assert turned['state']['opening']['ambient_audio']==cold['state']['opening']['ambient_audio'],'Looking rerolled ambient pitch/seed'
+  soundlog=adb('logcat','-d','-s','RCAudio:I','*:S');(OUT/'spatial-ambient.log').write_text(soundlog)
+  pattern=r'ambient_mix owner=(\d+) sound=(\d+) stream=(\d+) left=([0-9.Ee+-]+) right=([0-9.Ee+-]+) rate=([0-9.Ee+-]+) spatial=true'
+  mixes=re.findall(pattern,soundlog);assert mixes,'No spatial SoundPool updates'
+  voices={v['owner']:v for v in cold['state']['opening']['ambient_audio']['voices']}
+  varying=False
+  for owner in voices:
+   values=[v for v in mixes if int(v[0])==owner]
+   if not values:continue
+   assert len({v[2] for v in values})==1,'View movement restarted a loop'
+   assert all(abs(float(v[5])-voices[owner]['playback']['pitch'])<1e-6 for v in values)
+   assert all(0<=float(v[3])<=.35 and 0<=float(v[4])<=.35 for v in values)
+   varying |= len({(v[3],v[4]) for v in values})>1
+  assert varying,'View motion did not update stereo gains'
+  assert 'play failed' not in soundlog and 'Originalton konnte nicht geladen' not in soundlog
+  capture('spatial-ambient-look-update')
+  launch();tap('Fortsetzen');wait(lambda:has('GEO_01A') and has('Fortsetzen'));restored=pause_save()
+  assert restored['state']['opening']['ambient_audio']==turned['state']['opening']['ambient_audio']
+  adb('logcat','-c');tap('Fortsetzen');time.sleep(1);pause_save()
+  restored_log=adb('logcat','-d','-s','RCAudio:I','*:S');(OUT/'spatial-ambient-cold.log').write_text(restored_log)
+  assert re.findall(pattern,restored_log),'Cold resume did not rebuild current ambient streams'
+  launch();fixture('A-ambient-bacta.rcsave',props['GEO_01A.sha256']);tap('Fortsetzen');wait(lambda:has('GEO_01A') and has('Fortsetzen'))
+  box,layout=controls();use=next(k for k in layout['keys'] if k[0]==6);adb('logcat','-c');tap('Fortsetzen')
+  swipe(box[0]+use[1],box[1]+use[2],box[0]+use[1],box[1]+use[2],2500);pause_save()
+  bacta_log=adb('logcat','-d','-s','RCAudio:I','*:S');(OUT/'spatial-bacta.log').write_text(bacta_log)
+  bacta_mix=[v for v in re.findall(pattern,bacta_log) if int(v[0])==736]
+  assert bacta_mix and all(.95<=float(v[5])<=1.05 for v in bacta_mix),'Physical Use did not reach the spatial Bacta SoundPool loop'
+  capture('spatial-bacta-touch-use')
+  if (args.spatial_checkpoints/'A-ambient-fade.rcsave').exists():
+   launch();fading=fixture('A-ambient-fade.rcsave',props['GEO_01A.sha256']);tap('Fortsetzen');wait(lambda:has('GEO_01A') and has('Fortsetzen'))
+   fading_owners=[v['owner'] for v in fading['state']['opening']['ambient_audio']['voices'] if v.get('fade')]
+   assert fading_owners,'Fade fixture has no genuine fading source'
+   adb('logcat','-c');tap('Fortsetzen');time.sleep(1);expired=pause_save()
+   fade_log=adb('logcat','-d','-s','RCAudio:I','*:S');(OUT/'ambient-lifecycle-fade.log').write_text(fade_log)
+   for owner in fading_owners:
+    assert all(v['owner']!=owner for v in expired['state']['opening']['ambient_audio']['voices']),'Fade did not expire in simulation'
+    values=[v for v in re.findall(pattern,fade_log) if int(v[0])==owner]
+    assert values and any('ambient_stop stream='+v[2] in fade_log for v in values),'Expired fade stream not stopped by current-state update'
+   capture('ambient-lifecycle-fade-after-cold-restore')
+  spatial_checked=True
+  print('Spatial SoundPool: view updates preserve stream/pitch; cold resume preserves source state',flush=True)
  # Genuine won snapshots select B/C/factory automatically, with actual native carry.
  transitions=[]
  for source,label,target in [('GEO_01A','A','GEO_01B'),('GEO_01B','B','GEO_01C'),('GEO_01C','C','GEO_03A')]:
@@ -244,7 +311,8 @@ try:
   capture('automatic-'+target.lower());transitions.append(dict(source=source,destination=target,carried_entry_exact=True,no_file_picker=True))
   print(f'Automatic {source} -> {target} passed',flush=True)
  log=adb('logcat','-d','-s','RCPlay:I','RCCheckpoint:I','RCTouch:I','AndroidRuntime:E','*:S');(OUT/'app.log').write_text(log);assert 'FATAL EXCEPTION' not in log
- (OUT/'validation.json').write_text(json.dumps(dict(passed=True,apk_sha256=hashlib.sha256(args.apk.read_bytes()).hexdigest(),package_sha256=hashlib.sha256(args.package.read_bytes()).hexdigest(),actual_package_picker_and_native_import=True,import_preserves_checkpoint=True,invalid_import_preserves_package_and_save=True,cold_start_keeps_package=True,new_game_without_picker=True,android_background_kill_recreates_original_intent_exactly=True,logical_display=[640,360],viewport_dp=[640,312],all_touch_targets_min_48dp=True,touch_movement_fire_jump=True,sensitivity_saved_and_density_independent=True,both_look_axes_verified=True,dc15_energy_indicator_reload_inert_and_state_carry=energy_checked,dc15_semi_auto_physical_touch=semi_auto_checked,weapon_animation_cold_restore_and_idle_timer=weapon_animation_checked,weapon_foley_bank_and_idle_soundpool=foley_checked,sound_multiple_eight_variants_and_cold_selection_restore=foley_checked,weapon_foley_touch_ticks=([touch_start,touch_end] if foley_checked else None),weapon_foley_armor_played_ticks=(armor_ticks if foley_checked else None),weapon_foley_idle_played_tick=(marker if foley_checked else None),high_sensitivity_yaw_delta=delta_fast,normal_sensitivity_yaw_delta=delta_normal,automatic_transitions=transitions,limits=['Android x86_64 emulator; physical small-screen comfort remains for device testing','Map-end and factory checkpoints are genuine replay states inserted into private test storage, not a full manual touch playthrough']),indent=2))
+ (OUT/'spatial-validation.json').write_text(json.dumps(dict(passed=(spatial_checked or not args.spatial_checkpoints),requested=bool(args.spatial_checkpoints),source='ordinary replay checkpoint; real APK touch and SoundPool',cold_restore_preserves_params=spatial_checked,view_updates_without_stream_restart=spatial_checked),indent=2))
+ (OUT/'validation.json').write_text(json.dumps(dict(passed=True,apk_sha256=hashlib.sha256(args.apk.read_bytes()).hexdigest(),package_sha256=hashlib.sha256(args.package.read_bytes()).hexdigest(),actual_package_picker_and_native_import=True,import_preserves_checkpoint=True,invalid_import_preserves_package_and_save=True,cold_start_keeps_package=True,new_game_without_picker=True,android_background_kill_recreates_original_intent_exactly=True,logical_display=[640,360],viewport_dp=[640,312],all_touch_targets_min_48dp=True,touch_movement_fire_jump=True,sensitivity_saved_and_density_independent=True,both_look_axes_verified=True,dc15_energy_indicator_reload_inert_and_state_carry=energy_checked,dc15_semi_auto_physical_touch=semi_auto_checked,weapon_animation_cold_restore_and_idle_timer=weapon_animation_checked,weapon_foley_bank_and_idle_soundpool=foley_checked,sound_multiple_eight_variants_and_cold_selection_restore=foley_checked,original_audio_parameters_soundpool=audio_params_checked,weapon_foley_touch_ticks=([touch_start,touch_end] if foley_checked else None),weapon_foley_armor_played_ticks=(armor_ticks if foley_checked else None),weapon_foley_idle_played_tick=(marker if foley_checked else None),high_sensitivity_yaw_delta=delta_fast,normal_sensitivity_yaw_delta=delta_normal,automatic_transitions=transitions,limits=['Android x86_64 emulator; physical small-screen comfort remains for device testing','Map-end and factory checkpoints are genuine replay states inserted into private test storage, not a full manual touch playthrough']),indent=2))
  print('Package import, compact small-screen controls, saved sensitivity and all three automatic map transitions passed')
 except Exception:
  import traceback

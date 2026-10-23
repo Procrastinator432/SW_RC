@@ -511,6 +511,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
     opening.world_effects = bindings;
+    let mut ambient = vec![];
+    if let Some(role) = opening.bacta.as_ref().and_then(|b| b.ambient_loop) {
+        ambient.push((736, role));
+    }
+    ambient.extend(
+        opening
+            .world_effects
+            .iter()
+            .filter_map(|b| b.ambient.map(|role| (b.original as i32, role))),
+    );
+    let mut ambient_receipts = vec![];
+    opening.ambient_policy = Some(rc_package::ambient_lifecycle::Policy::default());
+    let mut audio_resolver =
+        rc_inspect::assets::Assets::new(&[&root.join("Sounds"), &root.join("System")])?;
+    for (owner, sound) in ambient {
+        let source = &opening
+            .sound_bindings
+            .iter()
+            .find(|b| b.role == sound)
+            .ok_or("Missing ambient PCM identity")?
+            .source;
+        let (class, _) = audio_resolver.material_properties(source)?;
+        if !class.eq_ignore_ascii_case("Engine.Sound") {
+            return Err("Spatial ambient profile requires a direct original Sound leaf".into());
+        }
+        let (params, receipt) = rc_inspect::audio_params::load(root, &cat, source)?;
+        ambient_receipts.push(
+            serde_json::json!({"owner":owner,"sound":sound,"params":params,"receipt":receipt}),
+        );
+        opening
+            .ambient_profiles
+            .push(rc_game::ambient_audio::Profile {
+                owner,
+                sound,
+                params,
+            });
+    }
+    opening.provenance["spatial_ambient"] = serde_json::json!({"profiles":ambient_receipts,"parameters":"PC PlayUSound selection once per simulation activation; separate saved local appSRand stream, not original global RNG history","position":"Bacta Eye bone; other selected effects use original or checkpoint-relocated actor location","host":"OpenAL inverse-distance-clamped falloff, portable SoundPool stereo panning; no EAX, geometry occlusion, Doppler or general ambient admission/culling"});
     opening.provenance["world_effects"] = serde_json::json!({"bindings":receipts,"injury":"175 scripted damage remains separate from original PlayerExplosionFactory823; original ACTION_TeleportToPoint2395 captures PlayerCommando location and pawn yaw before triggering factory823; fixed transform persists through checkpoint","barrier617":"PropDestroyed: original transition effect, no replacement mesh/material and no explosion damage => immediate actor removal","boundary":"Selected original SpriteEmitter assets, portable fixed-tick/range renderer; no general Karma, projector, global RNG or native driver parity"});
     let meta = serde_json::to_vec(&opening)?;
     let mut result = b"RCPLAY13".to_vec();

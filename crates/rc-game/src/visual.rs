@@ -33,6 +33,7 @@ pub struct PreparedAssets {
     /// must initialize the optional weapon actor state consistently.
     pub weapon_animation: bool,
     pub weapon_sound_groups: usize,
+    pub weapon_audio: bool,
 }
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct Player {
@@ -116,9 +117,9 @@ impl PreparedAssets {
                 .map(|_| Player::new(&self.enemy, "ActionBreathe"))
                 .collect::<Result<_, _>>()?,
             weapon: Player::new(&self.weapon, "ActionBreathe")?,
-            weapon_animation: self
-                .weapon_animation
-                .then(|| crate::weapon_animation::State::new(self.weapon_sound_groups)),
+            weapon_animation: self.weapon_animation.then(|| {
+                crate::weapon_animation::State::new(self.weapon_sound_groups, self.weapon_audio)
+            }),
         })
     }
     pub fn tick(

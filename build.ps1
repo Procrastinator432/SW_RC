@@ -56,7 +56,7 @@ try {
                  else {throw 'JDK missing: set JAVA_HOME or provide -ToolsDirectory (see docs/BUILD.md)'}
             $classes=Join-Path $out 'java/classes';$cache=Join-Path $out 'java/cache'
             New-Item -ItemType Directory -Force -Path $classes,$cache | Out-Null
-            $sources=@('CampaignRoutes','CheckpointStore','CheckpointPolicy','AudioTimeline','SoundOwnership','AmbientLoops','FramePass','SceneBytes','CampaignStore','TouchLayout') | ForEach-Object {Join-Path $root "android/app/src/main/java/org/rcport/diagnostic/$_.java";Join-Path $root "scripts/java/${_}Check.java"}
+            $sources=@('CampaignRoutes','CheckpointStore','CheckpointPolicy','AudioTimeline','SoundOwnership','AmbientLoops','SpatialAudio','AudioPlayback','FramePass','SceneBytes','CampaignStore','TouchLayout') | ForEach-Object {Join-Path $root "android/app/src/main/java/org/rcport/diagnostic/$_.java";Join-Path $root "scripts/java/${_}Check.java"}
             Native (Join-Path $jdk 'bin/javac.exe') (@('-d',$classes)+$sources)
             $java=Join-Path $jdk 'bin/java.exe'
             Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.CampaignRoutesCheck')
@@ -67,6 +67,8 @@ try {
             Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.AudioTimelineCheck')
             Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.SoundOwnershipCheck')
             Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.AmbientLoopsCheck')
+            Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.SpatialAudioCheck')
+            Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.AudioPlaybackCheck')
             Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.FramePassCheck')
             # Synthetic 64 MiB payload: the reader is format-agnostic. Two full
             # copies cannot coexist under this heap; no copyrighted scene needed.

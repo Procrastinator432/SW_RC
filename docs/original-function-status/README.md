@@ -1,8 +1,16 @@
 # Originalfunktionen und Umsetzungsstand
 
+**Neuer Quellbaustein nach 0.60.0:** [Audio-Geometrie](../AUDIO_GEOMETRY.md) mit originalen BSP-/Regionsabfragen, Zonenradiusfaktoren und gespeichertem Radiusfortlauf. Noch keine Szenen-/Android-Anbindung; keine pauschale Änderung des umfassenden Katalogs.
+
+**Neuere Laufzeitumsetzung:** [Ambient-Lebenszyklus / Prüflieferung 0.60.0](../AMBIENT_LIFECYCLE.md) – Aufnahme, Freigabe, lineare Ausblendung und Priorität für sechs ausgewählte Dauerquellen, mit persistenter Aktivierung und Android-Nachweis. Der umfassende Katalog bleibt auf 0.53.0 datiert.
+
 Dies ist der zentrale Einstieg zum Funktionsbericht des Androidports. Bewerteter Stand: **Release 0.53.0 vom 21.10.2026**. Bericht und Detailtabellen liegen gemeinsam im Dokumentationsbereich des Repositorys.
 
-**Neuere Umsetzung:** [SoundMultiple / Prüflieferung 0.57.0](../SOUND_SELECTION.md), zuvor [Waffen-Foley / Prüflieferung 0.56.0](../WEAPON_FOLEY.md), zuvor [DC-15s-Waffenanimation / Prüflieferung 0.55.0](../DC15_ANIMATION.md), zuvor [Halbautomatik / 0.54.0](../DC15_TRIGGER.md). Der folgende umfassende Katalog bleibt ausdrücklich die datierte Bestandsaufnahme von 0.53.0; seine Einzelbewertungen wurden dadurch nicht pauschal hochgestuft.
+**Neuere Laufzeitumsetzung:** [Räumliche Dauerquellen / Prüflieferung 0.59.0](../SPATIAL_AMBIENT.md) – sechs ausgewählte Quellen mit Originalparametern und Android-Nachweis. Der umfassende Katalog bleibt auf 0.53.0 datiert.
+
+**Quellbaustein nach 0.58.0:** [Welt-Audio-Rechenkern](../WORLD_AUDIO_CORE.md) mit Originalradius-, Lautstärke- und Prioritätsrechnung. Noch keine Welt-/Android-Anbindung und keine pauschale Hochstufung des Katalogs.
+
+**Neuere Umsetzung:** [Audioparameter / Prüflieferung 0.58.0](../AUDIO_PARAMETERS.md), zuvor [SoundMultiple / Prüflieferung 0.57.0](../SOUND_SELECTION.md), zuvor [Waffen-Foley / Prüflieferung 0.56.0](../WEAPON_FOLEY.md), zuvor [DC-15s-Waffenanimation / Prüflieferung 0.55.0](../DC15_ANIMATION.md), zuvor [Halbautomatik / 0.54.0](../DC15_TRIGGER.md). Der folgende umfassende Katalog bleibt ausdrücklich die datierte Bestandsaufnahme von 0.53.0; seine Einzelbewertungen wurden dadurch nicht pauschal hochgestuft.
 
 ## Bericht lesen
 

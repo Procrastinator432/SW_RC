@@ -448,7 +448,7 @@ impl Game {
         }
         Ok(())
     }
-    fn bacta_effect_anchors(&self) -> Result<Option<EffectAnchors>, String> {
+    pub(crate) fn bacta_effect_anchors(&self) -> Result<Option<EffectAnchors>, String> {
         let Some(p) = self
             .opening
             .as_ref()

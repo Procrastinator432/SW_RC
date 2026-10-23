@@ -1,5 +1,7 @@
 # Originale SoundMultiple-Auswahl
 
+Der eingefrorene Stand 0.57.0 wurde am 23.10.2026 als Commit `55afa77` nach `origin/main` gepusht. Die anschließenden [originalen Audioparameter / 0.58.0](AUDIO_PARAMETERS.md) sind ein eigener Abschnitt.
+
 
 
 Stand: 22.10.2026 · Zielversion 0.57.0-sound-selection
@@ -94,7 +96,7 @@ Zusammengehörige Prüflieferung **0.57.0-sound-selection**:
 - [Szenenpaket](../build/releases/0.57.0/mission1-scenes.rcpack.zip)
 - [Prüfbericht](../build/releases/0.57.0/verification-summary.json) und [Quellzuordnung](../build/releases/0.57.0/source-and-delivery.json)
 
-APK und Szenenpaket gemeinsam aktualisieren, Paket importieren und eine neue Mission beginnen. Alte Szene-/Spielstandpaare behalten ihren bisherigen Umfang; alte Spielstände werden nicht stillschweigend an neue Szenen gebunden. Die bisherigen eingefrorenen Lieferungen bleiben erhalten. Der neue Arbeitsstand ist nicht zusätzlich committet oder gepusht; Patch, ergänzte Quelldateien und Hashmanifest begleiten die Lieferung.
+APK und Szenenpaket gemeinsam aktualisieren, Paket importieren und eine neue Mission beginnen. Alte Szene-/Spielstandpaare behalten ihren bisherigen Umfang; alte Spielstände werden nicht stillschweigend an neue Szenen gebunden. Die bisherigen eingefrorenen Lieferungen bleiben erhalten. Die Lieferung wurde zunächst mit Patch, ergänzten Quelldateien und Hashmanifest eingefroren und am 23.10.2026 als Commit `55afa77` nach `origin/main` gepusht.
 
 Nachweise: `build/sound-selection/complete`, `original-replay.json`, `native-audio.json`, `native-world.json`, `legacy-052/053/054/055/056.json`, `gpu-java.log`, `campaign-android/validation.json` und `verification-summary.json`.
 

@@ -11,8 +11,8 @@ android {
         applicationId 'org.rcport.diagnostic'
         minSdk 26
         targetSdk 35
-        versionCode 61
-        versionName '0.57.0-sound-selection'
+        versionCode 64
+        versionName '0.60.0-ambient-lifecycle'
         ndk { abiFilters.addAll((project.findProperty('rcAbis') ?: 'arm64-v8a').split(',')) }
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }

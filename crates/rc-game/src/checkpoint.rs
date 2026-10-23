@@ -205,6 +205,7 @@ impl Game {
         for state in [&s.state, &s.initial] {
             crate::dc15::validate_state(self.dc15.as_ref(), state)?;
             crate::weapon_animation::validate_game(self, state)?;
+            crate::ambient_audio::validate_state(self, state)?;
             if let Some(prepared) = &self.opening {
                 let interactions = state
                     .opening

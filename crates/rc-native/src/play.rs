@@ -175,8 +175,8 @@ pub unsafe extern "C" fn rc_game_map_handoff(id: u64, out: *mut u8, capacity: us
     bytes.len() as isize
 }
 /// WAV bank (0), consumable legacy/enriched cues (1/2), or current ambient
-/// snapshot RCLOOP01 (3: count, then u32 sound + i32 owner per loop).
-/// Queries/short copies preserve cues; full 1/2 copies consume them. Kind3 is read-only.
+/// snapshot RCLOOP01 (3), parameters RCAUD003 (4), spatial RCLOOP02 (5).
+/// Queries/short copies preserve cues; full 1/2/4 copies consume them. 3/5 are read-only.
 /// # Safety
 /// out is null with capacity zero, or points to capacity writable bytes.
 #[no_mangle]
@@ -188,6 +188,43 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
         return -1;
     };
     let packet = match kind {
+        5 | 6 => {
+            let Ok(sources) = game.spatial_ambient_sources() else {
+                return -1;
+            };
+            if sources.len() > 16 {
+                return -1;
+            }
+            let (position, yaw) = game.audio_listener();
+            let mut b = if kind == 6 {
+                b"RCLOOP03".to_vec()
+            } else {
+                b"RCLOOP02".to_vec()
+            };
+            b.extend_from_slice(&(sources.len() as u32).to_le_bytes());
+            for v in position.into_iter().chain([yaw]) {
+                b.extend_from_slice(&v.to_le_bytes());
+            }
+            for s in sources {
+                b.extend_from_slice(&(s.sound as u32).to_le_bytes());
+                b.extend_from_slice(&s.owner.to_le_bytes());
+                for v in s.location {
+                    b.extend_from_slice(&v.to_le_bytes());
+                }
+                for v in [
+                    s.playback.as_ref().map_or(1., |p| p.volume),
+                    s.playback.as_ref().map_or(1., |p| p.pitch),
+                    s.playback.as_ref().map_or(0., |p| p.radius),
+                ] {
+                    b.extend_from_slice(&v.to_le_bytes());
+                }
+                b.extend_from_slice(&s.flags.to_le_bytes());
+                if kind == 6 {
+                    b.extend_from_slice(&s.activation.to_le_bytes());
+                }
+            }
+            b
+        }
         3 => {
             let loops = game.ambient_loops();
             let mut b = b"RCLOOP01".to_vec();
@@ -208,8 +245,10 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
             }
             b
         }
-        1 | 2 => {
-            let mut b = if kind == 2 {
+        1 | 2 | 4 => {
+            let mut b = if kind == 4 {
+                b"RCAUD003".to_vec()
+            } else if kind == 2 {
                 b"RCAUD002".to_vec()
             } else {
                 b"RCAUD001".to_vec()
@@ -233,15 +272,30 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
                 b.extend_from_slice(&e.tick.to_le_bytes());
                 b.extend_from_slice(&(e.sound as u32).to_le_bytes());
                 b.extend_from_slice(&e.owner.to_le_bytes());
-                if kind == 2 {
+                if kind == 2 || kind == 4 {
                     let policy = game
                         .opening
                         .as_ref()
                         .and_then(|a| a.assets.sound_policy(e.sound, e.owner));
-                    b.extend_from_slice(&policy.map_or(2, |p| u32::from(p.category)).to_le_bytes());
+                    b.extend_from_slice(
+                        &game
+                            .weapon_playback(e.sequence)
+                            .map_or_else(
+                                || policy.map_or(2, |p| u32::from(p.category)),
+                                |p| u32::from(p.category),
+                            )
+                            .to_le_bytes(),
+                    );
                     b.extend_from_slice(
                         &policy.map_or(0, |p| u32::from(p.no_override)).to_le_bytes(),
                     );
+                }
+                if kind == 4 {
+                    let p = game.weapon_playback(e.sequence);
+                    b.extend_from_slice(&p.map_or(1., |p| p.volume).to_le_bytes());
+                    b.extend_from_slice(&p.map_or(1., |p| p.pitch).to_le_bytes());
+                    b.extend_from_slice(&p.map_or(0., |p| p.radius).to_le_bytes());
+                    b.extend_from_slice(&u32::from(p.is_some()).to_le_bytes());
                 }
             }
             b
@@ -259,7 +313,8 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
         return packet.len() as isize;
     }
     std::ptr::copy_nonoverlapping(packet.as_ptr(), out, packet.len());
-    if kind == 1 || kind == 2 {
+    if kind == 1 || kind == 2 || kind == 4 {
+        game.clear_weapon_playback();
         if let Some(m) = &mut game.state.map {
             m.events.clear();
         }

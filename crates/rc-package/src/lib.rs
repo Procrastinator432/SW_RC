@@ -4,6 +4,7 @@ pub mod actor_falling;
 pub mod ai_contact;
 pub mod animation_call;
 pub mod animation_replication;
+pub mod audio_geometry;
 pub mod auto_crouch;
 pub mod bsp_cells;
 pub mod channel_playback;
@@ -623,3 +624,7 @@ pub mod jump_goal;
 pub mod jump_trajectory;
 pub mod placement;
 pub mod projectile_motion;
+
+pub mod ambient_lifecycle;
+pub mod audio_params;
+pub mod world_audio;

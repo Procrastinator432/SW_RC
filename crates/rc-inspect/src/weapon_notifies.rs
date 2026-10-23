@@ -15,6 +15,7 @@ pub fn load(
     let data = fs::read(root.join("Animations/hudarms.ukx"))?;
     let package = rc_package::read_package(&data)?;
     let mut foley = Foley {
+        params: vec![],
         sounds: vec![],
         groups: vec![],
         notifies: vec![],
@@ -61,10 +62,16 @@ pub fn load(
             receipts.push(serde_json::json!({"clip":clip.source,"time_bits":n.time_bits,"time":f32::from_bits(n.time_bits),"object":package.object_path(n.object_index)?,"original":n.object_index,"class":class,"properties":props,"dispatch":dispatch}));
         }
     }
+    let mut parameters = vec![];
+    for sound in &foley.sounds {
+        let (p, receipt) = crate::audio_params::load(root, &catalog, &sound.source)?;
+        foley.params.push(p);
+        parameters.push(receipt);
+    }
     let sounds: Vec<_> = foley.sounds.iter().map(|s| serde_json::json!({"source":s.source,"pcm":rc_game::replay::fingerprint(&s.wave),"bytes":s.wave.len()})).collect();
     Ok((
         foley,
-        serde_json::json!({"notifies":receipts,"sound_variants":variants,"sounds":sounds,"variant_policy":"Original SelectSound/appSRand on flat unrestricted weapon groups; saved local stream, no global RNG/spatialization parity"}),
+        serde_json::json!({"notifies":receipts,"sound_variants":variants,"parameters":parameters,"sounds":sounds,"variant_policy":"Original SelectSound/appSRand on flat unrestricted weapon groups; saved local stream, no global RNG/spatialization parity"}),
     ))
 }
 

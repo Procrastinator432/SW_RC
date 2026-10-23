@@ -1,5 +1,11 @@
 # Build und geprüfter Quellstand
 
+Der [Audio-Geometriekern nach 0.60.0](AUDIO_GEOMETRY.md) ergänzt fünf Tests im zentralen Check: je 1.201 Debug-/Release-Bibliothekstests. Der optionale neue Kartenprüfer `rc-audio-geometry-check` liest die vier Weltmodelle und erzeugt Vergleichsabfragen für das Original. Er baut keine spielbare Szene; APK und Paket bleiben 0.60.0, bis die Laufzeitanbindung erfolgt.
+
+[0.60.0 – Ambient-Lebenszyklus](AMBIENT_LIFECYCLE.md) ergänzt vier Bibliothekstests mit 800 Originalfällen für drei Entfernungszweige und 18 Fade-Schritten. Der zentrale Check besteht mit je 1.196 Tests. Java prüft zusätzlich RCLOOP03, unveränderte laufende Aktivierungen, neue Aktivierungskennungen und atomare Paketabweisung. Die optionale echte APK-Prüfung bleibt am Ende des vollständigen Szenen-/Native-Baus; der neue Fachtext nennt die genaue Lieferzuordnung.
+
+Der zentrale Check enthält auch den [Welt-Audiokern](WORLD_AUDIO_CORE.md): sieben Tests mit 3.000 eingefrorenen Originalinstruktionsfällen und Eingabe-/Zustandsgrenzen. Dafür sind keine Originaldateien oder Emulator nötig; der optionale frische DLL-Vergleich ist dort separat beschrieben. Darauf aufbauend integriert [0.59.0](SPATIAL_AMBIENT.md) sechs ausgewählte Dauerquellen mit eigenen nativen und Android-Prüfungen. Der allgemeine Originalmixer und dynamische geometrische Verdeckung sind weiterhin offen. Der Java-Check umfasst nun RCLOOP02, Distanz-/Stereo-Rechnung und Streamfortlauf.
+
 Zentraler Einstiegspunkt unter PowerShell 7 ist im Projektverzeichnis:
 
 ```powershell
@@ -72,3 +78,5 @@ Der bisherige Missions-/Checkpoint-Stand bis 0.47.0 ist im separaten Basis-Commi
 Die zentralen Quellprüfungen werden zusätzlich aus einem frischen Checkout ohne `analysis`, `local-assets` und lokale IDE-Dateien ausgeführt. Die große Asset-Extraktion und physische ARM64-Geräteabnahme bleiben getrennte Aufgaben.
 
 Der Foley-Prüfer umfasst ab 0.57.0 auch alle acht Rüstungsvarianten und den gespeicherten SoundMultiple-Zustand. Die 960 vorbereiteten Originalinstruktionsfälle laufen mit den normalen `rc-package`-Bibliothekstests; ihre Neugewinnung ist in [SOUND_SELECTION.md](SOUND_SELECTION.md) beschrieben.
+
+Ab 0.58.0 laufen 800 originale Lautstärke-/Pitch-Fälle in den Bibliothekstests und `AudioPlaybackCheck` im Java-Schritt. Der Foley-Prüfer schreibt pro Karte zusätzlich `queued-audio.rcsave`; `scripts/Test-WeaponAudioParameters.py` prüft damit den tatsächlichen nativen Audio-ABI. Die APK-Abnahme ergänzt `--expect-audio-params`. [Befehle, Format und Grenzen](AUDIO_PARAMETERS.md).

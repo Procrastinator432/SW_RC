@@ -23,11 +23,12 @@ final class SceneAudio implements AutoCloseable {
     private final AudioTimeline timeline=new AudioTimeline();
     private final SoundOwnership ownership=new SoundOwnership();
     private final AmbientLoops ambient=new AmbientLoops();
+    private final Map<Integer,SpatialAudio.Mix> ambientMix=new HashMap<>();
     private final Runnable flushTask=this::flush;
     private long lastSequence;
     private static final class Event {
-        final long sequence,tick; final int sound,owner,category;
-        Event(long s,long t,int i,int o,int c) {sequence=s;tick=t;sound=i;owner=o;category=c;}
+        final long sequence,tick; final int sound,owner,category; final AudioPlayback playback;
+        Event(long s,long t,int i,int o,int c,AudioPlayback p) {sequence=s;tick=t;sound=i;owner=o;category=c;playback=p;}
     }
     private static ByteBuffer packet(byte[] bytes,String magic) throws IOException {
         if(bytes.length<12 || !new String(bytes,0,8,StandardCharsets.US_ASCII).equals(magic)) throw new IOException("Invalid sound packet");
@@ -63,19 +64,21 @@ final class SceneAudio implements AutoCloseable {
     boolean hasOriginalSounds() {return sounds.length>0;}
     void ambientLoops(byte[] snapshot) throws IOException {
         if(closed || suspended)return;
-        for(int stream:ambient.select(snapshot,sounds.length))pool.stop(stream);
+        for(int stream:ambient.select(snapshot,sounds.length)){pool.stop(stream);Log.i("RCAudio","ambient_stop stream="+stream);}
         flush();
     }
     boolean ready() throws IOException {if(loadFailure!=null)throw new IOException(loadFailure);return !closed && ready.size()==sounds.length;}
     void events(byte[] bytes) throws IOException {
-        boolean enriched=bytes.length>=8 && new String(bytes,0,8,StandardCharsets.US_ASCII).equals("RCAUD002");
-        ByteBuffer b=packet(bytes,enriched?"RCAUD002":"RCAUD001");int count=b.getInt();
-        if(count<0 || count>256 || b.remaining()!=count*(enriched?32:24)) throw new IOException("Invalid sound events");
+        boolean parameters=bytes.length>=8 && new String(bytes,0,8,StandardCharsets.US_ASCII).equals("RCAUD003");
+        boolean enriched=parameters || bytes.length>=8 && new String(bytes,0,8,StandardCharsets.US_ASCII).equals("RCAUD002");
+        ByteBuffer b=packet(bytes,parameters?"RCAUD003":enriched?"RCAUD002":"RCAUD001");int count=b.getInt();
+        if(count<0 || count>256 || b.remaining()!=count*(parameters?48:enriched?32:24)) throw new IOException("Invalid sound events");
         for(int i=0;i<count;i++) {
             long sequence=b.getLong(),tick=b.getLong();int sound=b.getInt(),owner=b.getInt();
             int category=enriched?b.getInt():2;int flags=enriched?b.getInt():0;
             if(category<0 || category>2 || (flags&~1)!=0) throw new IOException("Invalid sound ownership");
-            Event e=new Event(sequence,tick,sound,owner,category);
+            AudioPlayback playback=parameters?AudioPlayback.read(b):AudioPlayback.legacy();
+            Event e=new Event(sequence,tick,sound,owner,category,playback);
             if(e.sequence<=lastSequence || e.sound<0 || e.sound>=sounds.length) throw new IOException("Invalid sound event identity");
             lastSequence=e.sequence;
             if(!suspended){if(pending.size()==256) pending.removeFirst();pending.add(e);}
@@ -87,24 +90,36 @@ final class SceneAudio implements AutoCloseable {
         if(closed || suspended || ready.size()!=sounds.length) return;
         for(int owner:ambient.pendingOwners()) {
             // Reserve the continuous ambient against the priority-1 shot pool.
-            int stream=pool.play(sounds[ambient.sound(owner)],0.35f,0.35f,2,-1,1f);
+            SpatialAudio.Mix mix=ambient.mix(owner);
+            int stream=pool.play(sounds[ambient.sound(owner)],mix.left,mix.right,2,-1,mix.rate);
             ambient.played(owner,stream);
             if(stream!=0)Log.i("RCAudio","ambient owner="+owner+" stream="+stream);
         }
+        Set<Integer> active=new HashSet<>();
+        for(int owner:ambient.owners()) {
+            active.add(owner);int stream=ambient.stream(owner);if(stream==0)continue;
+            SpatialAudio.Mix mix=ambient.mix(owner),old=ambientMix.get(owner);
+            pool.setVolume(stream,mix.left,mix.right);pool.setRate(stream,mix.rate);
+            if(old==null || Math.abs(old.left-mix.left)>.001f || Math.abs(old.right-mix.right)>.001f || old.rate!=mix.rate) {
+                Log.i("RCAudio","ambient_mix owner="+owner+" sound="+ambient.sound(owner)+" stream="+stream+" left="+mix.left+" right="+mix.right+" rate="+mix.rate+" spatial="+mix.spatial);
+                ambientMix.put(owner,mix);
+            }
+        }
+        ambientMix.keySet().retainAll(active);
         while(!pending.isEmpty()) {
             long now=android.os.SystemClock.uptimeMillis();long delay=timeline.delay(pending.peekFirst().tick,now);
             if(delay>0){handler.postDelayed(flushTask,delay);return;}
             Event e=pending.removeFirst();
             int previous=ownership.replaced(e.owner,e.category);if(previous!=0) pool.stop(previous);
-            int stream=pool.play(sounds[e.sound],0.35f,0.35f,1,0,1f);
+            int stream=pool.play(sounds[e.sound],e.playback.gain(),e.playback.gain(),1,0,e.playback.pitch);
             if(stream==0) {Log.e("RCAudio","play failed sequence="+e.sequence);continue;}
             timeline.played(e.tick,now);
             ownership.played(e.owner,e.category,stream);
             if(streams.size()==64) streams.removeFirst();streams.add(stream);
-            Log.i("RCAudio","event sequence="+e.sequence+" tick="+e.tick+" sound="+e.sound+" owner="+e.owner+" played_ms="+now);
+            Log.i("RCAudio","event sequence="+e.sequence+" tick="+e.tick+" sound="+e.sound+" owner="+e.owner+" played_ms="+now+" volume="+e.playback.volume+" rate="+e.playback.pitch+" params="+e.playback.original);
         }
     }
-    private void stopStreams() {for(int id:ambient.clear())pool.stop(id);for(int id:ownership.activeStreams()) pool.stop(id);for(int id:streams) pool.stop(id);streams.clear();ownership.clear();}
+    private void stopStreams() {for(int id:ambient.clear())pool.stop(id);ambientMix.clear();for(int id:ownership.activeStreams()) pool.stop(id);for(int id:streams) pool.stop(id);streams.clear();ownership.clear();}
     void suspend() {suspended=true;handler.removeCallbacks(flushTask);pending.clear();timeline.reset();stopStreams();}
     void resume() {suspended=false;flush();}
     void stop() {handler.removeCallbacks(flushTask);pending.clear();timeline.reset();stopStreams();}

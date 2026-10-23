@@ -17,6 +17,8 @@ pub struct Assets {
 #[serde(deny_unknown_fields)]
 pub struct Foley {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub params: Vec<rc_package::audio_params::Params>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub groups: Vec<rc_package::sound_multiple::Group>,
     pub sounds: Vec<crate::combat::Sound>,
     pub notifies: Vec<SoundNotify>,
@@ -35,6 +37,8 @@ pub struct SoundNotify {
 #[serde(deny_unknown_fields)]
 pub struct State {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio: Option<Vec<AudioRecord>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selection: Option<SelectionState>,
     pub idle_started: Option<u64>,
     pub playing_idle: bool,
@@ -46,9 +50,18 @@ pub struct SelectionState {
     pub seed: u32,
     pub groups: Vec<rc_package::sound_multiple::State>,
 }
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AudioRecord {
+    pub sequence: u64,
+    pub tick: u64,
+    pub sound: usize,
+    pub playback: rc_package::audio_params::Playback,
+}
 impl State {
-    pub fn new(groups: usize) -> Self {
+    pub fn new(groups: usize, audio: bool) -> Self {
         Self {
+            audio: audio.then(Vec::new),
             selection: (groups > 0).then(|| SelectionState {
                 seed: 0x52434631,
                 groups: vec![Default::default(); groups],
@@ -66,6 +79,14 @@ impl Assets {
                 || foley.notifies.len() > 32
             {
                 return Err("Invalid weapon Foley budget".into());
+            }
+            if !foley.params.is_empty() {
+                if foley.params.len() != foley.sounds.len() || foley.groups.is_empty() {
+                    return Err("Weapon parameter bank mismatch".into());
+                }
+                for p in &foley.params {
+                    p.validate()?;
+                }
             }
             for group in &foley.groups {
                 group.validate(foley.sounds.len())?;
@@ -155,6 +176,33 @@ impl State {
                 }
             }
             _ => return Err("Weapon sound selection checkpoint mismatch".into()),
+        }
+        let foley = a.foley.as_ref();
+        match (&self.audio, foley.is_some_and(|f| !f.params.is_empty())) {
+            (None, false) => (),
+            (Some(records), true) => {
+                if records.len() > 256 || records.windows(2).any(|r| r[0].sequence >= r[1].sequence)
+                {
+                    return Err("Invalid weapon audio record order".into());
+                }
+                for r in records {
+                    if r.sequence == 0 || r.tick > tick || r.sound >= foley.unwrap().sounds.len() {
+                        return Err("Invalid weapon audio record".into());
+                    }
+                    r.playback.validate()?;
+                    let p = &foley.unwrap().params[r.sound];
+                    if r.playback.radius.to_bits() != p.radius.to_bits()
+                        || r.playback.category != p.category
+                        || r.playback.volume < p.min_volume.min(1.)
+                        || r.playback.volume > p.max_volume.min(1.)
+                        || r.playback.pitch < p.min_pitch.clamp(0.5, 2.)
+                        || r.playback.pitch > p.max_pitch.clamp(0.5, 2.)
+                    {
+                        return Err("Saved playback differs from its original profile".into());
+                    }
+                }
+            }
+            _ => return Err("Weapon audio checkpoint mismatch".into()),
         }
         validate_player(mesh, base)?;
         let name = &mesh.mesh.clips[base.clip].sequence.name.name;
@@ -257,24 +305,44 @@ impl State {
                 if n.clip.eq_ignore_ascii_case(clip)
                     && crate::visual::crossed_notify(interval.0, interval.1, n.time)
                 {
-                    if let Some(index) = n.group {
+                    let selected = if let Some(index) = n.group {
                         let state = self
                             .selection
                             .as_mut()
                             .ok_or("Missing weapon sound selection")?;
                         let seed = &mut state.seed;
-                        if let Some(sound) = state
+                        state
                             .groups
                             .get_mut(index)
                             .ok_or("Missing sound group state")?
                             .select(&foley.groups[index], 0, 0, || {
                                 rc_package::sound_multiple::random(seed)
                             })
-                        {
-                            sounds.push(sound);
-                        }
                     } else {
-                        sounds.push(n.sound);
+                        Some(n.sound)
+                    };
+                    if let Some(sound) = selected {
+                        if foley.params.is_empty() {
+                            sounds.push(sound);
+                        } else {
+                            let seed = &mut self
+                                .selection
+                                .as_mut()
+                                .ok_or("Missing audio random stream")?
+                                .seed;
+                            if let Some(playback) = foley.params[sound].select(seed) {
+                                self.audio
+                                    .as_mut()
+                                    .ok_or("Missing weapon audio state")?
+                                    .push(AudioRecord {
+                                        sequence: 0,
+                                        tick: now.statistics.ticks,
+                                        sound,
+                                        playback,
+                                    });
+                                sounds.push(sound);
+                            }
+                        }
                     }
                 }
             }
@@ -315,6 +383,40 @@ pub(crate) fn validate_game(game: &crate::Game, s: &crate::State) -> Result<(), 
             return Err("Invalid weapon/campaign audio checkpoint".into());
         }
     }
+    if let Some(records) = s
+        .visuals
+        .as_ref()
+        .and_then(|v| v.weapon_animation.as_ref())
+        .and_then(|w| w.audio.as_ref())
+    {
+        let events = s
+            .mission
+            .as_ref()
+            .map(|m| m.events.as_slice())
+            .or_else(|| s.map.as_ref().map(|m| m.events.as_slice()))
+            .unwrap_or(&[]);
+        let base = game.audio_bank().len() - game.weapon_foley_sounds().len();
+        if records.iter().any(|r| {
+            r.sound >= game.weapon_foley_sounds().len()
+                || !events.iter().any(|e| {
+                    e.sequence == r.sequence
+                        && e.tick == r.tick
+                        && e.sound == base + r.sound
+                        && e.owner == -1
+                })
+        }) {
+            return Err("Weapon playback record has no matching event".into());
+        }
+        if profile
+            .and_then(|a| a.foley.as_ref())
+            .is_some_and(|f| !f.params.is_empty())
+            && events
+                .iter()
+                .any(|e| e.sound >= base && !records.iter().any(|r| r.sequence == e.sequence))
+        {
+            return Err("Missing saved weapon playback parameters".into());
+        }
+    }
     let state = s.visuals.as_ref().and_then(|v| v.weapon_animation.as_ref());
     match (profile, state) {
         (None, None) => Ok(()),
@@ -346,6 +448,16 @@ impl crate::Game {
         };
         let excess = events.len().saturating_sub(256);
         events.drain(..excess);
+        let live: Vec<_> = events.iter().map(|e| e.sequence).collect();
+        if let Some(records) = self
+            .state
+            .visuals
+            .as_mut()
+            .and_then(|v| v.weapon_animation.as_mut())
+            .and_then(|w| w.audio.as_mut())
+        {
+            records.retain(|r| live.contains(&r.sequence));
+        }
     }
     pub fn weapon_foley_sounds(&self) -> &[crate::combat::Sound] {
         self.dc15
@@ -378,6 +490,23 @@ impl crate::Game {
         {
             return Err("Invalid weapon Foley event/bank".into());
         }
+        let pending = self
+            .state
+            .visuals
+            .as_ref()
+            .and_then(|v| v.weapon_animation.as_ref())
+            .and_then(|w| w.audio.as_ref());
+        if let Some(records) = pending {
+            let pending: Vec<_> = records.iter().filter(|r| r.sequence == 0).collect();
+            if pending.len() != events.len()
+                || pending.iter().zip(events).any(|(r, (sound, _))| {
+                    r.sound != *sound || r.tick != self.state.statistics.ticks
+                })
+            {
+                return Err("Weapon playback dispatch mismatch".into());
+            }
+        }
+        let mut emitted = Vec::new();
         let tick = self.state.statistics.ticks;
         let (sequence, queue) = if let Some(m) = &mut self.state.mission {
             (&mut m.audio_sequence, &mut m.events)
@@ -388,6 +517,7 @@ impl crate::Game {
         };
         for &(sound, owner) in events {
             *sequence += 1;
+            emitted.push(*sequence);
             let excess = queue.len().saturating_sub(255);
             queue.drain(..excess);
             queue.push(crate::combat::Event {
@@ -397,7 +527,41 @@ impl crate::Game {
                 owner,
             });
         }
+        if let Some(records) = self
+            .state
+            .visuals
+            .as_mut()
+            .and_then(|v| v.weapon_animation.as_mut())
+            .and_then(|w| w.audio.as_mut())
+        {
+            for (r, sequence) in records.iter_mut().filter(|r| r.sequence == 0).zip(emitted) {
+                r.sequence = sequence;
+            }
+        }
         Ok(())
+    }
+    pub fn clear_weapon_playback(&mut self) {
+        if let Some(records) = self
+            .state
+            .visuals
+            .as_mut()
+            .and_then(|v| v.weapon_animation.as_mut())
+            .and_then(|w| w.audio.as_mut())
+        {
+            records.clear();
+        }
+    }
+    pub fn weapon_playback(&self, sequence: u64) -> Option<&rc_package::audio_params::Playback> {
+        self.state
+            .visuals
+            .as_ref()?
+            .weapon_animation
+            .as_ref()?
+            .audio
+            .as_ref()?
+            .iter()
+            .find(|r| r.sequence == sequence)
+            .map(|r| &r.playback)
     }
     /// Keep the new weapon actor path alive at player-control early returns.
     /// Hidden/locked hands must not resume a stale firing pose after a cinematic.

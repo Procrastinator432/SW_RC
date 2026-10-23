@@ -46,6 +46,10 @@ pub struct Program {
 #[serde(deny_unknown_fields)]
 pub struct Assets {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ambient_policy: Option<rc_package::ambient_lifecycle::Policy>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ambient_profiles: Vec<crate::ambient_audio::Profile>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rigid_interactions: Option<crate::rigid_interaction::Assets>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rigid: Vec<crate::rigid::Binding>,
@@ -127,6 +131,8 @@ pub struct Lane {
 #[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct State {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ambient_audio: Option<crate::ambient_audio::AudioState>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rigid_interactions: Option<Vec<i32>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rigid: Option<Vec<crate::rigid::Body>>,
@@ -173,6 +179,7 @@ impl Assets {
     }
     pub fn sound_roles(&self) -> Vec<usize> {
         let mut roles = Vec::new();
+        roles.extend(self.ambient_profiles.iter().map(|p| p.sound));
         roles.extend(self.world_effects.iter().filter_map(|b| b.sound));
         roles.extend(self.world_effects.iter().filter_map(|b| b.ambient));
         for p in &self.programs {
@@ -237,6 +244,11 @@ impl Assets {
         for p in &mut self.sound_policies {
             p.role = *mapping.get(&p.role).ok_or("Missing owned sound identity")?;
         }
+        for p in &mut self.ambient_profiles {
+            p.sound = *mapping
+                .get(&p.sound)
+                .ok_or("Missing ambient sound identity")?;
+        }
         for effect in &mut self.world_effects {
             if let Some(role) = &mut effect.sound {
                 *role = mapping[role];
@@ -266,6 +278,7 @@ impl Assets {
         Ok(())
     }
     pub fn validate(&self, base: usize) -> Result<(), String> {
+        crate::ambient_audio::validate_profiles(self, base + self.sounds.len())?;
         if self.sound_policies.len() > 128
             || self
                 .sound_policies
@@ -358,6 +371,8 @@ impl Assets {
 impl State {
     fn new(a: &Assets) -> Self {
         Self {
+            ambient_audio: (!a.ambient_profiles.is_empty())
+                .then(crate::ambient_audio::AudioState::default),
             rigid: (!a.rigid.is_empty()).then(|| a.rigid.iter().map(|b| b.initial()).collect()),
             rigid_interactions: a.rigid_interactions.as_ref().map(|a| a.initial()),
             bacta: None,
@@ -896,6 +911,8 @@ mod tests {
     }
     fn assets() -> Assets {
         Assets {
+            ambient_policy: None,
+            ambient_profiles: vec![],
             rigid_interactions: None,
             rigid: vec![],
             bacta: None,
