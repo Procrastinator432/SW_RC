@@ -68,6 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         shot_delay,
         fire_mode: Some(fire_mode),
         animation: Some(rc_game::weapon_animation::Assets {
+            raise_after_briefing: false,
             fire_anim,
             idle_delay,
             foley: None,

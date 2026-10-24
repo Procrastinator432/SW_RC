@@ -442,6 +442,9 @@ impl Game {
             let (rope, rope_faces) = self.rappel_geometry()?;
             extra.extend(rope);
             faces.extend(rope_faces);
+            let (arms, arm_faces) = self.rappel_arms_geometry()?;
+            extra.extend(arms);
+            faces.extend(arm_faces);
             let (scorch, scorch_faces) = self.scorch_geometry()?;
             extra.extend(scorch);
             faces.extend(scorch_faces);
@@ -563,6 +566,9 @@ impl Game {
             {
                 let s = self.state.demolition.as_ref().unwrap();
                 match s.flow.phase {
+                    _ if s.flow.paused => {
+                        "GEO_01A | SPRENGAUFTRAG PAUSIERT - LADUNG ANVISIEREN, BENUTZEN"
+                    }
                     crate::demolition::Phase::Available => {
                         "GEO_01A | LADUNG ANVISIEREN - BENUTZEN: BEFEHL"
                     }

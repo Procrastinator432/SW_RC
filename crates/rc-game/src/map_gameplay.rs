@@ -6,6 +6,12 @@ use std::{collections::BTreeSet, sync::Arc};
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assets {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub work_equipment: Option<crate::work_equipment::Assets>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub work_animations: Option<Vec<[String; 3]>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub work_sites: Option<Vec<crate::marker_execution::Site>>,
     #[serde(default = "default_follow_speed")]
     pub follow_speed: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -101,6 +107,9 @@ pub struct Gate {
     pub offset: Point,
 }
 pub struct Prepared {
+    pub work_equipment: Option<crate::work_equipment::Prepared>,
+    pub work_animations: Option<Vec<crate::work_animation::Prepared>>,
+    pub work_sites: Option<Vec<crate::marker_execution::Site>>,
     pub assets: Assets,
     pub meshes: Vec<(crate::visual::PreparedMesh, usize)>,
     pub gates: Vec<PreparedGate>,
@@ -117,6 +126,10 @@ pub struct Cursor {
 }
 #[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct State {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution: Option<crate::marker_execution::Execution>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub orders: Option<crate::marker_orders::Orders>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub followers: Option<[crate::navigation::Agent; 2]>,
     pub events: BTreeSet<String>,
@@ -143,6 +156,8 @@ pub struct State {
 impl State {
     fn new(a: &Assets) -> Self {
         Self {
+            execution: None,
+            orders: None,
             followers: a
                 .navigation
                 .as_ref()
@@ -295,6 +310,27 @@ impl Game {
                 }));
             meshes.push((mesh, base));
         }
+        let work_animations = if let Some(names) = &a.work_animations {
+            if a.work_sites.is_none() || names.len() != a.interactions.len() {
+                return Err("Invalid work animation bindings".into());
+            }
+            let mut prepared = Vec::new();
+            for (names, job) in names.iter().zip(&a.interactions) {
+                let mesh = if job.demolition {
+                    &self.map.as_ref().unwrap().squad
+                } else {
+                    &meshes[2].0
+                };
+                prepared.push(crate::work_animation::Prepared::new(
+                    mesh,
+                    names,
+                    job.seconds,
+                )?);
+            }
+            Some(prepared)
+        } else {
+            None
+        };
         let mut gates = vec![];
         for gate in &a.gates {
             let scene = if gate.snapshot.is_empty() {
@@ -327,6 +363,55 @@ impl Game {
                 collider,
             });
         }
+        let work_sites = if let Some(sites) = &a.work_sites {
+            if sites.len() != a.interactions.len() || a.navigation.is_none() {
+                return Err("Invalid marker work-site bindings".into());
+            }
+            let mut resolved = sites.clone();
+            let mut markers = BTreeSet::new();
+            for (site, job) in resolved.iter_mut().zip(&a.interactions) {
+                if site.anchor != job.original
+                    || !markers.insert(site.marker)
+                    || site.marker == 0
+                    || !finite(site.position)
+                    || !site.yaw.is_finite()
+                    || site.yaw.abs() > std::f64::consts::TAU
+                    || crate::distance(site.position, job.position) > 500.
+                {
+                    return Err("Invalid original work marker".into());
+                }
+                site.position = crate::mission_motion::ground(
+                    &self.world,
+                    [site.position[0], site.position[1], site.position[2] + 200.],
+                    crate::squad::EXTENT,
+                    400.,
+                )?
+                .ok_or("Unsupported marker work site")?;
+                if self
+                    .world
+                    .body_placement(site.position, crate::squad::EXTENT)?
+                    .state
+                    == rc_package::movement::PlacementState::Penetrating
+                {
+                    return Err("Penetrating marker work site".into());
+                }
+            }
+            Some(resolved)
+        } else {
+            None
+        };
+        let work_equipment = if let Some(equipment) = a.work_equipment.take() {
+            if work_animations.is_none() {
+                return Err("Work equipment requires original work clips".into());
+            }
+            Some(crate::work_equipment::prepare(
+                self,
+                equipment,
+                &a.interactions,
+            )?)
+        } else {
+            None
+        };
         let m = self.state.map.as_mut().unwrap();
         if m.companion.is_none() {
             m.companion = Some(crate::map_runtime::Companion {
@@ -341,6 +426,9 @@ impl Game {
         }
         m.gameplay = Some(Box::new(State::new(&a)));
         Ok(Prepared {
+            work_equipment,
+            work_animations,
+            work_sites,
             assets: a,
             meshes,
             gates,
@@ -380,10 +468,14 @@ impl Game {
             .stations
             .iter()
             .any(|p| crate::distance(position, *p) < 180.);
+        let healing = input.use_action && heal && self.state.health < 100;
         // A carried incapacitated Scorch must not permanently block the first charge.
         // Local 3s revival is a bounded map host, not native revival animation parity.
         let m = self.state.map.as_mut().unwrap();
         let g = m.gameplay.as_mut().unwrap();
+        let reviving = m.companion.as_ref().is_some_and(|c| {
+            c.down && input.use_action && crate::distance(position, c.position) < 180.
+        });
         if let Some(c) = &mut m.companion {
             if c.down && input.use_action && crate::distance(position, c.position) < 180. {
                 g.revive_progress += STEP;
@@ -404,6 +496,14 @@ impl Game {
             .companion
             .as_ref()
             .is_some_and(|c| c.joined && !c.down && c.health > 0);
+        let scorch_position = self
+            .state
+            .map
+            .as_ref()
+            .unwrap()
+            .companion
+            .as_ref()
+            .map(|c| c.position);
         let s = self.state.map.as_mut().unwrap().gameplay.as_mut().unwrap();
         for (i, t) in a.triggers.iter().enumerate() {
             if !s.triggered[i]
@@ -426,40 +526,141 @@ impl Game {
             }
         }
         let mut sounds = vec![];
-        for (i, interaction) in a.interactions.iter().enumerate() {
-            if s.used[i] || !s.events.contains(&interaction.prerequisite) {
-                continue;
-            }
-            if interaction.demolition && s.armed[i] {
-                if input.fire && crate::distance(position, interaction.position) > 300. {
-                    s.used[i] = true;
-                    s.events.insert(interaction.event.clone());
-                    sounds.push(a.demolition_sound);
-                }
-                continue;
-            }
-            if input.use_action
-                && usable[i]
-                && (if interaction.demolition {
-                    can_demolish
-                } else {
-                    s.fixer.joined && !s.fixer.down && s.fixer.health > 0
+        let finished: Vec<_> = s
+            .armed
+            .iter()
+            .zip(&s.used)
+            .map(|(armed, used)| *armed || *used)
+            .collect();
+        let selected = if input.use_action && !reviving && self.state.health > 0 {
+            a.interactions
+                .iter()
+                .enumerate()
+                .filter(|(i, x)| !finished[*i] && usable[*i] && s.events.contains(&x.prerequisite))
+                .min_by(|(i, x), (j, y)| {
+                    crate::distance(eye, x.position)
+                        .total_cmp(&crate::distance(eye, y.position))
+                        .then(i.cmp(j))
                 })
-            {
-                if s.progress[i] == 0. {
-                    s.events.insert(interaction.underway.clone());
-                }
-                s.progress[i] += STEP;
-                if s.progress[i] + 1e-8 >= interaction.seconds {
-                    if interaction.demolition {
-                        s.armed[i] = true;
-                    } else {
-                        s.used[i] = true;
-                        s.events.insert(interaction.event.clone());
+                .map(|(i, _)| i)
+        } else {
+            None
+        };
+        let ready = [
+            can_demolish,
+            s.fixer.joined && !s.fixer.down && s.fixer.health > 0,
+        ];
+        let selected = if let Some(sites) = &p.work_sites {
+            let execution = s.execution.get_or_insert_with(Default::default);
+            let changed = execution.command(
+                &a.interactions,
+                &finished,
+                ready,
+                if healing { None } else { selected },
+                input.use_action,
+            );
+            for (member, changed) in changed.into_iter().enumerate() {
+                if changed {
+                    if let Some(agents) = &mut s.followers {
+                        agents[member].clear_route();
+                    }
+                    if let Some(i) = execution.target(member) {
+                        s.events.insert(a.interactions[i].underway.clone());
                     }
                 }
-            } else {
-                s.progress[i] = 0.;
+            }
+            let positions = [scorch_position, Some(s.fixer.position)];
+            let mut working = None;
+            if !reviving && self.state.health > 0 {
+                for member in 0..2 {
+                    if let Some(i) = execution.target(member).filter(|_| ready[member]) {
+                        let at = positions[member].unwrap();
+                        if crate::distance(at, sites[i].position) <= 16. {
+                            let eye = [at[0], at[1], at[2] + 40.];
+                            let trace = self.world.sweep_motion(
+                                eye,
+                                a.interactions[i].position,
+                                [0.; 3],
+                            )?;
+                            if trace.complete
+                                && trace.contacts.iter().all(|c| {
+                                    c.object == a.interactions[i].actor || c.hit.fraction > 0.96
+                                })
+                            {
+                                working = Some(i);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            working
+        } else {
+            selected
+        };
+        let old_progress = selected.map(|i| s.progress[i]);
+        if let Some(update) = crate::marker_orders::step(
+            &mut s.orders,
+            &a.interactions,
+            &mut s.progress,
+            &finished,
+            ready,
+            selected,
+            STEP,
+        )? {
+            let i = update.interaction;
+            let interaction = &a.interactions[i];
+            if let Some(equipment) = &p.work_equipment {
+                let actor = if interaction.demolition {
+                    scorch_position.unwrap()
+                } else {
+                    s.fixer.position
+                };
+                for cue in &equipment.assets.schedules[i] {
+                    let params = &equipment
+                        .assets
+                        .sounds
+                        .iter()
+                        .find(|s| s.sound == cue.sound)
+                        .unwrap()
+                        .playback;
+                    if crate::work_equipment::crossed(old_progress.unwrap(), s.progress[i], cue.at)
+                        && (params.radius == 0.
+                            || crate::distance(position, actor) <= params.radius as f64)
+                    {
+                        sounds.push(cue.sound);
+                    }
+                }
+            }
+            if update.started {
+                s.events.insert(interaction.underway.clone());
+            }
+            if update.completed {
+                if let Some(e) = &mut s.execution {
+                    e.tasks[crate::marker_orders::owner(interaction)] = None;
+                    if !interaction.demolition {
+                        e.yield_to = None;
+                    }
+                }
+                if interaction.demolition {
+                    s.armed[i] = true;
+                } else {
+                    s.used[i] = true;
+                    s.events.insert(interaction.event.clone());
+                }
+            }
+        }
+        for (i, interaction) in a.interactions.iter().enumerate() {
+            if interaction.demolition
+                && finished[i]
+                && s.armed[i]
+                && !s.used[i]
+                && input.fire
+                && crate::distance(position, interaction.position) > 300.
+            {
+                s.used[i] = true;
+                s.events.insert(interaction.event.clone());
+                sounds.push(a.demolition_sound);
             }
         }
         // Each selected original one-shot script has its own waiting/timer cursor.
@@ -650,19 +851,84 @@ impl Game {
         let m = self.state.map.as_mut().unwrap();
         let s = m.gameplay.as_mut().unwrap();
         let agents = s.followers.as_mut().ok_or("Missing map2 follower state")?;
+        let work_targets: [Option<(Point, f64)>; 2] = std::array::from_fn(|member| {
+            let i = s.execution.as_ref()?.target(member)?;
+            let site = prepared.work_sites.as_ref()?.get(i)?;
+            Some((site.position, site.yaw))
+        });
+        // Give an idle Scorch a supported side step rather than permanently
+        // rejecting Fixer's movement against the follower spacing check.
+        if work_targets[0].is_none() && work_targets[1].is_some() {
+            let e = s.execution.as_mut().unwrap();
+            if let Some(c) = m
+                .companion
+                .as_ref()
+                .filter(|c| c.joined && !c.down && c.health > 0)
+            {
+                if e.yield_to.is_none() && crate::distance(c.position, s.fixer.position) < 160. {
+                    let goal = work_targets[1].unwrap().0;
+                    let dx = goal[0] - s.fixer.position[0];
+                    let dy = goal[1] - s.fixer.position[1];
+                    let d = dx.hypot(dy).max(1.);
+                    for side in [1., -1.] {
+                        let wanted = [
+                            c.position[0] - side * dy / d * 160.,
+                            c.position[1] + side * dx / d * 160.,
+                            c.position[2] + 120.,
+                        ];
+                        if let Some(at) = crate::mission_motion::ground(
+                            &self.world,
+                            wanted,
+                            crate::squad::EXTENT,
+                            300.,
+                        )? {
+                            if self.world.body_placement(at, crate::squad::EXTENT)?.state
+                                != rc_package::movement::PlacementState::Penetrating
+                                && crate::squad::corridor(
+                                    &self.world,
+                                    c.position,
+                                    at,
+                                    crate::squad::EXTENT,
+                                )?
+                                .is_some()
+                            {
+                                e.yield_to = Some(at);
+                                agents[0].clear_route();
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
         if let Some(c) = &mut m.companion {
-            follow(&self.world, nav, c, &mut agents[0], target, now, speed)?;
+            if let Some((goal, yaw)) = work_targets[0] {
+                follow_to(&self.world, nav, c, &mut agents[0], goal, now, speed, 6.)?;
+                if crate::distance(c.position, goal) <= 16. {
+                    c.yaw = yaw;
+                }
+            } else if let Some(goal) = s.execution.as_ref().and_then(|e| e.yield_to) {
+                follow_to(&self.world, nav, c, &mut agents[0], goal, now, speed, 6.)?;
+            } else {
+                follow(&self.world, nav, c, &mut agents[0], target, now, speed)?;
+            }
         }
         let fixer_from = s.fixer.position;
-        follow(
+        follow_to(
             &self.world,
             nav,
             &mut s.fixer,
             &mut agents[1],
-            target,
+            work_targets[1].map_or(target, |w| w.0),
             now,
             speed,
+            if work_targets[1].is_some() { 6. } else { 180. },
         )?;
+        if let Some((goal, yaw)) = work_targets[1] {
+            if crate::distance(s.fixer.position, goal) <= 16. {
+                s.fixer.yaw = yaw;
+            }
+        }
         if let Some(c) = &m.companion {
             if c.joined
                 && s.fixer.joined
@@ -690,9 +956,34 @@ impl Game {
                 .assistance_remaining = (s.assistance_remaining - STEP).max(0.);
             return Ok(());
         }
-        let companions = m.companion.iter().chain(std::iter::once(&s.fixer));
+        let busy = s.orders.as_ref().and_then(|o| o.working).map(|i| {
+            crate::marker_orders::owner(
+                &self
+                    .map
+                    .as_ref()
+                    .unwrap()
+                    .gameplay
+                    .as_ref()
+                    .unwrap()
+                    .assets
+                    .interactions[i],
+            )
+        });
+        let companions = m
+            .companion
+            .iter()
+            .map(|c| (0, c))
+            .chain(std::iter::once((1, &s.fixer)));
         let mut target = None;
-        for c in companions.filter(|c| c.joined && !c.down && c.health > 0) {
+        for (_, c) in companions.filter(|(member, c)| {
+            Some(*member) != busy
+                && s.execution
+                    .as_ref()
+                    .is_none_or(|e| e.target(*member).is_none())
+                && c.joined
+                && !c.down
+                && c.health > 0
+        }) {
             let from = [c.position[0], c.position[1], c.position[2] + 40.];
             for (i, e) in self
                 .state
@@ -779,12 +1070,14 @@ impl Game {
             e.flash = (e.flash - STEP).max(0.);
             e.cooldown = (e.cooldown - STEP).max(0.);
             if e.health == 0 {
+                self.music_attack(i, false);
                 self.state.enemies[i] = e;
                 continue;
             }
             let d = crate::distance(player, e.position);
             let muzzle = [e.position[0], e.position[1], e.position[2] + 35.];
             let visible = d < 1800. && self.wall_fraction(muzzle, eye)? > 0.999;
+            self.music_attack(i, visible && (!is_warrior || d < 130.));
             if visible && d > if is_warrior { 100. } else { 500. } {
                 let speed = if is_warrior { 220. } else { 65. };
                 let next = std::array::from_fn(|k| {
@@ -854,13 +1147,46 @@ impl Game {
         if s.transition.is_some() {
             return Some("GEO_01B abgeschlossen · Uebergang zu GEO_01C bereit".into());
         }
-        for (i, x) in p.assets.interactions.iter().enumerate() {
+        for i in 0..p.assets.interactions.len() {
             if s.armed[i] && !s.used[i] {
                 return Some("Ladung bereit · 300 Einheiten Abstand, dann FEUER".into());
             }
-            if s.progress[i] > 0. && !s.used[i] {
+        }
+        if let Some(i) = s.orders.as_ref().and_then(|o| o.working) {
+            let x = &p.assets.interactions[i];
+            return Some(format!(
+                "{} · IN BEARBEITUNG · {:.0}%",
+                x.label,
+                100. * s.progress[i] / x.seconds
+            ));
+        }
+        if let Some(e) = &s.execution {
+            if let Some(task) = e.tasks.iter().flatten().next() {
+                let x = &p.assets.interactions[task.interaction];
                 return Some(format!(
-                    "{} · {:.0}%",
+                    "{} · {} · {:.0}% · BENUTZEN am Ziel: Pause/Fortsetzen",
+                    x.label,
+                    if task.paused {
+                        "PAUSIERT"
+                    } else {
+                        "AUFTRAG AKTIV"
+                    },
+                    100. * s.progress[task.interaction] / x.seconds
+                ));
+            }
+        }
+        for (i, x) in p.assets.interactions.iter().enumerate() {
+            if s.progress[i] > 0. && !s.used[i] {
+                if s.orders.is_none() {
+                    // Old partial saves have no last-input/reservation metadata.
+                    return Some(format!(
+                        "{} · {:.0}%",
+                        x.label,
+                        100. * s.progress[i] / x.seconds
+                    ));
+                }
+                return Some(format!(
+                    "{} · PAUSIERT {:.0}% · BENUTZEN am Ziel",
                     x.label,
                     100. * s.progress[i] / x.seconds
                 ));
@@ -940,17 +1266,27 @@ impl Game {
                 continue;
             }
             let (mesh, base) = &p.meshes[kind];
-            let clip = mesh.clip(if moving {
-                "RunForward"
+            let work_pose = if kind == 2 {
+                self.map_work_pose(1)
             } else {
-                "ActionBreathe"
-            })?;
+                None
+            };
+            let clip = if let Some(pose) = work_pose {
+                pose.clip
+            } else {
+                mesh.clip(if moving {
+                    "RunForward"
+                } else {
+                    "ActionBreathe"
+                })?
+            };
             let sequence = &mesh.mesh.clips[clip].sequence;
             let frame = (self.state.statistics.ticks as f64
                 * STEP
                 * f32::from_bits(sequence.rate_bits) as f64
                 / sequence.frames as f64)
                 .rem_euclid(1.) as f32;
+            let frame = work_pose.map_or(frame, |pose| pose.frame);
             let channel = mesh.channel(clip, frame)?;
             let mut geometry = mesh.geometry_with_root(&channel, true)?;
             let height = if kind == 1 {
@@ -971,7 +1307,7 @@ impl Game {
                     ]
                 });
             }
-            if kind == 2 {
+            if kind == 2 && work_pose.is_none() {
                 let map = self.map.as_ref().unwrap();
                 let transform = mesh.attachment_transform(&channel, "weaponAttach_R", true)?;
                 for triangle in &map.weapon.triangles {
@@ -1011,6 +1347,9 @@ impl Game {
                 })
             }));
         }
+        let (equipment_triangles, equipment_faces) = self.work_equipment_geometry()?;
+        triangles.extend(equipment_triangles);
+        faces.extend(equipment_faces);
         Ok((triangles, faces))
     }
 }
@@ -1040,14 +1379,14 @@ pub(crate) fn follow_to(
 ) -> Result<(), String> {
     c.moving = false;
     if !c.joined || c.down || c.health == 0 {
-        agent.route.clear();
+        agent.clear_route();
         return Ok(());
     }
     if crate::distance(c.position, target) < stop {
-        agent.route.clear();
-        agent.waypoint = 0;
+        agent.clear_route();
         return Ok(());
     }
+    agent.retarget(target);
     if now >= agent.next_plan
         && (agent.waypoint >= agent.route.len() || crate::distance(agent.target, target) > 140.)
     {
@@ -1174,6 +1513,149 @@ fn gate_released(gate: &Gate, state: &State, index: usize) -> bool {
 #[cfg(test)]
 mod retired_collision_tests {
     use super::*;
+    fn follower() -> crate::map_runtime::Companion {
+        crate::map_runtime::Companion {
+            joined: true,
+            health: 100,
+            shields: 100.,
+            down: false,
+            position: [0., 0., 84.5],
+            yaw: 0.,
+            moving: false,
+        }
+    }
+    fn nav() -> crate::navigation::Assets {
+        crate::navigation::Assets {
+            provenance: serde_json::Value::Null,
+            nodes: vec![],
+            edges: vec![],
+            lunge_distance: 0.,
+            jump_distance: 0.,
+            offensive_jump_probability: 0.,
+        }
+    }
+    fn old_route() -> crate::navigation::Agent {
+        crate::navigation::Agent {
+            route: vec![[500., 0., 84.5]],
+            target: [500., 0., 84.5],
+            next_plan: 60.,
+            ..Default::default()
+        }
+    }
+    #[test]
+    fn destination_reversal_cancels_old_route_before_cooldown() {
+        let mut c = follower();
+        let mut a = old_route();
+        follow_to(
+            &flat_world(),
+            &nav(),
+            &mut c,
+            &mut a,
+            [-500., 0., 84.5],
+            1.,
+            450.,
+            6.,
+        )
+        .unwrap();
+        assert!(c.position[0] < 0.);
+        assert_eq!(a.plans, 1);
+        assert_eq!(a.target, [-500., 0., 84.5]);
+    }
+    #[test]
+    fn incapacitated_follower_stops_and_replans_immediately_after_revival() {
+        let mut c = follower();
+        let mut a = old_route();
+        c.down = true;
+        follow(
+            &flat_world(),
+            &nav(),
+            &mut c,
+            &mut a,
+            [500., 0., 84.5],
+            1.,
+            450.,
+        )
+        .unwrap();
+        assert_eq!(c.position, [0., 0., 84.5]);
+        assert!(!c.moving);
+        assert!(a.route.is_empty());
+        assert_eq!(a.next_plan, 0.);
+        c.down = false;
+        follow(
+            &flat_world(),
+            &nav(),
+            &mut c,
+            &mut a,
+            [500., 0., 84.5],
+            1.1,
+            450.,
+        )
+        .unwrap();
+        assert!(c.position[0] > 0.);
+        assert_eq!(a.plans, 1);
+    }
+    #[test]
+    fn arriving_then_receiving_nearby_new_goal_does_not_keep_old_cooldown() {
+        let mut c = follower();
+        let mut a = old_route();
+        a.target = [100., 0., 84.5];
+        follow_to(
+            &flat_world(),
+            &nav(),
+            &mut c,
+            &mut a,
+            [0., 0., 84.5],
+            1.,
+            450.,
+            6.,
+        )
+        .unwrap();
+        follow_to(
+            &flat_world(),
+            &nav(),
+            &mut c,
+            &mut a,
+            [100., 0., 84.5],
+            1.01,
+            450.,
+            6.,
+        )
+        .unwrap();
+        assert_eq!(a.plans, 1);
+        assert!(c.position[0] > 0.);
+    }
+    #[test]
+    fn failed_route_retry_waits_for_same_goal_but_not_for_new_destination() {
+        let mut c = follower();
+        let mut a = old_route();
+        a.route.clear();
+        a.next_plan = 2.;
+        follow_to(
+            &flat_world(),
+            &nav(),
+            &mut c,
+            &mut a,
+            [500., 0., 84.5],
+            1.,
+            450.,
+            6.,
+        )
+        .unwrap();
+        assert_eq!(a.plans, 0);
+        follow_to(
+            &flat_world(),
+            &nav(),
+            &mut c,
+            &mut a,
+            [-500., 0., 84.5],
+            1.01,
+            450.,
+            6.,
+        )
+        .unwrap();
+        assert_eq!(a.plans, 1);
+        assert_eq!(a.target, [-500., 0., 84.5]);
+    }
     fn flat_world() -> rc_package::world_collision::StaticBodyWorld {
         use rc_package::hull::{Hull, HullSet};
         use std::sync::Arc;

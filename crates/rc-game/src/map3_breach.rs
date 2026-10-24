@@ -47,6 +47,8 @@ pub struct Prepared {
 }
 #[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct State {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub control: Option<crate::breach_orders::Control>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub balcony: Option<Box<crate::map3_balcony::State>>,
     pub healing: Option<usize>,
@@ -198,6 +200,7 @@ impl Game {
             })
             .collect();
         let state = State {
+            control: None,
             balcony: None,
             settling: None,
             healing: None,
@@ -341,6 +344,34 @@ impl Game {
         } else {
             false
         };
+        // Recovery takes precedence over issuing/toggling the marker command.
+        let mut revival = None;
+        if station.is_none() && input.use_action && self.state.health > 0 {
+            let m = self.state.map.as_ref().unwrap();
+            let o = m.opening.as_ref().unwrap();
+            for (i, c) in [
+                m.companion.as_ref().unwrap(),
+                m.fixer.as_ref().unwrap(),
+                &o.sev,
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                if c.joined
+                    && (c.down || c.health == 0)
+                    && crate::distance(player, c.position) < 180.
+                {
+                    let q = self.world.sweep_motion(eye, c.position, [0.; 3])?;
+                    if !q.complete {
+                        return Err("Incomplete breach revival visibility".into());
+                    }
+                    if q.contacts.is_empty() {
+                        revival = Some(i);
+                        break;
+                    }
+                }
+            }
+        }
         let m = self.state.map.as_mut().unwrap();
         let o = m.opening.as_mut().unwrap();
         let s = o
@@ -365,22 +396,75 @@ impl Game {
             s.heal_fraction = 0.;
         }
         let tick = self.state.statistics.ticks + 1;
-        if s.stage == 0 && o.objectives[3] && usable && station.is_none() {
-            s.stage = 1;
-            s.command_tick = Some(tick);
-            for a in &mut s.agents {
-                a.route.clear();
-                a.next_plan = 0.;
-            }
-        }
         let mut members = [
             m.companion.as_mut().unwrap(),
             m.fixer.as_mut().unwrap(),
             &mut o.sev,
         ];
+        let control = s
+            .control
+            .get_or_insert_with(|| crate::breach_orders::Control::legacy(input.use_action));
+        if let Some(i) = revival {
+            let r = control
+                .revival
+                .get_or_insert(crate::breach_orders::Revival {
+                    member: i,
+                    elapsed: 0.,
+                });
+            if r.member != i {
+                *r = crate::breach_orders::Revival {
+                    member: i,
+                    elapsed: 0.,
+                };
+            }
+            r.elapsed += STEP;
+            if r.elapsed + 1e-8 >= 3. {
+                members[i].health = 100;
+                members[i].down = false;
+                members[i].moving = false;
+                s.agents[i].clear_route();
+                control.revival = None;
+                if s.stage == 0 {
+                    control.await_release = true;
+                }
+            }
+        } else {
+            control.revival = None;
+        }
+        let ready =
+            self.state.health > 0 && members.iter().all(|c| c.joined && !c.down && c.health > 0);
+        let action = control.update(
+            s.stage,
+            ready,
+            usable && o.objectives[3],
+            input.use_action,
+            station.is_some() || revival.is_some(),
+        );
+        match action {
+            crate::breach_orders::Action::Start => {
+                s.stage = 1;
+                s.command_tick = Some(tick);
+                for a in &mut s.agents {
+                    a.clear_route();
+                }
+            }
+            crate::breach_orders::Action::Cancel => {
+                s.stage = 0;
+                s.command_tick = None;
+                for a in &mut s.agents {
+                    a.clear_route();
+                }
+            }
+            _ => {}
+        }
+        let paused = control.paused;
         if s.stage == 1
+            && !paused
             && members.iter().enumerate().all(|(i, c)| {
-                c.joined && !c.down && crate::distance(c.position, b.assets.spots[i]) < 8.
+                c.joined
+                    && !c.down
+                    && c.health > 0
+                    && crate::distance(c.position, b.assets.spots[i]) < 8.
             })
         {
             s.stage = 2;
@@ -400,7 +484,7 @@ impl Game {
                 map3_opening::begin(mesh, &mut s.animations[i], &b.assets.clips[i])?;
             }
         }
-        if s.stage == 2 {
+        if s.stage == 2 && !paused {
             for (i, c) in members.iter_mut().enumerate() {
                 let mesh = if i == 0 {
                     &p.squad
@@ -539,7 +623,10 @@ impl Game {
             .breach
             .as_mut()
             .unwrap();
-        if s.stage == 2 || s.settling.is_some() {
+        if s.stage == 2 || s.settling.is_some() || s.control.as_ref().is_some_and(|c| c.paused) {
+            m.companion.as_mut().unwrap().moving = false;
+            m.fixer.as_mut().unwrap().moving = false;
+            o.sev.moving = false;
             return Ok(true);
         }
         let members = [
@@ -580,6 +667,42 @@ impl Game {
         let s = self.breach_state()?;
         if s.healing.is_some() {
             return Some(format!("GEO_01C · Bacta · {} / 100", self.state.health));
+        }
+        let m = self.state.map.as_ref()?;
+        let o = m.opening.as_ref()?;
+        if self.state.health > 0 {
+            for (name, c) in [
+                ("Scorch", m.companion.as_ref()?),
+                ("Fixer", m.fixer.as_ref()?),
+                ("Sev", &o.sev),
+            ] {
+                if c.joined
+                    && (c.down || c.health == 0)
+                    && crate::distance(self.state.pawn.body.position, c.position) < 180.
+                    && s.control.as_ref().is_none_or(|c| c.revival.is_none())
+                    && self
+                        .world
+                        .sweep_motion(self.eye(), c.position, [0.; 3])
+                        .is_ok_and(|q| q.complete && q.contacts.is_empty())
+                {
+                    return Some(format!("GEO_01C · BENUTZEN halten: {name} wiederbeleben"));
+                }
+            }
+        }
+        if let Some(c) = &s.control {
+            if let Some(r) = &c.revival {
+                return Some(format!(
+                    "GEO_01C · {} wiederbeleben · {:.0}%",
+                    ["Scorch", "Fixer", "Sev"][r.member],
+                    100. * r.elapsed / 3.
+                ));
+            }
+            if c.paused {
+                return Some("GEO_01C · Tuerbrechauftrag pausiert · Squad bergen · BENUTZEN am Marker: fortsetzen".into());
+            }
+            if c.await_release {
+                return Some("GEO_01C · BENUTZEN loslassen vor neuem Auftrag".into());
+            }
         }
         let p = self.breach_prepared()?;
         if !self.map3_locked()

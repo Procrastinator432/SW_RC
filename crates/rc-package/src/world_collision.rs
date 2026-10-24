@@ -123,13 +123,10 @@ impl StaticBodyWorld {
             };
         record(
             "World.BSP",
-            self.world.as_ref().map_err(Clone::clone).and_then(|h| {
-                if motion {
-                    h.sweep_motion(start, end, extent)
-                } else {
-                    h.sweep(start, end, extent)
-                }
-            }),
+            self.world
+                .as_ref()
+                .map_err(Clone::clone)
+                .and_then(|h| crate::hull::HullSet::sweep_shared(h, start, end, extent, motion)),
         );
         for actor in &self.actors {
             record(
@@ -140,11 +137,7 @@ impl StaticBodyWorld {
                         cylinder.sweep(start, end, extent, motion)
                     }
                     BodyShape::Hulls(h) => {
-                        if motion {
-                            h.sweep_motion(start, end, extent)
-                        } else {
-                            h.sweep(start, end, extent)
-                        }
+                        crate::hull::HullSet::sweep_shared(h, start, end, extent, motion)
                     }
                     BodyShape::Unsupported(reason) => Err(reason.clone()),
                 },

@@ -110,17 +110,17 @@ def main():
                                         target_bits=read(source + 0x80),
                                         changed_at=read(source + 0x84, 'd'))))
 
-    # Full UpdateVolume; the duck/fade/paused/stop virtual methods are explicit
+    # Full UpdateVolume; the duck/fade/queued/stop virtual methods are explicit
     # controlled boundaries. The original chooses when to call/stop/multiply.
-    duck_stub, fade_stub, pause_stub, stop_stub = [stub + n for n in [0x100, 0x200, 0x300, 0x400]]
+    duck_stub, fade_stub, queue_stub, stop_stub = [stub + n for n in [0x100, 0x200, 0x300, 0x400]]
     write(source, 'I', vtable)
-    for off, address in [(0x30, duck_stub), (0x2c, fade_stub), (0x20, pause_stub), (0x10, stop_stub)]:
+    for off, address in [(0x30, duck_stub), (0x2c, fade_stub), (0x20, queue_stub), (0x10, stop_stub)]:
         write(vtable + off, 'I', address)
     u.mem_write(duck_stub, b'\xd9\x05' + struct.pack('<I', result + 4) + b'\xc3')
     # Fade callback can complete its mode before returning, as the real one does.
     u.mem_write(fade_stub, b'\xa1' + struct.pack('<I', result + 12) + b'\x89\x81\xa4\x00\x00\x00'
                 + b'\xd9\x05' + struct.pack('<I', result + 8) + b'\xc2\x04\x00')
-    u.mem_write(pause_stub, b'\xa1' + struct.pack('<I', result + 16) + b'\xc3')
+    u.mem_write(queue_stub, b'\xa1' + struct.pack('<I', result + 16) + b'\xc3')
     u.mem_write(stop_stub, b'\xc7\x05' + struct.pack('<I', result + 20) + b'\x01\x00\x00\x00\xc3')
     volumes = []
     for i in range(1000):
@@ -132,23 +132,23 @@ def main():
         if before == 0:
             fade = 1.
         held = r.choice([0., 0.00001, 0.0001, 0.25, 1.])
-        flags, paused = r.choice([0, 0x4000, 0x4100]), bool(i % 2)
+        flags, queued = r.choice([0, 0x4000, 0x4100]), bool(i % 2)
         write(source + 0x20, 'I', flags)
         write(source + 0x90, 'f', base)
         write(source + 0xa4, 'If', before, held)
-        write(result + 4, 'ffIII', duck, fade, after, int(paused), 0)
+        write(result + 4, 'ffIII', duck, fade, after, int(queued), 0)
         write(stack, 'If', stub + 6, 1. / 60.)
         u.reg_write(UC_X86_REG_ECX, source)
         u.reg_write(UC_X86_REG_ESP, stack)
         run(0x103d0c60, stub + 6)
         volumes.append(dict(base_volume=base, duck=duck, fade=fade, held_fade=held,
-                            mode_before=before, mode_after=after, flags=flags, paused=paused,
+                            mode_before=before, mode_after=after, flags=flags, queued=queued,
                             expected=dict(volume_bits=read(source + 0x94),
                                           held_fade_bits=read(source + 0xa8),
                                           stop=bool(read(result + 20)))))
 
     data = dict(scope='PC SoundPriority admission; UpdateRadii arithmetic after geometry; '
-                      'UpdateVolume with controlled duck/fade/paused callbacks; no mixer integration',
+                      'UpdateVolume with controlled duck/fade/queued callbacks; no mixer integration',
                 engine_sha256=digest,
                 regions=dict(priority=['103d64e0', '103d6638'],
                              radii=['103d267f..103d26a7 or 103d26a9..103d26b3', '103d26f6..103d2771'],

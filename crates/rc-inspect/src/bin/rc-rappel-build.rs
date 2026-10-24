@@ -131,6 +131,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("Missing eye height".into());
     };
     a.rappel = Some(rappel::Assets {
+        show_arms: false,
+        synchronize_rope: false,
         player: Some(player),
         rope: Some(rope),
         start: vector(10, "Location")?.map(f64::from),

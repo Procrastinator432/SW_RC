@@ -4,7 +4,74 @@ pub mod actor_falling;
 pub mod ai_contact;
 pub mod animation_call;
 pub mod animation_replication;
+pub mod audio_activation;
+pub mod audio_buffer;
+pub mod audio_buffer_bank;
+#[cfg(test)]
+mod audio_buffer_tests;
+pub mod audio_census;
+pub mod audio_commands;
+pub mod audio_curve;
+pub mod audio_device;
+pub mod audio_device_events;
+pub mod audio_device_model;
+pub mod audio_device_session;
+#[cfg(test)]
+mod audio_device_tests;
+pub mod audio_driver;
+pub mod audio_duck;
+pub mod audio_fade;
 pub mod audio_geometry;
+pub mod audio_handoff;
+pub mod audio_live;
+#[cfg(test)]
+mod audio_live_tests;
+pub mod audio_mixed_cycle;
+#[cfg(test)]
+mod audio_mixed_cycle_tests;
+pub mod audio_mixed_host;
+#[cfg(test)]
+mod audio_mixed_host_tests;
+pub mod audio_mixed_live;
+#[cfg(test)]
+mod audio_mixed_live_tests;
+#[cfg(any(windows, target_os = "android"))]
+pub mod audio_openal;
+#[cfg(all(test, windows))]
+mod audio_openal_tests;
+pub mod audio_pcm;
+pub mod audio_playback_host;
+#[cfg(test)]
+mod audio_playback_host_tests;
+pub mod audio_pool;
+pub mod audio_priority;
+#[cfg(test)]
+mod audio_queue_control_tests;
+pub mod audio_queue_cycle;
+#[cfg(test)]
+mod audio_queue_cycle_tests;
+pub mod audio_queue_order;
+pub mod audio_reservation;
+pub mod audio_resource_host;
+#[cfg(test)]
+mod audio_resource_host_tests;
+pub mod audio_scene;
+#[cfg(test)]
+mod audio_scene_tests;
+pub mod audio_source;
+pub mod audio_source_lookup;
+pub mod audio_source_runtime;
+pub mod audio_source_tick;
+pub mod audio_source_update;
+pub mod audio_stream_bridge;
+pub mod audio_stream_data;
+pub mod audio_upload;
+pub mod audio_vorbis;
+pub mod audio_vorbis_host;
+#[cfg(test)]
+mod audio_vorbis_tests;
+pub mod audio_wave;
+pub mod audio_zones;
 pub mod auto_crouch;
 pub mod bsp_cells;
 pub mod channel_playback;
@@ -628,3 +695,32 @@ pub mod projectile_motion;
 pub mod ambient_lifecycle;
 pub mod audio_params;
 pub mod world_audio;
+
+#[cfg(test)]
+mod audio_controller_tests;
+
+#[cfg(test)]
+mod audio_source_tests;
+
+#[cfg(test)]
+mod audio_command_tests;
+
+#[cfg(test)]
+mod audio_activation_tests;
+
+#[cfg(test)]
+mod audio_upload_tests;
+
+#[cfg(test)]
+mod audio_driver_tests;
+
+#[cfg(test)]
+mod audio_source_tick_tests;
+
+#[cfg(test)]
+mod audio_stream_data_tests;
+
+#[cfg(test)]
+mod audio_stream_bridge_tests;
+pub mod mission_music;
+pub mod music_decisions;

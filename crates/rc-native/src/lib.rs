@@ -1,5 +1,7 @@
 //! C ABI shared by the Android diagnostic shell and the future native engine.
 use std::ffi::c_char;
+#[cfg(any(windows, target_os = "android"))]
+pub mod live_audio;
 pub mod play;
 use std::{
     collections::HashMap,

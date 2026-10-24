@@ -44,6 +44,21 @@ pub struct Agent {
     pub blocked: u64,
     pub goal: Option<Goal>,
 }
+impl Agent {
+    /// Cancel cached steering without cancelling a separately owned combat goal.
+    pub(crate) fn clear_route(&mut self) {
+        self.route.clear();
+        self.waypoint = 0;
+        self.next_plan = 0.;
+    }
+    /// Small target movement retains the route to avoid oscillating graph connectors.
+    pub(crate) fn retarget(&mut self, target: Point) {
+        if distance(self.target, target) > 140. {
+            self.clear_route();
+            self.target = target;
+        }
+    }
+}
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct Goal {
     #[serde(skip_serializing_if = "Option::is_none")]

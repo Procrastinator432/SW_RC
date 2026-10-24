@@ -17,6 +17,7 @@ $env:GRADLE_USER_HOME = Join-Path $tools 'gradle-home'
 $previousEncodedRustFlags = $env:CARGO_ENCODED_RUSTFLAGS
 Push-Location $projectRoot
 try {
+    & (Join-Path $PSScriptRoot 'Build-OpenALAndroid.ps1') -Abis $Abis -ToolsDirectory $tools -Offline:$Offline
     # NDK clang renames intermediate objects in TEMP. Sandboxed/user temp
     # directories may deny that rename even when the final output is writable.
     $compilerTemp = Join-Path $projectRoot 'build/android-compiler-temp'

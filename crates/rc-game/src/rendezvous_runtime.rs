@@ -340,6 +340,12 @@ impl Game {
             .filter(|q| {
                 q.joined
                     && (q.down
+                        || q.player_down
+                        || self
+                            .state
+                            .demolition
+                            .as_ref()
+                            .is_some_and(|d| d.flow.paused)
                         || self
                             .state
                             .demolition
@@ -352,6 +358,7 @@ impl Game {
             .filter(|_| {
                 !self.state.squad.as_ref().is_some_and(|q| {
                     q.down
+                        || q.player_down
                         || self
                             .state
                             .demolition
@@ -363,7 +370,7 @@ impl Game {
         let mut mesh = a
             .mesh
             .geometry_with_root(&a.mesh.channel(a.mesh.clip(name)?, frame)?, true)?;
-        let (sin, cos) = (s.yaw as f32).sin_cos();
+        let (sin, cos) = (self.demolition_actor_yaw(s.yaw) as f32).sin_cos();
         for t in &mut mesh.triangles {
             t.points = t.points.map(|p| {
                 [

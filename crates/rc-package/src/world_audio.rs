@@ -77,6 +77,19 @@ pub struct Radii {
 }
 
 impl Radii {
+    /// FAbstractSource::Init 103d2c4d..103d2c7b, after base-radius selection.
+    pub fn initial(base: f32) -> Result<Self, String> {
+        if !bounded(base, 0., MAX_INPUT) {
+            return Err("Invalid initial sound radius".into());
+        }
+        Ok(Self {
+            priority_radius: base,
+            current: base.max(1.),
+            target: base,
+            changed_at: -1.,
+        })
+    }
+
     /// UpdateRadii 103d267f..103d2771, excluding profiling instructions.
     /// `None` means local/nonpositional or a clear geometry query; Some(scale)
     /// is the ORIGINAL geometry callback result, not a guessed wall factor.
@@ -137,7 +150,7 @@ pub struct Volume {
     pub mode_before: u8,
     pub mode_after: u8,
     pub flags: u32,
-    pub paused: bool,
+    pub queued: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -160,6 +173,24 @@ impl Volume {
         {
             return Err("Invalid original sound volume input".into());
         }
+        Ok(self.calculate())
+    }
+    /// Original nonlinear controllers can overshoot 0..1. Keep their raw finite
+    /// values here; the existing normalized-input update API retains its limits.
+    /// A future playback adapter owns gain/range mapping, not this PC kernel.
+    pub fn update_controller_factors(&self) -> Result<VolumeUpdate, String> {
+        if !bounded(self.base_volume, 0., 16.)
+            || [self.duck, self.fade, self.held_fade]
+                .iter()
+                .any(|v| !bounded(*v, -1e6, 1e6))
+            || self.mode_before > 2
+            || self.mode_after > 2
+        {
+            return Err("Invalid raw audio controller factors".into());
+        }
+        Ok(self.calculate())
+    }
+    fn calculate(&self) -> VolumeUpdate {
         let volume = self.base_volume * self.duck;
         let held_fade = if self.mode_before != 0 {
             self.fade
@@ -167,12 +198,12 @@ impl Volume {
             self.held_fade
         };
         let stop =
-            self.flags & 0x4000 == 0 && held_fade <= 0.0001 && self.mode_after != 1 && !self.paused;
-        Ok(VolumeUpdate {
+            self.flags & 0x4000 == 0 && held_fade <= 0.0001 && self.mode_after != 1 && !self.queued;
+        VolumeUpdate {
             volume: if stop { volume } else { held_fade * volume },
             held_fade,
             stop,
-        })
+        }
     }
 }
 

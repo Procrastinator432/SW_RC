@@ -311,10 +311,16 @@ impl Game {
             let f = self.map3_combat_spec(i).ok_or("Missing C enemy binding")?;
             e.flash = (e.flash - STEP).max(0.);
             e.cooldown = (e.cooldown - STEP).max(0.);
+            crate::music_runtime::set_attack(&mut self.state.music, i, false);
             if e.health > 0 && f.active {
                 let from = [e.position[0], e.position[1], e.position[2] + 35.];
                 let d = crate::distance(e.position, player);
                 let visible = d < 1800. && self.wall_fraction(from, eye)? > 0.999999;
+                crate::music_runtime::set_attack(
+                    &mut self.state.music,
+                    i,
+                    visible && (!f.warrior || d < 180.),
+                );
                 if visible && d > if f.warrior { 130. } else { 600. } {
                     let speed = if f.warrior {
                         220.

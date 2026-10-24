@@ -27,6 +27,10 @@ impl std::ops::DerefMut for Session {
 }
 static GAMES: OnceLock<Mutex<HashMap<u64, Session>>> = OnceLock::new();
 static NEXT: AtomicU64 = AtomicU64::new(1);
+fn audio_cursor_packet(combat: Option<u64>, mission: Option<u64>, map: Option<u64>) -> Vec<u8> {
+    let cursor = combat.or(mission).or(map).unwrap_or(0);
+    [b"RCCURS01".as_slice(), &cursor.to_le_bytes()].concat()
+}
 /// Read-only enemy observations for opt-in profiling; no simulation or cache mutation.
 /// # Safety
 /// out is null with capacity zero or points to capacity writable bytes.
@@ -187,8 +191,13 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
     let Some(game) = registry.get_mut(&id) else {
         return -1;
     };
-    let packet = match kind {
-        5 | 6 => {
+    let mut packet = match kind {
+        8 => audio_cursor_packet(
+            game.state.combat.as_ref().map(|s| s.sequence),
+            game.state.mission.as_ref().map(|s| s.audio_sequence),
+            game.state.map.as_ref().map(|s| s.audio_sequence),
+        ),
+        5..=7 | 9 => {
             let Ok(sources) = game.spatial_ambient_sources() else {
                 return -1;
             };
@@ -196,7 +205,9 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
                 return -1;
             }
             let (position, yaw) = game.audio_listener();
-            let mut b = if kind == 6 {
+            let mut b = if kind == 7 || kind == 9 {
+                b"RCLOOP04".to_vec()
+            } else if kind == 6 {
                 b"RCLOOP03".to_vec()
             } else {
                 b"RCLOOP02".to_vec()
@@ -204,6 +215,9 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
             b.extend_from_slice(&(sources.len() as u32).to_le_bytes());
             for v in position.into_iter().chain([yaw]) {
                 b.extend_from_slice(&v.to_le_bytes());
+            }
+            if kind == 7 || kind == 9 {
+                b.extend_from_slice(&game.audio_listener_pose().2.to_le_bytes());
             }
             for s in sources {
                 b.extend_from_slice(&(s.sound as u32).to_le_bytes());
@@ -219,7 +233,7 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
                     b.extend_from_slice(&v.to_le_bytes());
                 }
                 b.extend_from_slice(&s.flags.to_le_bytes());
-                if kind == 6 {
+                if kind == 6 || kind == 7 || kind == 9 {
                     b.extend_from_slice(&s.activation.to_le_bytes());
                 }
             }
@@ -235,7 +249,7 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
             }
             b
         }
-        0 => {
+        0 | 10 => {
             let sounds = game.audio_bank();
             let mut b = b"RCSND001".to_vec();
             b.extend_from_slice(&(sounds.len() as u32).to_le_bytes());
@@ -268,18 +282,21 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
                 });
             b.extend_from_slice(&(events.len() as u32).to_le_bytes());
             for e in events {
+                let policy = game
+                    .opening
+                    .as_ref()
+                    .and_then(|a| a.assets.sound_policy(e.sound, e.owner))
+                    .or_else(|| game.map_sound_policy(e.sound, e.owner));
                 b.extend_from_slice(&e.sequence.to_le_bytes());
                 b.extend_from_slice(&e.tick.to_le_bytes());
                 b.extend_from_slice(&(e.sound as u32).to_le_bytes());
-                b.extend_from_slice(&e.owner.to_le_bytes());
+                // Preserve the same recovered identity in all packet versions.
+                b.extend_from_slice(&policy.map_or(e.owner, |p| p.owner).to_le_bytes());
                 if kind == 2 || kind == 4 {
-                    let policy = game
-                        .opening
-                        .as_ref()
-                        .and_then(|a| a.assets.sound_policy(e.sound, e.owner));
                     b.extend_from_slice(
                         &game
                             .weapon_playback(e.sequence)
+                            .or_else(|| game.work_playback(e.sequence))
                             .map_or_else(
                                 || policy.map_or(2, |p| u32::from(p.category)),
                                 |p| u32::from(p.category),
@@ -291,7 +308,9 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
                     );
                 }
                 if kind == 4 {
-                    let p = game.weapon_playback(e.sequence);
+                    let p = game
+                        .weapon_playback(e.sequence)
+                        .or_else(|| game.work_playback(e.sequence));
                     b.extend_from_slice(&p.map_or(1., |p| p.volume).to_le_bytes());
                     b.extend_from_slice(&p.map_or(1., |p| p.pitch).to_le_bytes());
                     b.extend_from_slice(&p.map_or(0., |p| p.radius).to_le_bytes());
@@ -302,6 +321,26 @@ pub unsafe extern "C" fn rc_game_audio(id: u64, kind: u32, out: *mut u8, capacit
         }
         _ => return -1,
     };
+    if kind == 9 && game.music.is_some() {
+        packet = [
+            b"RCLOOP05".as_slice(),
+            &(packet.len() as u32).to_le_bytes(),
+            &packet,
+            &game.music_packet(),
+        ]
+        .concat();
+    }
+    if kind == 10 {
+        if let Some(music) = &game.music {
+            packet = [
+                b"RCSND002".as_slice(),
+                &(packet.len() as u32).to_le_bytes(),
+                &packet,
+                &music.bank,
+            ]
+            .concat();
+        }
+    }
     if out.is_null() {
         return if capacity == 0 {
             packet.len() as isize
@@ -410,6 +449,74 @@ pub unsafe extern "C" fn rc_game_restore_handoff(
                 std::ptr::copy_nonoverlapping(message.as_ptr(), error as *mut u8, n);
                 *error.add(n) = 0;
             }
+            -1
+        }
+    }
+}
+unsafe fn scene_file(path: *const u8, len: usize) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    if path.is_null() || len == 0 || len > 4096 {
+        return Err("Invalid scene filename".into());
+    }
+    let name = std::str::from_utf8(std::slice::from_raw_parts(path, len))
+        .map_err(|_| "Scene filename encoding")?;
+    if name.contains('\0') {
+        return Err("Scene filename contains NUL".into());
+    }
+    let file = std::fs::File::open(name).map_err(|e| format!("Open scene: {e}"))?;
+    let meta = file.metadata().map_err(|e| e.to_string())?;
+    if !meta.is_file() || meta.len() < 12 || meta.len() > 112 * 1024 * 1024 {
+        return Err("Scene file size/type".into());
+    }
+    let mut bytes = Vec::with_capacity(meta.len() as usize);
+    file.take(112 * 1024 * 1024 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() as u64 != meta.len() {
+        return Err("Scene file changed while reading".into());
+    }
+    Ok(bytes)
+}
+unsafe fn file_error(message: &str, error: *mut c_char, capacity: usize) {
+    if !error.is_null() && capacity > 0 {
+        let n = message.len().min(capacity - 1);
+        std::ptr::copy_nonoverlapping(message.as_ptr(), error.cast::<u8>(), n);
+        *error.add(n) = 0;
+    }
+}
+/// File-backed scene load avoids a complete Java heap payload and JNI copy.
+/// # Safety
+/// path points to len UTF-8 bytes and error to capacity writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn rc_game_create_file(
+    path: *const u8,
+    len: usize,
+    error: *mut c_char,
+    capacity: usize,
+) -> u64 {
+    match scene_file(path, len) {
+        Ok(bytes) => rc_game_create(bytes.as_ptr(), bytes.len(), error, capacity),
+        Err(e) => {
+            file_error(&e, error, capacity);
+            0
+        }
+    }
+}
+/// File-backed travel, with the same transactional decode as byte-backed travel.
+/// # Safety
+/// path points to len UTF-8 bytes and error to capacity writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn rc_game_travel_file(
+    id: u64,
+    path: *const u8,
+    len: usize,
+    error: *mut c_char,
+    capacity: usize,
+) -> i32 {
+    match scene_file(path, len) {
+        Ok(bytes) => rc_game_travel(id, bytes.as_ptr(), bytes.len(), error, capacity),
+        Err(e) => {
+            file_error(&e, error, capacity);
             -1
         }
     }
@@ -859,6 +966,23 @@ pub extern "C" fn rc_game_checkpoint_marker(id: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn checkpoint_audio_cursor_packet_matches_event_owner_precedence() {
+        for (combat, mission, map, expected) in [
+            (None, None, None, 0),
+            (None, None, Some(7), 7),
+            (None, Some(9), Some(7), 9),
+            (Some(11), Some(9), Some(7), 11),
+        ] {
+            let packet = audio_cursor_packet(combat, mission, map);
+            assert_eq!(&packet[..8], b"RCCURS01");
+            assert_eq!(packet.len(), 16);
+            assert_eq!(
+                u64::from_le_bytes(packet[8..].try_into().unwrap()),
+                expected
+            );
+        }
+    }
     #[test]
     fn campaign_map_identity_is_independent_of_status_text() {
         assert_eq!(campaign_map_id(None, true), 1);

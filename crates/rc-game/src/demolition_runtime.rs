@@ -38,6 +38,8 @@ pub struct Prepared {
 }
 #[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct State {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery_route: Option<crate::navigation::Agent>,
     pub flow: demolition::State,
     pub waypoint: usize,
     pub guide: usize,
@@ -53,6 +55,31 @@ pub struct State {
     pub damage: Vec<crate::gunner_runtime::Damage>,
 }
 impl Game {
+    /// The mounted charge's outward normal is opposite the worker's facing.
+    /// Derive the visual correction so existing mid-work saves are fixed too.
+    pub(crate) fn demolition_actor_yaw(&self, fallback: f64) -> f64 {
+        match (&self.demolition, &self.state.demolition) {
+            (Some(p), Some(s))
+                if matches!(
+                    s.flow.phase,
+                    Stage::Starting | Stage::Setting | Stage::Stopping | Stage::Armed
+                ) && !(s.flow.paused
+                    && self
+                        .state
+                        .rendezvous
+                        .as_ref()
+                        .is_some_and(|r| r.pawn.body.velocity.iter().any(|v| v.abs() > 0.01)))
+                    && !self
+                        .state
+                        .squad
+                        .as_ref()
+                        .is_some_and(|q| q.down || q.player_down) =>
+            {
+                (p.assets.yaw + std::f64::consts::PI).rem_euclid(std::f64::consts::TAU)
+            }
+            _ => fallback,
+        }
+    }
     pub fn attach_demolition(&mut self, mut a: Assets) -> Result<(), String> {
         if self.demolition.is_some()
             || self.rendezvous.is_none()
@@ -145,6 +172,7 @@ impl Game {
                 wave: s.wave.clone(),
             }));
         self.state.demolition = Some(State {
+            recovery_route: None,
             flow,
             waypoint: 0,
             guide: 0,
@@ -272,8 +300,15 @@ impl Game {
         }
         let enabled = self.state.rendezvous.as_ref().unwrap().flow.charge_enabled
             && self.state.rendezvous.as_ref().unwrap().flow.squad_joined;
+        let ready = self.state.health > 0
+            && self.state.squad.as_ref().is_none_or(|s| {
+                !s.player_down && !s.down && s.health > 0 && s.scorch_recovery.is_none()
+            });
         let a = &self.demolition.as_ref().unwrap().assets;
         let s = self.state.demolition.as_mut().unwrap();
+        if !ready {
+            s.flow.pause(62);
+        }
         s.flow.enable(&a.flow, enabled)?;
         while s.guide + 1 < a.route.len()
             && crate::distance(self.state.pawn.body.position, a.route[s.guide]) < 45.
@@ -283,20 +318,47 @@ impl Game {
         let pressed = input.use_action && !s.held;
         s.held = input.use_action;
         let mut effects = vec![];
-        if pressed {
+        if pressed && ready {
+            let scorch = self.state.rendezvous.as_ref().unwrap().pawn.body.position;
+            let scorch = [scorch[0], scorch[1], scorch[2] + 55.];
+            let interrupt = self.tactics.is_some()
+                && self.state.demolition.as_ref().unwrap().flow.working()
+                && self.state.demolition.as_ref().unwrap().flow.phase != Stage::Stopping
+                && !self.state.demolition.as_ref().unwrap().flow.paused
+                && self.demolition_aim(scorch, 240.)?;
+            if interrupt {
+                let a = &self.demolition.as_ref().unwrap().assets.flow;
+                let s = self.state.demolition.as_mut().unwrap();
+                if !s.flow.cancel(a, 62)? {
+                    s.flow.pause(62);
+                }
+                s.recovery_route = None;
+                self.state.rendezvous.as_mut().unwrap().pawn.body.velocity = [0.; 3];
+            }
             let target = self.demolition.as_ref().unwrap().assets.charge;
             let phase = self.state.demolition.as_ref().unwrap().flow.phase;
-            let range = if phase == Stage::Available {
+            let range = if phase == Stage::Available
+                || self.state.demolition.as_ref().unwrap().flow.paused
+            {
                 2500.
             } else {
                 self.demolition.as_ref().unwrap().assets.flow.player_range
             };
-            if self.demolition_aim(target, range)? {
+            if !interrupt && self.demolition_aim(target, range)? {
                 let eye = self.eye();
                 let a = &self.demolition.as_ref().unwrap().assets.flow;
                 let s = self.state.demolition.as_mut().unwrap();
-                if phase == Stage::Available {
+                if s.flow.paused {
+                    if s.flow.resume(a, 62, ready)? {
+                        s.recovery_route = Some(Default::default());
+                    }
+                } else if phase == Stage::Available {
+                    let retry = s.flow.command_started;
                     effects.extend(s.flow.command(a, 62, true)?);
+                    s.waypoint = 0;
+                    if retry {
+                        s.recovery_route = Some(Default::default());
+                    }
                     self.state.rendezvous.as_mut().unwrap().gesture = false;
                 } else if matches!(phase, Stage::Stopping | Stage::Armed) {
                     s.flow.select_plunger(a, crate::distance(eye, target))?;
@@ -306,7 +368,55 @@ impl Game {
         let p = self.demolition.as_ref().unwrap();
         let a = &p.assets;
         let s = self.state.demolition.as_mut().unwrap();
-        if s.flow.phase == Stage::Moving {
+        if s.flow.paused {
+            self.state.rendezvous.as_mut().unwrap().pawn.body.velocity = [0.; 3];
+            return Ok(());
+        }
+        if s.flow.phase == Stage::Moving && s.recovery_route.is_some() {
+            let companion = self.state.rendezvous.as_mut().unwrap();
+            let target = *a.route.last().unwrap();
+            if crate::distance(companion.pawn.body.position, target) < 8.
+                && companion.pawn.body.grounded
+            {
+                s.flow.arrived(&a.flow, 62)?;
+                s.recovery_route = None;
+                companion.pawn.body.velocity = [0.; 3];
+                companion.yaw = a.yaw;
+            } else {
+                let nav = &self
+                    .tactics
+                    .as_ref()
+                    .ok_or("Interrupted demolition requires squad navigation")?
+                    .assets
+                    .squad
+                    .navigation;
+                let mut walker = crate::map_runtime::Companion {
+                    joined: true,
+                    health: 100,
+                    shields: 0.,
+                    down: false,
+                    position: companion.pawn.body.position,
+                    yaw: companion.yaw,
+                    moving: false,
+                };
+                crate::map_gameplay::follow_to(
+                    &self.world,
+                    nav,
+                    &mut walker,
+                    s.recovery_route.as_mut().unwrap(),
+                    target,
+                    self.state.statistics.ticks as f64 * STEP,
+                    450.,
+                    6.,
+                )?;
+                companion.pawn.body.velocity = std::array::from_fn(|i| {
+                    (walker.position[i] - companion.pawn.body.position[i]) / STEP
+                });
+                companion.pawn.body.position = walker.position;
+                companion.pawn.body.grounded = true;
+                companion.yaw = walker.yaw;
+            }
+        } else if s.flow.phase == Stage::Moving {
             let companion = self.state.rendezvous.as_mut().unwrap();
             let target = a.route[s.waypoint];
             let at = companion.pawn.body.position;
@@ -463,6 +573,9 @@ impl Game {
     pub(crate) fn demolition_clip(&self) -> Option<(&'static str, f32)> {
         let s = self.state.demolition.as_ref()?;
         let a = &self.demolition.as_ref()?.assets.flow;
+        if s.flow.paused {
+            return None;
+        }
         Some(match s.flow.phase {
             Stage::Moving => ("RunForward", self.state.rendezvous.as_ref()?.frame),
             Stage::Starting => (
@@ -551,7 +664,7 @@ impl Game {
                     })
                 });
             }
-        } else if s.flow.phase == Stage::Starting && !s.flow.placed {
+        } else if s.flow.phase == Stage::Starting && !s.flow.placed && !s.flow.paused {
             let scorch = self.rendezvous.as_ref().unwrap();
             let pawn = self.state.rendezvous.as_ref().unwrap();
             let (clip, frame) = self.demolition_clip().unwrap();
@@ -559,7 +672,7 @@ impl Game {
             let transform = scorch
                 .mesh
                 .attachment_transform(&channel, "weaponAttach_L", true)?;
-            let (sin, cos) = (pawn.yaw as f32).sin_cos();
+            let (sin, cos) = (self.demolition_actor_yaw(pawn.yaw) as f32).sin_cos();
             for triangle in &p.charges[0].triangles {
                 let mut triangle = triangle.clone();
                 triangle.points = triangle.points.map(|v| {

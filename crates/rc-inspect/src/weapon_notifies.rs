@@ -36,7 +36,9 @@ pub fn load(
             let dispatch = if name == "ThrowGrenade" {
                 "existing throw_runtime Foley/release host"
             } else {
-                if !["Run", "Idle"].contains(&name.as_str()) || class != "Engine.AnimNotify_Sound" {
+                if !["Run", "Idle", "Load"].contains(&name.as_str())
+                    || class != "Engine.AnimNotify_Sound"
+                {
                     return Err(format!("Unsupported weapon notify {name}: {class}").into());
                 }
                 let path = props

@@ -26,6 +26,17 @@ public final class SceneBytesCheck {
             }
         };
         if(!Arrays.equals(SceneBytes.read(zero,4,cache),small))throw new AssertionError();
+        if(args[0].startsWith("spool")) {
+            rejected(()->SceneBytes.spool(new ByteArrayInputStream(small),3,cache));
+            rejected(()->SceneBytes.spool(new ByteArrayInputStream(small),5,cache));
+            rejected(()->SceneBytes.spool(new ByteArrayInputStream(new byte[0]),-1,cache));
+            File stored;try(InputStream input=new FileInputStream(scene)){stored=SceneBytes.spool(input,args[0].equals("spool-unknown")?-1:scene.length(),cache);}
+            MessageDigest hash=MessageDigest.getInstance("SHA-256");byte[] block=new byte[32768];
+            try(InputStream input=new FileInputStream(stored)){int n;while((n=input.read(block))!=-1)hash.update(block,0,n);}
+            if(stored.length()!=scene.length())throw new AssertionError();StringBuilder digest=new StringBuilder();for(byte b:hash.digest())digest.append(String.format("%02x",b&255));Files.delete(stored.toPath());
+            if(cache.list().length!=0)throw new AssertionError("Temporary scene not removed");
+            System.out.println("{\"passed\":true,\"mode\":\""+args[0]+"\",\"bytes\":"+scene.length()+",\"heap_limit\":"+Runtime.getRuntime().maxMemory()+",\"sha256\":\""+digest+"\",\"malformed_inputs_rejected\":true,\"temporary_files_removed\":true}");return;
+        }
         final byte[] payload;
         try(InputStream input=new FileInputStream(scene)) {
             payload=SceneBytes.read(input,args[0].equals("unknown")?-1:scene.length(),cache);

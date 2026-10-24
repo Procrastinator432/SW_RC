@@ -110,8 +110,20 @@ impl Assets {
             | "Engine.HsBumpDiffBlend"
             | "Engine.HsBumpDiffBlendMask"
             | "Engine.HsBumpDiffBlendMaskIllum" => {
-                Ok(matches!(value("OutputBlending")?, Value::Byte(0)))
+                let Value::Object { index, path: next } = value("ShaderImplementation")? else {
+                    return Err("Invalid hardware implementation reference".into());
+                };
+                if index == 0 {
+                    return Err("Missing hardware implementation".into());
+                }
+                let package = path.split_once('.').ok_or("Invalid material path")?.0;
+                let next = self.qualify(package, &next);
+                let result = self.resolve_opaque(&next, visited);
+                self.opacity_cache.insert(next, result.clone());
+                result
             }
+            "Engine.HardwareShader" => Ok(matches!(value("AlphaBlending")?, Value::Bool(false))
+                && matches!(value("AlphaTest")?, Value::Bool(false))),
             "Engine.TexPanner"
             | "Engine.TexPanner2D"
             | "Engine.TexOscillator"
@@ -124,10 +136,38 @@ impl Assets {
                 }
                 let package = path.split_once('.').ok_or("Invalid material path")?.0;
                 let next = self.qualify(package, &next);
-                self.resolve_opaque(&next, visited)
+                let result = self.resolve_opaque(&next, visited);
+                self.opacity_cache.insert(next, result.clone());
+                result
             }
             _ => Err(format!("Unresolved opacity class {class}")),
         }
+    }
+    /// The original resolved render fields used by the opacity decision.
+    pub fn opacity_evidence(&mut self, path: &str) -> Result<serde_json::Value, String> {
+        let decision = self.opaque(path);
+        let (class, props) = self.material_properties(path)?;
+        let mut fields = serde_json::Map::new();
+        if let Some(catalog) = &self.opacity_defaults {
+            for field in [
+                "ShaderImplementation",
+                "AlphaBlending",
+                "AlphaTest",
+                "OutputBlending",
+                "Opacity",
+                "FrameBufferBlending",
+                "bMasked",
+                "bAlphaTexture",
+            ] {
+                if let Ok(v) = catalog.instance(&class, &props, field, 0, path) {
+                    fields.insert(
+                        field.into(),
+                        serde_json::to_value(v).map_err(|e| e.to_string())?,
+                    );
+                }
+            }
+        }
+        Ok(serde_json::json!({"material":path,"class":class,"opaque":decision,"fields":fields}))
     }
     /// Explicit serialized inputs only; no wrapper overrides or sampler/state defaults.
     pub fn hardware_shader_inputs(&mut self, path: &str) -> Result<HardwareShaderInputs, String> {
@@ -341,7 +381,7 @@ impl Assets {
             for entry in fs::read_dir(directory).map_err(|e| e.to_string())? {
                 let path = entry.map_err(|e| e.to_string())?.path();
                 if path.extension().is_some_and(|e| {
-                    ["utx", "usx", "ukx", "u", "uax"]
+                    ["utx", "usx", "ukx", "u", "uax", "ctm"]
                         .iter()
                         .any(|ext| e.eq_ignore_ascii_case(ext))
                 }) {

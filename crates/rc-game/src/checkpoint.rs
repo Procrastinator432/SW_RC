@@ -54,28 +54,52 @@ fn checksum(bytes: &[u8]) -> u64 {
     })
 }
 fn bounded(v: &serde_json::Value, depth: usize, budget: &mut usize) -> Result<(), String> {
+    bounded_at(v, depth, budget, &mut Vec::new())
+}
+fn bounded_at<'a>(
+    v: &'a serde_json::Value,
+    depth: usize,
+    budget: &mut usize,
+    path: &mut Vec<&'a str>,
+) -> Result<(), String> {
     if depth > 80 || *budget == 0 {
         return Err("Checkpoint structure is too large".into());
     }
     *budget -= 1;
     match v {
         serde_json::Value::Array(a) => {
+            path.push("[]");
             for v in a {
-                bounded(v, depth + 1, budget)?;
+                bounded_at(v, depth + 1, budget, path)?;
             }
+            path.pop();
         }
         serde_json::Value::Object(a) => {
-            for v in a.values() {
-                bounded(v, depth + 1, budget)?;
+            for (key, v) in a {
+                path.push(key);
+                bounded_at(v, depth + 1, budget, path)?;
+                path.pop();
             }
         }
         serde_json::Value::String(s) if s.len() > 16384 => {
             return Err("Checkpoint string too large".into())
         }
-        serde_json::Value::Number(n)
-            if n.as_f64().is_none_or(|n| !n.is_finite() || n.abs() > 1e12) =>
-        {
-            return Err("Invalid checkpoint number".into())
+        serde_json::Value::Number(n) => {
+            // Battle/victory activations deliberately carry bits 62/61. Admit only
+            // their exact schema path and bounded generated clock range;
+            // coordinates and all unrelated numeric fields retain the limit.
+            let voice_prefix = match path.as_slice() {
+                ["state" | "initial", "music", "runtime", "battle_voice", "id"] => Some(1u64 << 62),
+                ["state" | "initial", "music", "runtime", "episode", "id"] => Some(1u64 << 61),
+                _ => None,
+            };
+            let battle_id = voice_prefix.is_some_and(|prefix| {
+                n.as_u64()
+                    .is_some_and(|id| (prefix..=(prefix + 24 * 60 * 60 * 60)).contains(&id))
+            });
+            if !battle_id && n.as_f64().is_none_or(|n| !n.is_finite() || n.abs() > 1e12) {
+                return Err("Invalid checkpoint number".into());
+            }
         }
         _ => {}
     }
@@ -203,8 +227,28 @@ impl Game {
         }
         let base = serde_json::to_value(&self.initial).map_err(|e| e.to_string())?;
         for state in [&s.state, &s.initial] {
+            crate::music::validate_state(self, state)?;
             crate::dc15::validate_state(self.dc15.as_ref(), state)?;
             crate::weapon_animation::validate_game(self, state)?;
+            crate::marker_orders::validate_state(self, state)?;
+            crate::marker_execution::validate_state(self, state)?;
+            crate::breach_orders::validate_state(self, state)?;
+            if let Some(squad) = &state.squad {
+                squad.validate_orders()?;
+            }
+            if let Some(d) = &state.demolition {
+                d.flow.validate(
+                    &self
+                        .demolition
+                        .as_ref()
+                        .ok_or("Missing demolition checkpoint assets")?
+                        .assets
+                        .flow,
+                )?;
+                if d.recovery_route.is_some() && d.flow.phase != crate::demolition::Phase::Moving {
+                    return Err("Invalid demolition return route".into());
+                }
+            }
             crate::ambient_audio::validate_state(self, state)?;
             if let Some(prepared) = &self.opening {
                 let interactions = state
@@ -390,5 +434,42 @@ impl Game {
     pub fn checkpoint_marker(&self) -> u64 {
         let s = &self.state;
         checksum(&serde_json::to_vec(&serde_json::json!({"phase":s.phase,"mission":s.mission.as_ref().map(|m|(m.completed,m.objective_mode)),"map2":s.map.as_ref().and_then(|m|m.gameplay.as_ref()).map(|g|g.objectives),"map3":s.map.as_ref().and_then(|m|m.opening.as_ref()).map(|o|o.objectives),"rendezvous":s.rendezvous.as_ref().map(|r|r.flow.objective_completed),"demolition":s.demolition.as_ref().map(|d|d.complete_tick),"gun":s.thermal.as_ref().map(|t|t.gun.objective_completed)})).unwrap_or_default())
+    }
+}
+
+#[cfg(test)]
+mod number_tests {
+    use super::*;
+    #[test]
+    fn generated_battle_activation_roundtrips_in_both_snapshots() {
+        for name in ["state", "initial"] {
+            for (voice, prefix) in [("battle_voice", 1u64 << 62), ("episode", 1u64 << 61)] {
+                let mut v = serde_json::json!({});
+                v[name] = serde_json::json!({"music":{"runtime":{voice:{"id":prefix|14251}}}});
+                let raw = serde_json::to_vec(&v).unwrap();
+                let parsed = serde_json::from_slice(&raw).unwrap();
+                bounded(&parsed, 0, &mut 100).unwrap();
+            }
+        }
+    }
+    #[test]
+    fn large_coordinates_and_unrelated_identifiers_remain_rejected() {
+        for v in [
+            serde_json::json!({"state":{"pawn":{"position":[1e15,0,0]}}}),
+            serde_json::json!({"state":{"other":{"id":1u64<<62}}}),
+        ] {
+            assert!(bounded(&v, 0, &mut 100).is_err());
+        }
+    }
+    #[test]
+    fn battle_path_does_not_admit_arbitrary_wide_or_negative_numbers() {
+        for id in [
+            serde_json::json!(u64::MAX),
+            serde_json::json!(-(1i64 << 62)),
+            serde_json::json!((1u64 << 62) + 24 * 60 * 60 * 60 + 1),
+        ] {
+            let v = serde_json::json!({"state":{"music":{"runtime":{"battle_voice":{"id":id}}}}});
+            assert!(bounded(&v, 0, &mut 100).is_err());
+        }
     }
 }

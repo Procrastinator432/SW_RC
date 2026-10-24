@@ -24,10 +24,130 @@ extern int32_t rc_game_observe(uint64_t,double *,size_t);
 extern intptr_t rc_game_graphics(uint64_t,uint32_t,uint8_t *,size_t);
 extern intptr_t rc_game_audio(uint64_t,uint32_t,uint8_t *,size_t);
 static void throw_io(JNIEnv *env, const char *message);
+extern uint64_t rc_live_open(const uint8_t *,size_t,const uint8_t *,size_t,uint32_t,uint64_t,char *,size_t);
+extern intptr_t rc_live_render(uint64_t,size_t,uint64_t,uint64_t,uint8_t *,size_t);
+extern int32_t rc_live_close(uint64_t);
+extern uint64_t rc_mixed_open(const uint8_t *,size_t,const uint8_t *,size_t,uint64_t,char *,size_t);
+extern int32_t rc_mixed_control(uint64_t,const uint8_t *,size_t);
+extern intptr_t rc_mixed_export(uint64_t,uint32_t,uint8_t *,size_t);
+extern uint64_t rc_scene_audio_open(const uint8_t *,size_t,const uint8_t *,size_t,uint64_t,char *,size_t);
+extern int32_t rc_scene_audio_update(uint64_t,const uint8_t *,size_t,const uint8_t *,size_t);
+extern intptr_t rc_scene_audio_snapshot(uint64_t,uint8_t *,size_t);
+extern int32_t rc_scene_audio_restore(uint64_t,const uint8_t *,size_t);
+extern int32_t rc_scene_audio_mix(uint64_t,const uint8_t *,size_t);
+extern intptr_t rc_scene_audio_status(uint64_t,uint8_t *,size_t);
+extern int32_t rc_scene_audio_consume(uint64_t,uint64_t);
+JNIEXPORT void JNICALL Java_org_rcport_diagnostic_NativeMixer_sceneConsume(JNIEnv *env,jclass klass,jlong id,jlong cursor) {
+    (void)klass;if(cursor<0 || rc_scene_audio_consume((uint64_t)id,(uint64_t)cursor)!=0)throw_io(env,"Mission consumption receipt rejected");
+}
+JNIEXPORT jbyteArray JNICALL Java_org_rcport_diagnostic_NativeMixer_sceneStatus(JNIEnv *env,jclass klass,jlong id) {
+    (void)klass;uint8_t bytes[88];
+    if(rc_scene_audio_status((uint64_t)id,bytes,sizeof(bytes))!=sizeof(bytes)){throw_io(env,"Mission pool status failed");return NULL;}
+    jbyteArray result=(*env)->NewByteArray(env,sizeof(bytes));
+    if(result)(*env)->SetByteArrayRegion(env,result,0,sizeof(bytes),(const jbyte *)bytes);return result;
+}
+JNIEXPORT void JNICALL Java_org_rcport_diagnostic_NativeMixer_sceneMix(JNIEnv *env,jclass klass,jlong id,jbyteArray input) {
+    (void)klass;if(!input){throw_io(env,"Mission mix length");return;}jsize len=(*env)->GetArrayLength(env,input);if(len!=24 && len!=28){throw_io(env,"Mission mix length");return;}
+    jbyte *bytes=(*env)->GetByteArrayElements(env,input,NULL);if(!bytes)return;
+    int valid=rc_scene_audio_mix((uint64_t)id,(const uint8_t *)bytes,(size_t)len)==0;
+    (*env)->ReleaseByteArrayElements(env,input,bytes,JNI_ABORT);if(!valid)throw_io(env,"Mission mix rejected");
+}
+JNIEXPORT jbyteArray JNICALL Java_org_rcport_diagnostic_NativeMixer_sceneSnapshot(JNIEnv *env,jclass klass,jlong id) {
+    (void)klass;intptr_t len=rc_scene_audio_snapshot((uint64_t)id,NULL,0);
+    if(len<12 || len>256*1024){throw_io(env,"Invalid mission audio resume size");return NULL;}
+    uint8_t *bytes=malloc((size_t)len);if(!bytes){throw_io(env,"Mission audio resume allocation");return NULL;}
+    int valid=rc_scene_audio_snapshot((uint64_t)id,bytes,(size_t)len)==len;
+    jbyteArray result=valid?(*env)->NewByteArray(env,(jsize)len):NULL;
+    if(result)(*env)->SetByteArrayRegion(env,result,0,(jsize)len,(const jbyte *)bytes);free(bytes);
+    if(!valid)throw_io(env,"Mission audio snapshot failed");return result;
+}
+JNIEXPORT void JNICALL Java_org_rcport_diagnostic_NativeMixer_sceneRestore(JNIEnv *env,jclass klass,jlong id,jbyteArray input) {
+    (void)klass;if(!input){throw_io(env,"Missing mission audio resume");return;}
+    jsize len=(*env)->GetArrayLength(env,input);if(len<12 || len>256*1024){throw_io(env,"Mission audio resume length");return;}
+    jbyte *bytes=(*env)->GetByteArrayElements(env,input,NULL);if(!bytes)return;
+    int valid=rc_scene_audio_restore((uint64_t)id,(const uint8_t *)bytes,(size_t)len)==0;
+    (*env)->ReleaseByteArrayElements(env,input,bytes,JNI_ABORT);if(!valid)throw_io(env,"Mission audio resume rejected");
+}
+JNIEXPORT jlong JNICALL Java_org_rcport_diagnostic_NativeMixer_sceneOpen(JNIEnv *env,jclass klass,jstring path,jbyteArray bank,jlong epoch) {
+    (void)klass;
+    if(!path || !bank || epoch<=0){throw_io(env,"Invalid mission audio input");return 0;}
+    jsize len=(*env)->GetArrayLength(env,bank);if(len<12 || len>32*1024*1024+1036){throw_io(env,"Mission bank size");return 0;}
+    const char *name=(*env)->GetStringUTFChars(env,path,NULL);if(!name)return 0;
+    jbyte *bytes=(*env)->GetByteArrayElements(env,bank,NULL);if(!bytes){(*env)->ReleaseStringUTFChars(env,path,name);return 0;}
+    char error[512]={0};uint64_t id=rc_scene_audio_open((const uint8_t *)name,strlen(name),(const uint8_t *)bytes,(size_t)len,(uint64_t)epoch,error,sizeof(error));
+    (*env)->ReleaseByteArrayElements(env,bank,bytes,JNI_ABORT);(*env)->ReleaseStringUTFChars(env,path,name);
+    if(!id)throw_io(env,error[0]?error:"Mission audio creation failed");return (jlong)id;
+}
+JNIEXPORT void JNICALL Java_org_rcport_diagnostic_NativeMixer_sceneUpdate(JNIEnv *env,jclass klass,jlong id,jbyteArray events,jbyteArray loops) {
+    (void)klass;if(!events || !loops){throw_io(env,"Missing mission audio frame");return;}
+    jsize ne=(*env)->GetArrayLength(env,events),nl=(*env)->GetArrayLength(env,loops);
+    if(ne<12 || ne>12+256*48 || nl<28 || nl>32+16*44){throw_io(env,"Mission audio frame size");return;}
+    jbyte *e=(*env)->GetByteArrayElements(env,events,NULL);if(!e)return;
+    jbyte *l=(*env)->GetByteArrayElements(env,loops,NULL);if(!l){(*env)->ReleaseByteArrayElements(env,events,e,JNI_ABORT);return;}
+    int valid=rc_scene_audio_update((uint64_t)id,(const uint8_t *)e,(size_t)ne,(const uint8_t *)l,(size_t)nl)==0;
+    (*env)->ReleaseByteArrayElements(env,loops,l,JNI_ABORT);(*env)->ReleaseByteArrayElements(env,events,e,JNI_ABORT);
+    if(!valid)throw_io(env,"Mission audio frame rejected (identity, bounds or device)");
+}
+JNIEXPORT jlong JNICALL Java_org_rcport_diagnostic_NativeMixer_mixedOpen(JNIEnv *env,jclass klass,jstring path,jbyteArray input,jlong epoch) {
+    (void)klass;
+    if(!path || !input || epoch<=0){throw_io(env,"Invalid mixed input");return 0;}
+    jsize len=(*env)->GetArrayLength(env,input);
+    if(len<2 || len>16*1024*1024){throw_io(env,"Mixed bundle size");return 0;}
+    const char *name=(*env)->GetStringUTFChars(env,path,NULL);if(!name)return 0;
+    jbyte *bytes=(*env)->GetByteArrayElements(env,input,NULL);
+    if(!bytes){(*env)->ReleaseStringUTFChars(env,path,name);return 0;}
+    char error[512]={0};uint64_t id=rc_mixed_open((const uint8_t *)name,strlen(name),(const uint8_t *)bytes,(size_t)len,(uint64_t)epoch,error,sizeof(error));
+    (*env)->ReleaseByteArrayElements(env,input,bytes,JNI_ABORT);(*env)->ReleaseStringUTFChars(env,path,name);
+    if(!id)throw_io(env,error[0]?error:"Mixed host creation failed");return (jlong)id;
+}
+JNIEXPORT void JNICALL Java_org_rcport_diagnostic_NativeMixer_mixedControl(JNIEnv *env,jclass klass,jlong id,jbyteArray input) {
+    (void)klass;if(!input){throw_io(env,"Missing mixed control");return;}
+    jsize len=(*env)->GetArrayLength(env,input);if(len<2 || len>8192){throw_io(env,"Mixed control size");return;}
+    jbyte *bytes=(*env)->GetByteArrayElements(env,input,NULL);if(!bytes)return;
+    int valid=rc_mixed_control((uint64_t)id,(const uint8_t *)bytes,(size_t)len)==0;
+    (*env)->ReleaseByteArrayElements(env,input,bytes,JNI_ABORT);if(!valid)throw_io(env,"Mixed control rejected (sequence, capacity or payload)");
+}
+JNIEXPORT jbyteArray JNICALL Java_org_rcport_diagnostic_NativeMixer_mixedExport(JNIEnv *env,jclass klass,jlong id,jint kind) {
+    (void)klass;intptr_t len=rc_mixed_export((uint64_t)id,(uint32_t)kind,NULL,0);
+    if(len<1 || len>16*1024*1024){throw_io(env,"Invalid mixed export size");return NULL;}
+    uint8_t *bytes=malloc((size_t)len);if(!bytes){throw_io(env,"Mixed export allocation");return NULL;}
+    int valid=rc_mixed_export((uint64_t)id,(uint32_t)kind,bytes,(size_t)len)==len;
+    jbyteArray result=valid?(*env)->NewByteArray(env,(jsize)len):NULL;
+    if(result)(*env)->SetByteArrayRegion(env,result,0,(jsize)len,(const jbyte *)bytes);free(bytes);
+    if(!valid)throw_io(env,"Mixed export failed");return result;
+}
+JNIEXPORT jlong JNICALL Java_org_rcport_diagnostic_NativeMixer_open(JNIEnv *env,jclass klass,jstring path,jbyteArray wave,jint rate,jlong epoch) {
+    (void)klass;
+    if(!path || !wave || rate<8000 || rate>192000 || epoch<=0){throw_io(env,"Invalid native mixer input");return 0;}
+    jsize size=(*env)->GetArrayLength(env,wave);
+    if(size<44 || size>2*1024*1024){throw_io(env,"Invalid native WAV length");return 0;}
+    const char *name=(*env)->GetStringUTFChars(env,path,NULL);
+    if(!name)return 0;
+    jbyte *bytes=(*env)->GetByteArrayElements(env,wave,NULL);
+    if(!bytes){(*env)->ReleaseStringUTFChars(env,path,name);return 0;}
+    char error[512]={0};
+    uint64_t id=rc_live_open((const uint8_t *)name,strlen(name),(const uint8_t *)bytes,(size_t)size,(uint32_t)rate,(uint64_t)epoch,error,sizeof(error));
+    (*env)->ReleaseByteArrayElements(env,wave,bytes,JNI_ABORT);
+    (*env)->ReleaseStringUTFChars(env,path,name);
+    if(!id)throw_io(env,error[0]?error:"Native mixer creation failed");
+    return (jlong)id;
+}
+JNIEXPORT jbyteArray JNICALL Java_org_rcport_diagnostic_NativeMixer_render(JNIEnv *env,jclass klass,jlong id,jint frames,jlong epoch,jlong sequence) {
+    (void)klass;
+    if(id<=0 || frames<1 || frames>4096 || epoch<=0 || sequence<0){throw_io(env,"Invalid native render request");return NULL;}
+    uint8_t bytes[40+4096*4];size_t length=40+(size_t)frames*4;
+    if(rc_live_render((uint64_t)id,(size_t)frames,(uint64_t)epoch,(uint64_t)sequence,bytes,length)!=(intptr_t)length){throw_io(env,"Native mixer render failed (stale session, end or device error)");return NULL;}
+    jbyteArray result=(*env)->NewByteArray(env,(jsize)length);
+    if(result)(*env)->SetByteArrayRegion(env,result,0,(jsize)length,(const jbyte *)bytes);
+    return result;
+}
+JNIEXPORT void JNICALL Java_org_rcport_diagnostic_NativeMixer_release(JNIEnv *env,jclass klass,jlong id) {
+    (void)klass;if(rc_live_close((uint64_t)id)!=0)throw_io(env,"Foreign or stale native mixer release");
+}
 JNIEXPORT jbyteArray JNICALL Java_org_rcport_diagnostic_PlayActivity_gameAudio(JNIEnv *env,jclass klass,jlong id,jint kind) {
     (void)klass;
     intptr_t size=rc_game_audio((uint64_t)id,(uint32_t)kind,NULL,0);
-    if(size<12 || size>8*1024*1024+1024) {throw_io(env,"Invalid sound packet");return NULL;}
+    if(size<12 || size>32*1024*1024+1036) {throw_io(env,"Invalid sound packet");return NULL;}
     jbyteArray result=(*env)->NewByteArray(env,(jsize)size);
     if(!result) return NULL;
     uint8_t *bytes=malloc((size_t)size);
@@ -44,6 +164,20 @@ static uint64_t monotonic_ns(void) {
 static void throw_io(JNIEnv *env, const char *message) {
     jclass cls = (*env)->FindClass(env, "java/io/IOException");
     if (cls) (*env)->ThrowNew(env, cls, message);
+}
+extern uint64_t rc_game_create_file(const uint8_t *,size_t,char *,size_t);
+extern int32_t rc_game_travel_file(uint64_t,const uint8_t *,size_t,char *,size_t);
+JNIEXPORT jlong JNICALL Java_org_rcport_diagnostic_PlayActivity_createGameFile(JNIEnv *env,jclass klass,jstring path) {
+    (void)klass;if(!path){throw_io(env,"Missing scene filename");return 0;}
+    const char *name=(*env)->GetStringUTFChars(env,path,NULL);if(!name)return 0;
+    char error[512]={0};uint64_t id=rc_game_create_file((const uint8_t *)name,strlen(name),error,sizeof(error));
+    (*env)->ReleaseStringUTFChars(env,path,name);if(!id)throw_io(env,error[0]?error:"File scene load failed");return (jlong)id;
+}
+JNIEXPORT void JNICALL Java_org_rcport_diagnostic_PlayActivity_travelGameFile(JNIEnv *env,jclass klass,jlong id,jstring path) {
+    (void)klass;if(!path){throw_io(env,"Missing scene filename");return;}
+    const char *name=(*env)->GetStringUTFChars(env,path,NULL);if(!name)return;
+    char error[512]={0};int32_t result=rc_game_travel_file((uint64_t)id,(const uint8_t *)name,strlen(name),error,sizeof(error));
+    (*env)->ReleaseStringUTFChars(env,path,name);if(result)throw_io(env,error[0]?error:"File map transition failed");
 }
 JNIEXPORT jlong JNICALL Java_org_rcport_diagnostic_PlayActivity_createGame(JNIEnv *env, jclass klass, jbyteArray data) {
     (void)klass;

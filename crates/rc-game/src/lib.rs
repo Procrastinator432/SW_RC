@@ -1,9 +1,11 @@
 //! First playable vertical slice. Combat/encounter rules are explicit port policies,
 //! not a claim of reconstructed CTGame combat or campaign-script equivalence.
 pub mod ambient_audio;
+pub mod ambient_geometry;
 pub mod artillery;
 pub mod bacta;
 pub mod bot;
+pub mod breach_orders;
 pub mod bundle;
 pub mod checkpoint;
 pub mod combat;
@@ -36,16 +38,21 @@ pub mod map3_opening;
 pub mod map3_planning;
 pub mod map_gameplay;
 pub mod map_runtime;
+pub mod marker_execution;
+pub mod marker_orders;
 pub mod melee;
 pub mod mission;
 pub mod mission_motion;
 pub mod mission_tactics;
+pub mod music;
+pub mod music_runtime;
 pub mod navigation;
 pub mod opening;
 pub mod particles;
 pub mod pixel_words;
 pub mod presentation;
 pub mod rappel;
+pub mod rappel_arms;
 pub mod rendezvous;
 pub mod rendezvous_runtime;
 pub mod replay;
@@ -55,12 +62,15 @@ pub mod rigid_interaction;
 pub mod spire;
 pub mod spire_runtime;
 pub mod squad;
+mod squad_orders;
 pub mod throw_runtime;
 pub mod transition;
 pub mod visual;
 pub mod warrior_ai;
 mod wave_bytes;
 pub mod weapon_animation;
+pub mod work_animation;
+pub mod work_equipment;
 pub mod world_effects;
 use rc_package::{
     controller::{ControlledBody, ViewInput},
@@ -122,6 +132,8 @@ pub struct Statistics {
 #[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct State {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub music: Option<music::MusicState>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dc15: Option<dc15::State>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub enemy_traces: Vec<enemy_feedback::Trace>,
@@ -170,6 +182,7 @@ pub struct State {
     pub map: Option<map_runtime::State>,
 }
 pub struct Game {
+    pub music: Option<music::Assets>,
     pub dc15: Option<dc15::Assets>,
     pub scene: rc_render::Scene,
     pub world: StaticBodyWorld,
@@ -243,6 +256,7 @@ impl Game {
             )?
             .is_some();
         let state = State {
+            music: None,
             enemy_traces: vec![],
             pawn: ControlledBody {
                 body: BodyState {
@@ -283,6 +297,7 @@ impl Game {
             map: None,
         };
         Ok(Self {
+            music: None,
             dc15: None,
             scene,
             world,
@@ -540,6 +555,7 @@ impl Game {
             if let Err(e) = self
                 .tick(tick_input)
                 .and_then(|_| self.tick_ambient_audio())
+                .and_then(|_| self.tick_music())
             {
                 self.state = old;
                 self.sync_dynamic();
@@ -606,7 +622,11 @@ impl Game {
         }
         self.map_tick()?;
         self.map_gameplay_tick(input)?;
+        let briefing_was_locked = self.state.opening.as_ref().is_some_and(|s| s.locked);
         self.opening_tick()?;
+        if briefing_was_locked && self.state.opening.as_ref().is_some_and(|s| !s.locked) {
+            self.briefing_weapon_bring_up()?;
+        }
         self.intro_tick()?;
         let rappel_motion = self.rappel_tick()?;
         if rappel_motion || self.state.opening.as_ref().is_some_and(|s| s.locked) {

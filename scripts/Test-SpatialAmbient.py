@@ -58,7 +58,7 @@ for mutation in ['owner','sound','duplicate','category','radius']:
  if invalid:api.rc_game_release(invalid)
  assert not invalid,mutation
  invalid_profiles.append(mutation)
-frames=Path(manifest['inputs']['map_a_replay']['path']).read_bytes();h=create(scene);captured={};best_fire_distance=float('inf');previous={};admissions={};fade_owners=set();priority_checks=0
+frames=Path(manifest['inputs']['map_a_replay']['path']).read_bytes();h=create(scene);captured={};best_fire_distance=float('inf');previous={};admissions={};fade_owners=set();priority_checks=0;silent_admissions=0;radius_returns=0;seen_output=set();previous_output=set()
 f32=lambda v:struct.unpack('<f',struct.pack('<f',v))[0]
 try:
  initial=checkpoint(h)
@@ -66,24 +66,39 @@ try:
   f,s,x,y,buttons=struct.unpack_from('<ffffI',frames,at)
   assert api.rc_game_advance(h,1/60,f,s,x,y,buttons)==1,error.value
   current=audio(h);loops=packet(current)
-  new=[o for o,v in loops['sources'].items() if previous.get(o)!=v['activation']]
+  # Geometry can suppress output at radius <= 0 while the persisted voice lives.
+  # Count actual voice activations, including silent starts, rather than output
+  # reappearances. Priority belongs to the activation's original listener input.
+  live=body(checkpoint(h))['state'] if lifecycle else None
+  voices=live['opening']['ambient_audio']['voices'] if live else []
+  active={v['owner']:v['started'] for v in voices} if lifecycle else {o:v['activation'] for o,v in loops['sources'].items()}
+  new=[o for o,activation in active.items() if previous.get(o)!=activation]
   for owner in new:admissions[owner]=admissions.get(owner,0)+1
-  previous={o:v['activation'] for o,v in loops['sources'].items()}
+  previous=active
+  output_keys={(owner,v['activation']) for owner,v in loops['sources'].items()}
+  radius_returns+=len((output_keys & seen_output)-previous_output)
+  seen_output.update(output_keys);previous_output=output_keys
+  silent_admissions+=sum(owner not in loops['sources'] for owner in new)
+  if tick%4000==0:print(f'Ordinary A replay: {tick} inputs, {sum(admissions.values())} persisted activations checked',flush=True)
   if lifecycle and new:
-   voices=body(checkpoint(h))['state']['opening']['ambient_audio']['voices']
    for owner in new:
-    source=loops['sources'][owner];voice=next(v for v in voices if v['owner']==owner)
+    voice=next(v for v in voices if v['owner']==owner)
+    source=loops['sources'].get(owner)
+    if source is None:
+     assert voice.get('geometry'),'Silent admission lacks geometry'
+     source=dict(activation=voice['started'],location=[struct.unpack('<f',struct.pack('<I',b))[0] for b in voice['geometry']['source']['position_bits']])
     assert source['activation']==voice['started'] and profiles[owner]['params']['max_volume']==1
     dx,dy,dz=[f32(source['location'][i]-loops['listener'][i]) for i in range(3)]
-    squared=f32(f32(f32(dz*dz)+f32(dy*dy))+f32(dx*dx));radius=f32(source['radius']*100)
+    squared=f32(f32(f32(dz*dz)+f32(dy*dy))+f32(dx*dx));radius=f32(profiles[owner]['params']['radius']*100)
     priority=max(f32(.01),min(1.,f32(1-f32(squared/f32(radius*radius)))))
     assert struct.pack('<f',priority)==struct.pack('<f',voice['priority']),'Saved priority does not match original admission inputs'
     priority_checks+=1
   if lifecycle:
-   for owner,source in loops['sources'].items():
-    if source['volume']<.999:
-     fade_owners.add(owner)
-     if 'fade' not in captured:captured['fade']=(checkpoint(h),current)
+   for voice in voices:
+    if voice.get('fade'):
+     owner=voice['owner'];fade_owners.add(owner)
+     if 'fade' not in captured and owner in loops['sources'] and loops['sources'][owner]['volume']<.999:
+      captured['fade']=(checkpoint(h),current)
   if 736 in loops['sources'] and 'bacta' not in captured:
    captured['bacta']=(checkpoint(h),current)
   if tick>=1930 and tick%60==0 and len(loops['sources'])>=(1 if lifecycle else 5) and any(o!=736 for o in loops['sources']):
@@ -112,7 +127,8 @@ try:
    profile=profiles[owner];voice=next(v for v in voices if v['owner']==owner);pb=voice['playback'];params=profile['params']
    assert source['sound']==profile['sound']==voice['sound'] and source['activation']==voice['started']
    gain=voice.get('fade',{}).get('value',1.)
-   assert struct.pack('<3f',source['volume'],source['pitch'],source['radius'])==struct.pack('<3f',pb['volume']*gain,pb['pitch'],pb['radius'])
+   radius=struct.unpack('<f',struct.pack('<I',voice['geometry']['radii']['radius_bits'][1]))[0] if voice.get('geometry') else pb['radius']
+   assert struct.pack('<3f',source['volume'],source['pitch'],source['radius'])==struct.pack('<3f',pb['volume']*gain,pb['pitch'],max(0,min(1e6,radius)))
    assert params['min_volume']<=pb['volume']<=min(1,params['max_volume']) and params['min_pitch']<=pb['pitch']<=params['max_pitch']
    if owner!=736:
     anchor=next(b for b in meta['world_effects'] if b['original']==owner)['location'];assert struct.pack('<3f',*source['location'])==struct.pack('<3f',*anchor)
@@ -125,6 +141,7 @@ try:
   mutations=['missing_module','owner','duplicate','future','pitch','muted']
   if name!='fade':mutations.append('missing_active')
   if lifecycle:mutations.append('priority')
+  if meta.get('ambient_geometry'):mutations+=['geometry_missing','geometry_region','geometry_future','geometry_nan','geometry_listener']
   if name=='fade':mutations+=['fade_value','fade_future']
   for mutation in mutations:
    obj=body(saved);a=obj['state']['opening']['ambient_audio'];v=a['voices'][0]
@@ -136,6 +153,11 @@ try:
    elif mutation=='pitch':v['playback']['pitch']=1.9
    elif mutation=='muted':v['playback']=None
    elif mutation=='priority':v['priority']=2
+   elif mutation=='geometry_missing':v.pop('geometry',None)
+   elif mutation=='geometry_region':v['geometry']['source']['region']['zone']=63
+   elif mutation=='geometry_future':v['geometry']['radii']['changed_at_bits']=list(struct.unpack('<II',struct.pack('<d',1e6)))
+   elif mutation=='geometry_nan':v['geometry']['radii']['radius_bits'][1]=0x7fc00000
+   elif mutation=='geometry_listener':a['listener_region']=None
    elif mutation=='fade_value':next(v for v in a['voices'] if v.get('fade'))['fade']['value']=.123
    elif mutation=='fade_future':next(v for v in a['voices'] if v.get('fade'))['fade']['started']=obj['state']['statistics']['ticks']+1
    raw=save(obj);assert api.rc_game_restore_checkpoint(h,c.create_string_buffer(raw),len(raw),error,len(error))!=0,mutation
@@ -153,5 +175,6 @@ for key in ([] if args.only_a else ['map_b_scene','map_c_scene','factory_scene']
  try:
   before=checkpoint(h);assert not packet(audio(h))['sources'];assert checkpoint(h)==before
  finally:api.rc_game_release(h)
-report=dict(passed=True,native_dll_sha256=hashlib.sha256(args.dll.read_bytes()).hexdigest(),scene_sha256=hashlib.sha256(scene).hexdigest(),ordinary_A_inputs=(len(frames)-12)//20,profiles=6,invalid_profiles_rejected=invalid_profiles,checks=checks,won_stops_loops=True,restart_resets_stream=True,original_admission_and_release=lifecycle,admissions=admissions,fade_owners=sorted(fade_owners),original_admission_priorities_checked=priority_checks,activation_identity_verified=True)
+assert not lifecycle or priority_checks==sum(admissions.values())
+report=dict(passed=True,persisted_activation_tracking=True,silent_admissions=silent_admissions,output_returns_without_new_activation=radius_returns,native_dll_sha256=hashlib.sha256(args.dll.read_bytes()).hexdigest(),scene_sha256=hashlib.sha256(scene).hexdigest(),ordinary_A_inputs=(len(frames)-12)//20,profiles=6,invalid_profiles_rejected=invalid_profiles,checks=checks,won_stops_loops=True,restart_resets_stream=True,original_admission_and_release=lifecycle,admissions=admissions,fade_owners=sorted(fade_owners),original_admission_priorities_checked=priority_checks,activation_identity_verified=True)
 (args.output/'validation.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8');print(json.dumps(dict(passed=True,profiles=6,fixtures=list(captured))))

@@ -39,7 +39,15 @@ public final class MainActivity extends Activity {
         });
         packageStatus=new TextView(this);packageStatus.setTextColor(Color.LTGRAY);packageStatus.setTextSize(13);layout.addView(packageStatus);
         button(layout,"Steuerung",()->ControlSettings.show(this));
+        button(layout,"Audioausgabe",()->{
+            android.content.SharedPreferences prefs=getSharedPreferences("rcAudio",MODE_PRIVATE);
+            new AlertDialog.Builder(this).setTitle("Audioausgabe für die Mission").setSingleChoiceItems(new String[]{"Nativer Mixer","SoundPool zum Vergleichen"},prefs.getBoolean("native",true)?0:1,(dialog,which)->{prefs.edit().putBoolean("native",which==0).apply();dialog.dismiss();}).setNegativeButton("Abbrechen",null).show();
+        });
+        button(layout,"Lautstärke – nativer Mixer",()->MissionMixSettings.show(this,mix->{}));
         Button diagnostics=button(layout,"Diagnose",()->startActivity(new Intent(this,DiagnosticActivity.class)));diagnostics.setTextSize(12);
+        button(layout,"PCM-Ausgabe prüfen",()->startActivity(new Intent(this,PcmDiagnosticActivity.class)));
+        button(layout,"Nativen Mixer prüfen",()->startActivity(new Intent(this,NativeMixerActivity.class)));
+        button(layout,"Gemischten Audiohost prüfen",()->startActivity(new Intent(this,NativeMixerActivity.class).putExtra("mixed",true)));
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.addView(layout);setContentView(scroll);
     }
     private void play(boolean resume){

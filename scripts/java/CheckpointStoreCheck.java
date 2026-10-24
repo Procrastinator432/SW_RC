@@ -9,6 +9,10 @@ public final class CheckpointStoreCheck {
         File base=new File(args[0]);base.mkdirs();File run=Files.createTempDirectory(base.toPath(),"store-").toFile();
         CheckpointStore store=new CheckpointStore(run);if(store.hasSave())throw new AssertionError();
         byte[] scene="RCPLAY14original-private-scene".getBytes(java.nio.charset.StandardCharsets.UTF_8);String name=store.cache(scene);
+        File fileSource=new File(run,"file-source.rcplay");Files.write(fileSource.toPath(),scene);CheckpointStore fileStore=new CheckpointStore(new File(run,"file-store"));
+        String fileName=fileStore.cache(fileSource);File verified=fileStore.verifiedScene(fileName);
+        if(!fileName.equals(name)||!Arrays.equals(Files.readAllBytes(verified.toPath()),scene)||!fileStore.cache(verified).equals(name))throw new AssertionError("File cache identity");
+        Files.write(verified.toPath(),new byte[]{1,2});reject(()->fileStore.verifiedScene(fileName));if(!fileStore.cache(fileSource).equals(name))throw new AssertionError("File cache repair");fileStore.verifiedScene(fileName);
         byte[] a=new byte[40],b=new byte[41],c=new byte[42];a[0]=1;b[0]=2;c[0]=3;
         store.save(name,"first",a);store.save(name,"second",b);
         if(!Arrays.equals(store.load(false).state,b)||!Arrays.equals(store.load(true).state,a))throw new AssertionError();

@@ -253,6 +253,14 @@ impl Game {
         if self.map3_locked() {
             return Ok(());
         }
+        // A committed switch may finish opening the door during recovery. Keep
+        // the following scene from taking Sev away from his saved breach pose.
+        if self
+            .breach_state()
+            .is_some_and(|s| s.stage == 2 && s.control.as_ref().is_some_and(|c| c.paused))
+        {
+            return Ok(());
+        }
         let eye = self.eye();
         let direction = crate::direction(self.state.yaw, self.state.pitch);
         let end = std::array::from_fn(|i| eye[i] + direction[i] * 2500.);

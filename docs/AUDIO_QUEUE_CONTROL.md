@@ -1,0 +1,53 @@
+# Statische Audiobefehle, Sonderreservierung und Ressourcenlebensdauer
+
+**Fortsetzung 26.10.2026:** Der [vorbereitete gemischte WAV-/Vorbis-Pool](AUDIO_MIXED_HOST.md) verbindet jetzt beide Quellenarten mit einem Besitzer, Kanalpool, Basisupdate/Census/Ducking, Worker und Persistenz. Die Übernahme des vollständigen initialen Uploads und der nachfolgend beschriebenen Queue-/Befehlslogik in diesen neuen Besitzer bleibt der nächste Anschluss.
+
+Stand: 26.10.2026. Fortsetzung des [statischen Queue-/Updatezyklus](AUDIO_QUEUE_CYCLE.md). Die fünf ausgewählten Anschlussarbeiten sind für statische PCM-Quellen umgesetzt. Dies ergänzt den internen Quellenhost; allgemeine Streammischung und Geräte-/Appintegration bleiben offen.
+
+## Fünf abgeschlossene Punkte
+
+1. **Namensabhängige Kanalreservierung.** `audio_reservation::plan` portiert den vollständigen zusammenhängenden Originalabschnitt `103d96c2..103d97ac`. Nach den Budget-Stops wird die verbleibende Kanalzahl mit dem konfigurierten Reservierungslimit verglichen. Wartende räumliche Quellen mit `(flags & 0x140) == 0x40` werden anhand des **groß-/kleinschreibungssensitiven** Präfixes `imp_` oder des exakten Namens `exp_GEN_proxMine_01` behandelt. Der Vergleich verwendet die originale f64-Schwelle 1,88; das nächste f32 unter diesem Wert fällt deshalb darunter. Bei zu geringer Priorität oder fehlendem Restbudget werden Kandidaten gegebenenfalls aus dem vorderen Kanalbudget mit Elementen aus dem hinteren Listenteil vertauscht und dann gestoppt. Später erneut besuchte gestoppte Quellen haben bereits gelöschte Flags und werden nicht erneut gezählt. Ohne Namenskonfiguration bleibt der bisherige Schutz gegen unbelegte räumliche Sonderfälle bestehen.
+2. **Pause und tatsächlicher Status.** `dispatch` verbindet `PauseSound` und `PauseAll` aus dem originalgeprüften Befehlskern mit den eigenen FALSource-Treibern. Fortsetzen verwendet deren tatsächlichen Play-Pfad einschließlich Cursor-/Lebenszeitregeln. `PauseSound` erreicht entsprechend dem Original nur Hardwarequellen; `PauseAll` berücksichtigt auch wartende Quellen und die Ausschlussmaske. `is_sound_paused` benutzt dieselbe originale Suchreihenfolge, liest für Hardwarequellen den eigenen Treiberzustand und liefert für wartende Basisquellen 0. Eine angeforderte Startpause wird nicht als bereits pausierter Hardwarezustand ausgegeben.
+3. **Stop, Fade und Stimmenfilter.** `StopSound`, `StopAll` und `StopVoices` erzeugen zuerst den bestehenden originalgeprüften Entscheidungsplan. Stop-Grenzen führen jetzt tatsächliche FALSource-Stops aus; Fade-Grenzen ändern den Controller der besitzenden Hardwarequelle. Wartende passende Quellen werden sofort gestoppt. Bei `StopSound(actor=0,sound=0)` bleibt dagegen die Warteschlange entsprechend dem Original bestehen; `empty_waiting` ist ein separater Löschvorgang. Musikereignisse bleiben explizite Aufträge. Die Reihenfolge des Voice-Exempt-Bits vor/nach dem Stop bleibt erhalten. Der statische Host weist gestreamte Befehlsprofile ab.
+4. **Cue- und Ressourcenverwaltung.** Cue-ID, Pendingmaske und ursprüngliche Cue-Aktualisierung sind am Queuehost erreichbar. Das Schutzbit 0x80 bei `StopAll` bewahrt den durch die originale ID-Suche gefundenen Eintrag. Bei ID-Kollisionen gewinnt der erste Hardwareeintrag, auch wenn er inaktiv ist; beim Zählerüberlauf wird keine neue eigene Suchregel eingeführt. PCM kann direkt am Besitzer registriert und wieder entfernt werden. Vor der Freigabe löscht der Rust-Besitzer passende wartende Objekte und anschließend die tatsächlichen Treiber-/Bufferreferenzen; zugehörige Namensmetadaten werden entfernt. Diese zusätzliche Queue-Löschpolitik ist eine portable Eigentumsregel und kein behaupteter Original-Unregister-Nachweis.
+5. **Gespeicherte Konfiguration und Befehlsfortsetzung.** Snapshot-Schema 1 enthält nun zusätzlich optionale Reservierungsnamen/-grenze und die Cue-ID. Neue Leser übernehmen ältere Snapshots mit den bisherigen Standardwerten. Namen müssen eindeutigen Soundtokens zugeordnet sein; aktive oder wartende räumliche Sonderquellen ohne Namen werden beim Laden abgewiesen. Befehlsausführung und Ressourcenfreigabe sichern den Gesamtzustand strukturiert. Fehler und beschädigte Snapshots ersetzen keinen gültigen Host. Kaltes Laden zwischen Pause, Fortsetzen, Fade, Zyklus und Freigabe erzeugt identische Pläne und Zustände.
+
+## Originalnachweise
+
+`Test-AudioReservationOriginal.py` führt **256 originale Reservierungsabschnitte** aus. Die Kontrollfunktion läuft zusammenhängend; virtuelle Queueantworten und ANSI-Namens-/Vergleichsfunktionen sind kontrollierte Grenzen. Der eigentliche Source-Stop und das anschließende Clear laufen als Originalcode. Verglichen werden die vollständige Listenpermutation, geordnete Stop-Ziele, Anzahl behandelter Quellen und alle anschließenden Sourcefelder. Fälle decken 0–6 Kanäle, 0–16 Kandidaten, verschiedene Restbudgets/Limits, Groß-/Kleinschreibung, exakte Namen und Präfixe, 1,88-Grenzen und erneutes Besuchen verschobener Quellen ab. Das ist ein Originalabschnitt, kein vollständiger globaler Update-Aufruf.
+
+`Test-AudioQueueControlOriginal.py` führt **160 vollständige Originalbefehlsaufrufe** aus: je 32 PauseSound, PauseAll, StopSound, StopAll und StopVoices mit statischen FALSource-Overrides und einer zusätzlichen wartenden Basisquelle. Sound-/Paramsmetadaten, Musik und AL bleiben kontrollierte Grenzen. Die originalen Pause-/Play-/Stop-/Clear-/Kurvenfunktionen laufen tatsächlich. Die Rusttests vergleichen jede geordnete Befehls- und Treiberaktion, Rückgabewert, gesamten physischen Pool und wartende Quelle. Dadurch wird ein nur symbolischer Stop nicht als tatsächliche Treibersteuerung gewertet.
+
+Die bestehenden **512 unabhängigen Originalbefehle und 576 Sequenzschritte** werden frisch regressionsgeprüft. Neue Fixtures enthalten ausschließlich synthetische Zustände und Ergebnisse; die bestehenden Engine-/CRT-/ALAudio-Hashprüfungen gelten weiter. Die Namensimporte sind im Original `GetName`, `appStrcmp` und `appStrncmp`, keine Vergleiche ohne Beachtung der Groß-/Kleinschreibung.
+
+Zwölf neue Rust-Testgruppen prüfen die Originalvergleiche, Reservierungsaufnahme, Namensvalidierung, Pause/Status, späteren Fade-Stop im Zyklus, getrennte Queueleerung, Cue-Schutz und ID-Kollisionen, Ressourcenfreigabe/-wiederverwendung, kaltes Fortsetzen, ältere Snapshots und Fehleratomarität.
+
+Zwei praktische Läufe mit je einer Original-WAV aus `gen_sound.uax` und `geo_sound.uax` verwenden zwei Kanäle plus Transient, explizit unterschiedliche Quell-IDs, kontrollierte Reservierungsnamen, vier erfolgreiche Aktivierungen und vier Befehlsphasen. Sie prüfen Reservierungsverschiebung, gleichzeitige Pause/Fortsetzung zweier Treiber, zwei tatsächliche Fade-Stops, genau eine cuegeschützte Quelle, Cue-Maske 9, beschädigte Namenswiederherstellung und vollständige PCM-/Quellenfreigabe. Jeder Befehls- und Zyklusübergang wird gegen einen kalt geladenen Host verglichen. Die WAV-Bytes werden verarbeitet; es findet keine Audioausgabe statt.
+
+Der vollständige zentrale Check besteht mit je **1.339 Debug-/Release-Bibliothekstests**, Format, Material-/Doc-Tests, Clippy aller Targets, Native-/Inspectorbau, Java und Buildvertrag. Einzelheiten stehen im [lokalen Prüfbericht](../build/audio-queue-control/check/validation.json). Der [Gesamtnachweis](../build/audio-queue-control/verification-summary.json) verknüpft Original-Replays, WAV-Läufe, Quellhashes und die unveränderten akzeptierten App-Artefakte.
+
+## API und Grenzen
+
+`Host::configure_reservation` erhält das Limit und eindeutige ASCII-Soundnamen. Die Metadaten sind explizit aufgelöste Eingaben; es werden keine Originalnamen aus Tokens erfunden. Queue-/Kanal-/Namenslisten bleiben auf 4.096 Einträge begrenzt. Namen erlauben 1–256 druckbare ASCII-Bytes. Der bestehende kombinierte Listengrenzwert und die getrennten Ressourcen-/Snapshotgrenzen von 16 MiB gelten weiterhin.
+
+`dispatch(Command, bank, math)` gibt Befehlsmarker und tatsächlich erzeugte Treiberaufträge in einer gemeinsamen Reihenfolge zurück. Marker lösen keine zweite Ausführung von Pause/Stop aus. Musikaufträge, Kontexttokens und Hardwarewerte brauchen weiterhin einen Executor. `is_sound_paused` ist eine Zustandsabfrage des sequenziellen Besitzers und simuliert keinen gleichzeitigen fremden Treiberwechsel.
+
+`set_cue_id`, `set_pending_cues` und `refresh_cues` stellen die vorhandenen belegten Cueoperationen bereit. Die Cue-ID ist nicht identisch mit der Pending-/Currentmaske. Cue-Aktualisierung bleibt ein expliziter Aufruf; der Host erfindet keine zusätzliche globale Enginephase. Die Queue-/Ressourcenfreigabe bildet Rust-Eigentum ab, nicht fremden GMalloc-/Destruktorcode.
+
+Schema 1 wurde additiv erweitert: neue Leser laden bisherige Snapshots ohne Reservierung/Cue-ID; ältere Programmstände können erweiterte Snapshots wegen ihrer strikten Feldprüfung abweisen. Es handelt sich weiter um ein internes Schema, ohne App-Checkpointmigration oder garantierte Geräteobjekt-Neuerzeugung. Externe Math-Policy-Nebeneffekte und bereits ausgeführte Geräteaktionen sind außerhalb des Zustandsrollbacks. Speicher-/Validierungskopien sind kein Echtzeitnachweis.
+
+Gemeinsame Aufnahme und Zählung statischer und gestreamter Quellen, globale Listener-/Ambient-/Film-/Dialogsteuerung, Musikexecutor sowie Geräte-/Appadapter bleiben offen. Die akzeptierte Android-App und ihre eingefrorenen Releases werden durch diesen internen Block nicht neu gebaut.
+
+## Reproduzieren
+
+```powershell
+$env:PYTHONPATH=(Resolve-Path build/sound-selection/python-deps).Path
+python scripts/Test-AudioReservationOriginal.py --game-data 'D:/SteamLibrary/steamapps/common/Star Wars Republic Commando/GameData' --verify-fixture fixtures/audio-reservation-native.json --output build/audio-queue-control/reservation-replay.json
+python scripts/Test-AudioQueueControlOriginal.py --game-data 'D:/SteamLibrary/steamapps/common/Star Wars Republic Commando/GameData' --verify-fixture fixtures/audio-queue-control-native.json --output build/audio-queue-control/control-replay.json
+cargo test -p rc-package --lib audio_queue_control_tests
+cargo run -p rc-inspect --bin rc-audio-control-probe --release -- build/audio-buffer/real-gen/00.wav build/audio-queue-control/real-gen.json
+cargo run -p rc-inspect --bin rc-audio-control-probe --release -- build/audio-buffer/real-geo/00.wav build/audio-queue-control/real-geo.json
+./build.ps1 -Target Check -OutputDirectory build/audio-queue-control/check
+```
+
+Nächster Abschnitt: Streamaufnahme mit eindeutigem Ressourcenbesitz und Pool-/Transientzuordnung, gemeinsame Stream-/Staticzählung und Workerreihenfolge. Geräte-/Appadapter und Hörabnahme folgen nach diesem Anschluss.

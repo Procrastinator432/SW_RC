@@ -18,6 +18,8 @@ import java.util.concurrent.*;
 public final class PlayActivity extends Activity {
     static { System.loadLibrary("rc_bridge"); }
     private static native long createGame(byte[] data) throws IOException;
+    private static native long createGameFile(String path) throws IOException;
+    private static native void travelGameFile(long game,String path) throws IOException;
     private static native void travelGame(long id,byte[] data) throws IOException;
     private static native void restoreHandoff(long id,byte[] data) throws IOException;
     private static native int[] gameFrame(long id,double elapsed,float forward,float strafe,
@@ -53,7 +55,10 @@ public final class PlayActivity extends Activity {
     private final Runnable pump=() -> queueFrame(false);
     private long game; // worker only
     private boolean loaded,paused,resumed,drawing,finished,pendingTravel,loading;
-    private int audioGeneration;
+    private volatile int audioGeneration;
+    private AudioCheckpointStore audioCheckpoints;
+    private byte[] currentBankHash;
+    private static final ExecutorService AUDIO_SAVES=Executors.newSingleThreadExecutor(r->{Thread t=new Thread(r,"rc-audio-checkpoint");t.setDaemon(true);return t;});
     private int generation,lastShots,lastHP=100,lastPhase,lastEnemies=3,lastAmmo=20;
     private long lastFrame;
     private ImageView image;
@@ -67,13 +72,13 @@ public final class PlayActivity extends Activity {
     private String nextMap="";
     private Bitmap bitmap;
     private ToneGenerator audio;
-    private SceneAudio sceneAudio;
+    private MissionAudio sceneAudio;
     private boolean profiling;
     private long profileSequence;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        checkpoints=new CheckpointStore(getFilesDir());
+        checkpoints=new CheckpointStore(getFilesDir());audioCheckpoints=new AudioCheckpointStore(getFilesDir());
         campaignMode=getIntent().getBooleanExtra("rcCampaign",false);
         profiling=getIntent().getBooleanExtra("rcProfile",false);
         android.app.ActivityManager manager=(android.app.ActivityManager)getSystemService(ACTIVITY_SERVICE);
@@ -110,8 +115,7 @@ public final class PlayActivity extends Activity {
         Button b=new Button(this); b.setText(title); b.setTextSize(12);int minimum=Math.round(56*getResources().getDisplayMetrics().density);b.setMinWidth(minimum);b.setMinimumWidth(minimum);b.setPadding(12,0,12,0); b.setOnClickListener(v -> action.run()); row.addView(b); return b;
     }
     static void validateImport(File scene,String map)throws IOException {
-        byte[] bytes;try(InputStream in=new FileInputStream(scene)){bytes=SceneBytes.read(in,scene.length(),scene.getParentFile());}
-        long candidate=createGame(bytes);
+        long candidate=createGameFile(scene.getAbsolutePath());
         try {if(!campaignMap(candidate).equals(map))throw new IOException("Falsche Karte im Szenenpaket: "+map);}
         finally {releaseGame(candidate);}
     }
@@ -138,11 +142,12 @@ public final class PlayActivity extends Activity {
         String[] labels={"Fortsetzen","Checkpoint speichern","Checkpoint laden","Steuerung","Karte neu starten","Hauptmenü","Szene manuell öffnen",useGpu?"Softwaregrafik verwenden":"GPU verwenden"};
         Runnable[] actions={()->{if(paused)togglePause();},this::saveManually,()->showCheckpointChoices("Spielstand auswählen"),()->ControlSettings.show(this),()->new android.app.AlertDialog.Builder(this).setTitle("Karte neu starten?").setMessage("Fortschritt seit dem Karteneinstieg wird zurückgesetzt.").setPositiveButton("Neustart",(d,w)->restart()).setNegativeButton("Abbrechen",null).show(),this::finish,this::chooseScene,()->switchBackend(!useGpu)};
         for(int i=0;i<labels.length;i++){final int n=i;Button item=new Button(this);item.setText(labels[i]);item.setMinHeight(Math.round(48*getResources().getDisplayMetrics().density));item.setOnClickListener(v->{dialog.dismiss();actions[n].run();});list.addView(item);}
+        if(sceneAudio instanceof NativeSceneAudio){Button mix=new Button(this);mix.setText("Lautstärke");mix.setMinHeight(Math.round(48*getResources().getDisplayMetrics().density));mix.setOnClickListener(v->{dialog.dismiss();MissionMixSettings.show(this,value->{if(sceneAudio instanceof NativeSceneAudio)((NativeSceneAudio)sceneAudio).setMix(value);});});list.addView(mix);}
         dialog.show();
     }
     private void switchBackend(boolean enabled) {
         useGpu=enabled;generation++;controls.clear();lastFrame=0;
-        if(sceneAudio!=null) sceneAudio.stop();
+        if(sceneAudio!=null){sceneAudio.stop();if(loaded && resumed && !paused && !finished)sceneAudio.resume();}
         gpu.setVisibility(useGpu ? View.VISIBLE : View.GONE);image.setVisibility(useGpu ? View.GONE : View.VISIBLE);
         Log.i("RCPlay","backend="+(useGpu ? "gpu" : "cpu"));
         if(loaded) {worker.execute(() -> {try {gameCommand(game,0);} catch(Exception e) {failure(e.getMessage());}});queueFrame(true);}
@@ -152,8 +157,7 @@ public final class PlayActivity extends Activity {
         paused=!paused; generation++; controls.clear(); lastFrame=0; handler.removeCallbacks(pump);
         pause.setText(paused ? "Fortsetzen" : "Pause");
         if(paused) {
-            if(sceneAudio!=null) sceneAudio.suspend();
-            worker.execute(() -> {try {gameCommand(game,0);saveCheckpointWorker(true);} catch(Exception e) {Log.e("RCPlay","pause",e);} });
+            savePausedCheckpoint(false);
             status.setText("Pausiert");
         } else {if(sceneAudio!=null && resumed) sceneAudio.resume();status.setText(lastGuidance); queueFrame(false);}
     }
@@ -162,7 +166,7 @@ public final class PlayActivity extends Activity {
         generation++; audioGeneration++; controls.clear(); handler.removeCallbacks(pump); lastFrame=0; finished=false; paused=false;
         open.setVisibility(View.GONE);nextMap="";
         pause.setText("Pause"); status.setText("Neustart …");
-        if(sceneAudio!=null) sceneAudio.reset();
+        if(sceneAudio!=null){sceneAudio.reset();if(resumed)sceneAudio.resume();}
         worker.execute(() -> {
             try { gameCommand(game,1);checkpointPolicy.reset();restoredRecord=null;defeatRecorded=false;saveCheckpointWorker(true); runOnUiThread(() -> {
                 if(isDestroyed()) return; lastShots=0; lastHP=100; lastPhase=0; lastEnemies=3; lastAmmo=20;
@@ -176,7 +180,8 @@ public final class PlayActivity extends Activity {
         loadScene(data.getData());
     }
     private void saveCheckpointWorker(boolean force) {saveCheckpointWorker(force,false);}
-    private void saveCheckpointWorker(boolean force,boolean announce) {
+    private void saveCheckpointWorker(boolean force,boolean announce) {saveCheckpointWorker(force,announce,null,null,-1);}
+    private void saveCheckpointWorker(boolean force,boolean announce,CompletableFuture<SceneAudioCapture.Result> capture,byte[] capturedBank,int captureGeneration) {
         if(game==0 || currentScene==null)return;
         try {
             int[] values=gameStatus(game);long marker=checkpointMarker(game);
@@ -191,6 +196,10 @@ public final class PlayActivity extends Activity {
             checkpoints.save(currentScene,title,state);
             if(announce)checkpoints.saveNamed(CheckpointStore.MANUAL,currentScene,title,state);
             if(stable){checkpoints.saveNamed(CheckpointStore.SAFE,currentScene,title,state);checkpointPolicy.saved(values[5],marker);}
+            try {if(capture!=null && captureGeneration==audioGeneration && Arrays.equals(capturedBank,currentBankHash)) {
+                final String scene=currentScene;final byte[] digest=currentBankHash.clone();final long cursor=AudioCheckpointStore.cursor(gameAudio(game,8));final AudioCheckpointStore store=audioCheckpoints;
+                capture.whenCompleteAsync((result,error)->{try{if(error==null && store.save(scene,state,digest,cursor,result))Log.i("RCCheckpoint","audio saved cursor="+cursor);}catch(IOException invalid){Log.w("RCCheckpoint","Optionaler Audiostand nicht gespeichert",invalid);}},AUDIO_SAVES);
+            }}catch(IOException optional){Log.w("RCCheckpoint","Optionaler Audiostand nicht zugeordnet",optional);}
             savedTick=values[5];savedMarker=marker;nextSaveAttempt=0;
             Log.i("RCCheckpoint","saved ticks="+savedTick+" scene="+currentScene);
             if(announce)runOnUiThread(() -> {if(!isDestroyed())Toast.makeText(this,"Checkpoint gespeichert",Toast.LENGTH_SHORT).show();});
@@ -201,7 +210,13 @@ public final class PlayActivity extends Activity {
     }
     private void saveManually() {
         if(!loaded || loading)return;
-        worker.execute(() -> {try {gameCommand(game,0);saveCheckpointWorker(true,true);}catch(Exception e){failure(e.getMessage());}});
+        savePausedCheckpoint(true);
+    }
+    private void savePausedCheckpoint(boolean announce) {
+        final CompletableFuture<SceneAudioCapture.Result> capture;final byte[] digest;final int captureGeneration=audioGeneration;
+        if(sceneAudio instanceof NativeSceneAudio){NativeSceneAudio nativeAudio=(NativeSceneAudio)sceneAudio;digest=nativeAudio.bankHash();capture=nativeAudio.suspendForCheckpoint();}
+        else {if(sceneAudio!=null)sceneAudio.suspend();digest=null;capture=null;}
+        worker.execute(()->{if(game!=0)try{gameCommand(game,0);saveCheckpointWorker(true,announce,capture,digest,captureGeneration);}catch(Exception e){Log.e("RCCheckpoint","paused save",e);}});
     }
     private void loadCheckpoint(boolean previous) {
         loadCheckpoint(previous?"previous.save":"resume.save");
@@ -236,18 +251,20 @@ public final class PlayActivity extends Activity {
         worker.execute(() -> loadSceneWorker(uri,null,travel,false));
     }
     private boolean loadSceneWorker(Uri uri,CheckpointStore.Record record,boolean travel,boolean ignoreHandoff) {
-        long candidate=0;boolean created=false;Uri failedUri=uri;
+        long candidate=0;boolean created=false;Uri failedUri=uri;File temporaryScene=null;
         try {
-            final byte[] bytes;
-            if(record!=null)bytes=checkpoints.scene(record.scene,getCacheDir());
+            final File scene;
+            if(record!=null)scene=checkpoints.verifiedScene(record.scene);
+            else if(uri!=null && "file".equals(uri.getScheme()))scene=new File(uri.getPath());
             else try(android.content.res.AssetFileDescriptor descriptor=getContentResolver().openAssetFileDescriptor(uri,"r")) {
                 if(descriptor==null)throw new IOException("Szenendatei konnte nicht geöffnet werden");
-                try(InputStream input=descriptor.createInputStream()){bytes=SceneBytes.read(input,descriptor.getLength(),getCacheDir());}
+                try(InputStream input=descriptor.createInputStream()){temporaryScene=SceneBytes.spool(input,descriptor.getLength(),getCacheDir());scene=temporaryScene;}
             }
-            String cached=checkpoints.cache(bytes);
-            if(travel) {travelGame(game,bytes);candidate=game;}
+            String cached=checkpoints.cache(scene);
+            File stored=checkpoints.verifiedScene(cached);
+            if(travel) {travelGameFile(game,stored.getAbsolutePath());candidate=game;}
             else {
-                candidate=createGame(bytes);created=true;
+                candidate=createGameFile(stored.getAbsolutePath());created=true;
                 if(record!=null) {
                     restoreCheckpoint(candidate,record.state);gameCommand(candidate,0);gameAudio(candidate,1);
                     Log.i("RCCheckpoint","restored "+record.title);
@@ -263,11 +280,15 @@ public final class PlayActivity extends Activity {
                 }
             }
             final GpuSceneView.World world=new GpuSceneView.World(gpuWorld(candidate));
-            final byte[] bank=gameAudio(candidate,0);String guidance=guidance(candidate);
+            final long initialAudioCursor=record==null?0:AudioCheckpointStore.cursor(gameAudio(candidate,8));
+            final byte[] bank=gameAudio(candidate,10);final byte[] bankDigest=AudioCheckpointStore.bankHash(bank);String guidance=guidance(candidate);
+            SceneAudioCapture.Result optionalAudio=null;
+            if(record!=null)try{optionalAudio=audioCheckpoints.load(record.scene,record.state,bankDigest,AudioCheckpointStore.cursor(gameAudio(candidate,8)));}catch(IOException invalid){Log.w("RCCheckpoint","Optionaler Audiostand verworfen",invalid);}
+            final SceneAudioCapture.Result restoredAudio=optionalAudio;
             // Rejected scenes/checkpoints must not replace the recovery scene.
             checkpoints.markScene(cached);
             if(candidate!=game){releaseGame(game);game=candidate;}created=false;
-            currentScene=cached;savedTick=-1;savedMarker=0;checkpointPolicy.reset();restoredRecord=record;defeatRecorded=false;
+            currentScene=cached;currentBankHash=bankDigest;savedTick=-1;savedMarker=0;checkpointPolicy.reset();restoredRecord=record;defeatRecorded=false;
             restoredTick=gameStatus(game)[5];
             // A previous-generation recovery leaves the rejected primary intact for diagnostics.
             if(record==null){
@@ -281,7 +302,12 @@ public final class PlayActivity extends Activity {
             runOnUiThread(() -> {
                 if(isDestroyed())return;
                 if(sceneAudio!=null)sceneAudio.close();
-                try {sceneAudio=new SceneAudio(this,bank);}catch(IOException e){failure(e.getMessage());open.setEnabled(true);return;}
+                try {
+                    boolean nativeAudio=getSharedPreferences("rcAudio",MODE_PRIVATE).getBoolean("native",true);
+                    sceneAudio=nativeAudio?new NativeSceneAudio(this,bank,initialAudioCursor,()->{if(loaded && !paused && !finished)togglePause();}):new SceneAudio(this,bank);
+                    if(restoredAudio!=null && sceneAudio instanceof NativeSceneAudio){((NativeSceneAudio)sceneAudio).restoreAudio(restoredAudio.bytes(),restoredAudio.cursor);Log.i("RCCheckpoint","audio restored cursor="+restoredAudio.cursor);}
+                    if(restoring || !resumed)sceneAudio.suspend();else sceneAudio.resume();
+                }catch(IOException e){failure(e.getMessage());open.setEnabled(true);return;}
                 loading=false;nextMap="";open.setVisibility(View.GONE);lastGuidance=guidance;gpu.world(world);loaded=true;paused=restoring;finished=false;lastFrame=0;
                 lastShots=0;lastHP=100;lastPhase=0;lastEnemies=3;lastAmmo=20;pause.setText(paused?"Fortsetzen":"Pause");open.setEnabled(true);open.setText("Szene öffnen");
                 status.setText(restoring?"Checkpoint geladen · "+guidance:guidance);
@@ -293,7 +319,7 @@ public final class PlayActivity extends Activity {
             final Uri recoveryUri=failedUri;
             runOnUiThread(() -> recovery("Laden fehlgeschlagen: "+e.getMessage(),recoveryUri,record!=null));
             return false;
-        }
+        }finally{if(temporaryScene!=null && !temporaryScene.delete())temporaryScene.deleteOnExit();}
     }
     private void recovery(String message,Uri uri,boolean checkpoint) {
         if(isDestroyed())return;
@@ -309,7 +335,7 @@ public final class PlayActivity extends Activity {
                 try {
                     if(checkpoint)checkpoints.quarantine(false);
                     Uri source=uri;
-                    if(source==null) {String name=checkpoints.lastScene();byte[] b=checkpoints.scene(name,getCacheDir());File file=new File(getCacheDir(),"checkpoint-recovery.rcplay");CheckpointStore.atomic(file,b);source=Uri.fromFile(file);}
+                    if(source==null)source=Uri.fromFile(checkpoints.verifiedScene(checkpoints.lastScene()));
                     loadSceneWorker(source,null,false,uri!=null);
                 }catch(Exception e){runOnUiThread(() -> recovery("Wiederherstellung fehlgeschlagen: "+e.getMessage(),uri,false));}
             });
@@ -345,7 +371,7 @@ public final class PlayActivity extends Activity {
                 if(renderGpu) {graphics=new GpuSceneView.Frame(gpuFrame(game,elapsed,forward,strafe,lookX,lookY,buttons,metrics),still);pixels=graphics.status;}
                 else pixels=gameFrame(game,elapsed,forward,strafe,lookX,lookY,buttons,640,400,metrics);
                 soundEvents=gameAudio(game,4);
-                ambientSnapshot=gameAudio(game,6);
+                ambientSnapshot=gameAudio(game,9);
                 missionText=guidance(game);
                 energy=gameEnergy(game);
                 if(pixels[4]==1 && !still) {
@@ -437,8 +463,8 @@ public final class PlayActivity extends Activity {
     }
     @Override protected void onResume() {super.onResume(); gpu.onResume(); resumed=true; lastFrame=0; if(sceneAudio!=null && !paused) sceneAudio.resume(); if(loaded) queueFrame(true);}
     @Override protected void onPause() {
-        resumed=false;generation++;if(loaded && !finished)paused=true;pause.setText("Fortsetzen"); if(sceneAudio!=null) sceneAudio.suspend(); handler.removeCallbacks(pump); lastFrame=0; if(controls!=null) controls.clear();
-        worker.execute(() -> {if(game!=0) {try {gameCommand(game,0);saveCheckpointWorker(true);} catch(Exception e) {Log.e("RCPlay","suspend",e);} }});
+        resumed=false;generation++;if(loaded && !finished)paused=true;pause.setText("Fortsetzen"); handler.removeCallbacks(pump); lastFrame=0; if(controls!=null) controls.clear();
+        savePausedCheckpoint(false);
         gpu.onPause();super.onPause();
     }
     @Override protected void onDestroy() {

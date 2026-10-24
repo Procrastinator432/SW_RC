@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /** Original local PCM, triggered only by consumable Rust simulation events. UI thread owns this host. */
-final class SceneAudio implements AutoCloseable {
+final class SceneAudio implements MissionAudio {
     private final SoundPool pool;
     private final int[] sounds;
     private final Set<Integer> ready=new HashSet<>();
@@ -35,7 +35,7 @@ final class SceneAudio implements AutoCloseable {
         ByteBuffer b=ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN); b.position(8);return b;
     }
     SceneAudio(Context context,byte[] bytes) throws IOException {
-        ByteBuffer b=packet(bytes,"RCSND001"); int count=b.getInt();
+        ByteBuffer b=packet(MissionSoundtrack.waveBank(bytes),"RCSND001"); int count=b.getInt();
         if(count<0 || count>128) throw new IOException("Invalid sound bank count");
         sounds=new int[count];
         pool=new SoundPool.Builder().setMaxStreams(16).setAudioAttributes(new AudioAttributes.Builder()
@@ -61,14 +61,15 @@ final class SceneAudio implements AutoCloseable {
             Log.i("RCAudio","bank sounds="+count);
         } catch(IOException|RuntimeException e) {close();throw e;}
     }
-    boolean hasOriginalSounds() {return sounds.length>0;}
-    void ambientLoops(byte[] snapshot) throws IOException {
+    public boolean hasOriginalSounds() {return sounds.length>0;}
+    public void ambientLoops(byte[] snapshot) throws IOException {
+        snapshot=MissionSoundtrack.pose(snapshot);
         if(closed || suspended)return;
         for(int stream:ambient.select(snapshot,sounds.length)){pool.stop(stream);Log.i("RCAudio","ambient_stop stream="+stream);}
         flush();
     }
-    boolean ready() throws IOException {if(loadFailure!=null)throw new IOException(loadFailure);return !closed && ready.size()==sounds.length;}
-    void events(byte[] bytes) throws IOException {
+    public boolean ready() throws IOException {if(loadFailure!=null)throw new IOException(loadFailure);return !closed && ready.size()==sounds.length;}
+    public void events(byte[] bytes) throws IOException {
         boolean parameters=bytes.length>=8 && new String(bytes,0,8,StandardCharsets.US_ASCII).equals("RCAUD003");
         boolean enriched=parameters || bytes.length>=8 && new String(bytes,0,8,StandardCharsets.US_ASCII).equals("RCAUD002");
         ByteBuffer b=packet(bytes,parameters?"RCAUD003":enriched?"RCAUD002":"RCAUD001");int count=b.getInt();
@@ -120,10 +121,10 @@ final class SceneAudio implements AutoCloseable {
         }
     }
     private void stopStreams() {for(int id:ambient.clear())pool.stop(id);ambientMix.clear();for(int id:ownership.activeStreams()) pool.stop(id);for(int id:streams) pool.stop(id);streams.clear();ownership.clear();}
-    void suspend() {suspended=true;handler.removeCallbacks(flushTask);pending.clear();timeline.reset();stopStreams();}
-    void resume() {suspended=false;flush();}
-    void stop() {handler.removeCallbacks(flushTask);pending.clear();timeline.reset();stopStreams();}
-    void reset() {stop();suspended=false;lastSequence=0;}
+    public void suspend() {suspended=true;handler.removeCallbacks(flushTask);pending.clear();timeline.reset();stopStreams();}
+    public void resume() {suspended=false;flush();}
+    public void stop() {handler.removeCallbacks(flushTask);pending.clear();timeline.reset();stopStreams();}
+    public void reset() {stop();suspended=false;lastSequence=0;}
     @Override public void close() {
         if(closed) return;closed=true;stop();pool.release();
         for(File file:files.values()) file.delete();files.clear();ready.clear();

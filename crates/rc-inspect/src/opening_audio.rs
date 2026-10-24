@@ -8,7 +8,7 @@ use rc_package::{
 };
 use std::{fs, path::Path};
 
-fn category(
+pub fn category(
     root: &Path,
     resolver: &mut Assets,
     catalog: &Catalog,

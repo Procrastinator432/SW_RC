@@ -548,7 +548,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 params,
             });
     }
-    opening.provenance["spatial_ambient"] = serde_json::json!({"profiles":ambient_receipts,"parameters":"PC PlayUSound selection once per simulation activation; separate saved local appSRand stream, not original global RNG history","position":"Bacta Eye bone; other selected effects use original or checkpoint-relocated actor location","host":"OpenAL inverse-distance-clamped falloff, portable SoundPool stereo panning; no EAX, geometry occlusion, Doppler or general ambient admission/culling"});
+    let owners: Vec<_> = opening.ambient_profiles.iter().map(|p| p.owner).collect();
+    let (audio_geometry, receipt) =
+        rc_inspect::ambient_geometry::read(&map, &data, &cat, &owners, "geo_01a")?;
+    opening.ambient_geometry = Some(audio_geometry);
+    opening.provenance["audio_geometry"] = receipt;
+    opening.provenance["spatial_ambient"] = serde_json::json!({"profiles":ambient_receipts,"parameters":"PC PlayUSound selection once per simulation activation; separate saved local appSRand stream, not original global RNG history","position":"Bacta Eye bone; other selected effects use original or checkpoint-relocated actor location","host":"OpenAL inverse-distance-clamped falloff, portable SoundPool stereo panning; original BSP/zone occlusion and ambient admission; no EAX, Doppler or general dynamic mesh traces"});
     opening.provenance["world_effects"] = serde_json::json!({"bindings":receipts,"injury":"175 scripted damage remains separate from original PlayerExplosionFactory823; original ACTION_TeleportToPoint2395 captures PlayerCommando location and pawn yaw before triggering factory823; fixed transform persists through checkpoint","barrier617":"PropDestroyed: original transition effect, no replacement mesh/material and no explosion damage => immediate actor removal","boundary":"Selected original SpriteEmitter assets, portable fixed-tick/range renderer; no general Karma, projector, global RNG or native driver parity"});
     let meta = serde_json::to_vec(&opening)?;
     let mut result = b"RCPLAY13".to_vec();

@@ -175,6 +175,13 @@ pub struct Lane {
 }
 #[derive(Clone, Debug, PartialEq, Serialize, serde::Deserialize)]
 pub struct State {
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub paused: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub command_started: bool,
+    /// Work phase to restore after a collision-checked return to the marker.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub return_phase: Option<Phase>,
     pub phase: Phase,
     pub participant: Option<u32>,
     pub placed: bool,
@@ -188,6 +195,9 @@ impl State {
     pub fn new(a: &Assets) -> Result<Self, String> {
         a.validate()?;
         Ok(Self {
+            paused: false,
+            command_started: false,
+            return_phase: None,
             phase: Phase::Disabled,
             participant: None,
             placed: false,
@@ -198,7 +208,7 @@ impl State {
             lanes: vec![Lane::default(); a.programs.len()],
         })
     }
-    fn validate(&self, a: &Assets) -> Result<(), String> {
+    pub fn validate(&self, a: &Assets) -> Result<(), String> {
         a.validate()?;
         if !seconds(self.elapsed)
             || !seconds(self.setup_elapsed)
@@ -224,10 +234,65 @@ impl State {
             ) && !self.placed
             || self.plunger_selected && !matches!(self.phase, Phase::Stopping | Phase::Armed)
             || self.objective_completed && self.phase != Phase::Exploded
+            || self.paused && !self.working()
+            || self.return_phase.is_some_and(|p| {
+                self.phase != Phase::Moving
+                    || !matches!(p, Phase::Starting | Phase::Setting | Phase::Stopping)
+                    || self.participant != Some(62)
+                    || matches!(p, Phase::Setting | Phase::Stopping) && !self.placed
+            })
+            || self.paused && self.plunger_selected
+            || self.phase == Phase::Moving && self.placed && self.return_phase.is_none()
         {
             return Err("Invalid demolition state".into());
         }
         Ok(())
+    }
+    pub fn working(&self) -> bool {
+        matches!(
+            self.phase,
+            Phase::Moving | Phase::Starting | Phase::Setting | Phase::Stopping
+        )
+    }
+    /// Port interruption policy; retain the already placed charge and work clock.
+    pub fn pause(&mut self, member: u32) -> bool {
+        if !self.working()
+            || self.participant != Some(member)
+            || self.paused
+            || self.plunger_selected
+            || self.phase == Phase::Stopping
+        {
+            return false;
+        }
+        self.paused = true;
+        true
+    }
+    pub fn cancel(&mut self, a: &Assets, member: u32) -> Result<bool, String> {
+        self.validate(a)?;
+        if !self.working() || self.placed || self.participant != Some(member) {
+            return Ok(false);
+        }
+        self.command_started = true; // Legacy active saves already emitted the spawn request.
+        self.phase = Phase::Available;
+        self.participant = None;
+        self.paused = false;
+        self.return_phase = None;
+        self.elapsed = 0.;
+        self.setup_elapsed = 0.;
+        Ok(true)
+    }
+    pub fn resume(&mut self, a: &Assets, member: u32, ready: bool) -> Result<bool, String> {
+        self.validate(a)?;
+        if !self.paused || !ready || self.participant != Some(member) {
+            return Ok(false);
+        }
+        if self.phase != Phase::Moving {
+            self.return_phase = Some(self.phase);
+        }
+        self.phase = Phase::Moving;
+        self.paused = false;
+        self.command_started = true;
+        Ok(true)
     }
     pub fn enable(&mut self, a: &Assets, squad_joined: bool) -> Result<bool, String> {
         self.validate(a)?;
@@ -250,18 +315,28 @@ impl State {
         }
         self.phase = Phase::Moving;
         self.participant = Some(member);
-        Ok(vec![Effect::Event {
-            tag: "SpawnDemoDroids".into(),
-        }])
+        let first = !self.command_started;
+        self.command_started = true;
+        Ok(if first {
+            vec![Effect::Event {
+                tag: "SpawnDemoDroids".into(),
+            }]
+        } else {
+            vec![]
+        })
     }
     /// Arrival must come from the collision-checked companion controller.
     pub fn arrived(&mut self, a: &Assets, member: u32) -> Result<bool, String> {
         self.validate(a)?;
-        if self.phase != Phase::Moving || self.participant != Some(member) {
+        if self.phase != Phase::Moving || self.paused || self.participant != Some(member) {
             return Ok(false);
         }
-        self.phase = Phase::Starting;
-        self.elapsed = 0.;
+        if let Some(phase) = self.return_phase.take() {
+            self.phase = phase;
+        } else {
+            self.phase = Phase::Starting;
+            self.elapsed = 0.;
+        }
         Ok(true)
     }
     fn place(&mut self, a: &Assets) -> Vec<Effect> {
@@ -288,6 +363,7 @@ impl State {
             || self.participant != Some(member)
             || event != "MDplaceCharge"
             || self.placed
+            || self.paused
         {
             return Ok(vec![]);
         }
@@ -300,7 +376,10 @@ impl State {
         if !distance.is_finite() || distance < 0. {
             return Err("Invalid charge targeting distance".into());
         }
-        if !matches!(self.phase, Phase::Stopping | Phase::Armed) || distance > a.player_range {
+        if self.paused
+            || !matches!(self.phase, Phase::Stopping | Phase::Armed)
+            || distance > a.player_range
+        {
             return Ok(false);
         }
         self.plunger_selected = true;
@@ -310,6 +389,7 @@ impl State {
     pub fn detonate(&mut self, a: &Assets, player_fire: bool) -> Result<Vec<Effect>, String> {
         self.validate(a)?;
         if !matches!(self.phase, Phase::Stopping | Phase::Armed)
+            || self.paused
             || !self.plunger_selected
             || !player_fire
         {
@@ -397,6 +477,9 @@ impl State {
         self.validate(a)?;
         if !dt.is_finite() || !(0. ..=1.).contains(&dt) {
             return Err("Invalid demolition delta".into());
+        }
+        if self.paused || self.return_phase.is_some() {
+            return Ok(vec![]);
         }
         // Split at all phase/notify boundaries so dialogue receives only the time
         // after its event and setup starts at the original notify, not clip end.
@@ -636,6 +719,7 @@ mod tests {
         assert_eq!(s.phase, Phase::Setting);
         let e = s.advance(&a, 0.001).unwrap();
         assert_eq!(s.phase, Phase::Stopping);
+        assert!(!s.pause(62)); // The charge is already armed before the finishing pose.
         assert!(e.contains(&Effect::Event {
             tag: "DemoChargeArmed".into()
         }));
@@ -763,5 +847,133 @@ mod tests {
         assert!(!s.select_plunger(&a, 1000.).unwrap());
         assert!(s.plunger_selected);
         assert!(!s.detonate(&a, true).unwrap().is_empty());
+    }
+    #[test]
+    fn cancel_before_placement_releases_marker_without_second_spawn_request() {
+        let a = assets();
+        let mut s = starting(&a);
+        assert!(s.cancel(&a, 62).unwrap());
+        assert_eq!(s.phase, Phase::Available);
+        assert_eq!(s.participant, None);
+        assert!(s.command(&a, 62, true).unwrap().is_empty());
+        assert_eq!(s.phase, Phase::Moving);
+        assert!(!s.placed);
+        assert!(s.arrived(&a, 62).unwrap());
+        assert_eq!(s.elapsed, 0.);
+        // A legacy active checkpoint has no command_started field yet.
+        s.command_started = false;
+        assert!(s.cancel(&a, 62).unwrap());
+        assert!(s.command(&a, 62, true).unwrap().is_empty());
+    }
+    #[test]
+    fn paused_work_emits_no_notify_and_does_not_advance_any_clock() {
+        let a = assets();
+        let mut s = starting(&a);
+        assert!(s.pause(62));
+        let frozen = s.clone();
+        for _ in 0..60 {
+            assert!(s.advance(&a, 1.).unwrap().is_empty());
+            assert_eq!(s, frozen);
+        }
+        assert!(s.notify(&a, 62, "MDplaceCharge").unwrap().is_empty());
+        assert_eq!(s, frozen);
+        assert!(!s.arrived(&a, 62).unwrap());
+    }
+    #[test]
+    fn placed_charge_survives_pause_and_return_without_repeating_placement() {
+        let a = assets();
+        let mut s = starting(&a);
+        s.advance(&a, 1.).unwrap();
+        assert!(s.placed);
+        let old = s.clone();
+        assert!(!s.cancel(&a, 62).unwrap());
+        assert_eq!(s, old);
+        assert!(s.pause(62));
+        let frozen = s.clone();
+        assert!(!s.resume(&a, 62, false).unwrap());
+        assert!(!s.resume(&a, 40, true).unwrap());
+        assert_eq!(s, frozen);
+        assert!(s.resume(&a, 62, true).unwrap());
+        assert_eq!(s.phase, Phase::Moving);
+        assert_eq!(s.return_phase, Some(old.phase));
+        let traveling = s.clone();
+        for _ in 0..20 {
+            assert!(s.advance(&a, 1.).unwrap().is_empty());
+            assert_eq!(s, traveling);
+        }
+        assert!(s.arrived(&a, 62).unwrap());
+        assert_eq!(s.phase, old.phase);
+        assert_eq!(s.elapsed, old.elapsed);
+        assert_eq!(s.setup_elapsed, old.setup_elapsed);
+        assert_eq!(s.lanes, old.lanes);
+        let mut events = vec![];
+        for _ in 0..20 {
+            events.extend(s.advance(&a, 1.).unwrap());
+        }
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| matches!(e,Effect::Event{tag}if tag=="DemoUnderway"))
+                .count(),
+            0
+        );
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| matches!(e,Effect::Event{tag}if tag=="DemoChargeArmed"))
+                .count(),
+            1
+        );
+        assert_eq!(s.phase, Phase::Armed);
+    }
+    #[test]
+    fn interruption_during_return_keeps_the_original_work_phase() {
+        let a = assets();
+        let mut s = starting(&a);
+        s.advance(&a, 1.).unwrap();
+        let phase = s.phase;
+        s.pause(62);
+        s.resume(&a, 62, true).unwrap();
+        s.pause(62);
+        s.resume(&a, 62, true).unwrap();
+        assert_eq!(s.return_phase, Some(phase));
+        s.arrived(&a, 62).unwrap();
+        assert_eq!(s.phase, phase);
+    }
+    #[test]
+    fn ready_charge_and_selected_plunger_are_not_cancelled_by_participant_loss() {
+        let a = assets();
+        let mut s = armed(&a);
+        assert!(!s.pause(62));
+        assert!(!s.cancel(&a, 62).unwrap());
+        let mut s = starting(&a);
+        for _ in 0..200 {
+            s.advance(&a, 0.1).unwrap();
+            if s.phase == Phase::Stopping {
+                break;
+            }
+        }
+        assert_eq!(s.phase, Phase::Stopping);
+        assert!(s.select_plunger(&a, 1.).unwrap());
+        assert!(!s.pause(62));
+        assert!(!s.detonate(&a, true).unwrap().is_empty());
+    }
+    #[test]
+    fn interrupted_state_roundtrips_and_invalid_return_phases_are_rejected() {
+        let a = assets();
+        let legacy = State::new(&a).unwrap();
+        let bytes = serde_json::to_vec(&legacy).unwrap();
+        assert!(!String::from_utf8_lossy(&bytes).contains("paused"));
+        let copy: State = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(serde_json::to_vec(&copy).unwrap(), bytes);
+        let mut s = starting(&a);
+        s.pause(62);
+        let mut copy: State = serde_json::from_slice(&serde_json::to_vec(&s).unwrap()).unwrap();
+        copy.validate(&a).unwrap();
+        copy.resume(&a, 62, true).unwrap();
+        copy.return_phase = Some(Phase::Armed);
+        assert!(copy.validate(&a).is_err());
+        copy.return_phase = Some(Phase::Setting);
+        assert!(copy.validate(&a).is_err());
     }
 }

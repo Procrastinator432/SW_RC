@@ -5,9 +5,77 @@ use crate::{
     Game, Point, STEP,
 };
 use serde::{Deserialize, Serialize};
+fn sound_policy(
+    policies: &[crate::opening::SoundPolicy],
+    role: usize,
+    owner: i32,
+) -> Option<crate::opening::SoundPolicy> {
+    policies
+        .iter()
+        .find(|p| p.role == role && (owner == -1 || p.owner == owner))
+        .copied()
+}
+fn valid_sound_policies(policies: &[crate::opening::SoundPolicy], sounds: usize) -> bool {
+    policies.len() <= sounds
+        && policies
+            .iter()
+            .all(|p| p.role < sounds && p.owner > 0 && p.category <= 2)
+        && policies
+            .iter()
+            .map(|p| p.role)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            == policies.len()
+}
+#[cfg(test)]
+mod owned_audio_tests {
+    use super::*;
+    use crate::opening::SoundPolicy;
+    fn policy() -> SoundPolicy {
+        SoundPolicy {
+            role: 2,
+            owner: 11,
+            category: 1,
+            no_override: false,
+        }
+    }
+    #[test]
+    fn proven_map_policy_fills_only_missing_or_matching_owner() {
+        let policies = [policy()];
+        assert_eq!(sound_policy(&policies, 2, -1).unwrap().owner, 11);
+        assert_eq!(sound_policy(&policies, 2, 11).unwrap().category, 1);
+        assert!(sound_policy(&policies, 2, 10).is_none());
+        assert!(sound_policy(&policies, 2, -2).is_none());
+        assert!(sound_policy(&policies, 3, -1).is_none());
+        assert!(sound_policy(&[], 2, -1).is_none());
+    }
+    #[test]
+    fn map_audio_bindings_reject_ambiguous_owners_and_bank_overflow() {
+        assert!(valid_sound_policies(&[], 0));
+        assert!(valid_sound_policies(&[policy()], 3));
+        assert!(!valid_sound_policies(&[policy()], 2));
+        assert!(!valid_sound_policies(&[policy(), policy()], 3));
+        assert!(!valid_sound_policies(
+            &[SoundPolicy {
+                owner: 0,
+                ..policy()
+            }],
+            3
+        ));
+        assert!(!valid_sound_policies(
+            &[SoundPolicy {
+                category: 3,
+                ..policy()
+            }],
+            3
+        ));
+    }
+}
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assets {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sound_policies: Vec<crate::opening::SoundPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enemy_fire_sound: Option<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -64,6 +132,9 @@ pub struct State {
     pub audio_sequence: u64,
 }
 impl Game {
+    pub fn map_sound_policy(&self, role: usize, owner: i32) -> Option<crate::opening::SoundPolicy> {
+        sound_policy(&self.map.as_ref()?.assets.sound_policies, role, owner)
+    }
     pub fn attach_map2(&mut self, mut assets: Assets) -> Result<(), String> {
         if self.map.is_some()
             || self.mission.is_some()
@@ -88,6 +159,7 @@ impl Game {
             || assets.pitch.abs() > 1.4
             || assets.sounds.is_empty()
             || assets.sounds.len() > 128
+            || !valid_sound_policies(&assets.sound_policies, assets.sounds.len())
             || assets
                 .enemy_fire_sound
                 .is_some_and(|i| i >= assets.sounds.len())
@@ -470,24 +542,33 @@ impl Game {
         }
         let mut triangles = vec![];
         let mut faces = vec![];
-        for (c, mesh, base) in state
+        for (member, c, mesh, base) in state
             .companion
             .iter()
-            .map(|c| (c, &p.squad, p.texture_base))
+            .map(|c| (0, c, &p.squad, p.texture_base))
             .chain(
                 state
                     .fixer
                     .iter()
-                    .filter_map(|c| p.fixer.as_ref().map(|(mesh, base)| (c, mesh, *base))),
+                    .filter_map(|c| p.fixer.as_ref().map(|(mesh, base)| (1, c, mesh, *base))),
             )
             .chain(
                 state
                     .sev
                     .iter()
-                    .filter_map(|c| p.sev.as_ref().map(|(mesh, base)| (c, mesh, *base))),
+                    .filter_map(|c| p.sev.as_ref().map(|(mesh, base)| (2, c, mesh, *base))),
             )
         {
-            let (t, f) = self.map_member_geometry(c, mesh, base)?;
+            let (t, f) = self.map_member_geometry(
+                c,
+                mesh,
+                base,
+                if member == 0 {
+                    self.map_work_pose(0)
+                } else {
+                    None
+                },
+            )?;
             triangles.extend(t);
             faces.extend(f);
         }
@@ -498,6 +579,7 @@ impl Game {
         c: &Companion,
         mesh: &PreparedMesh,
         texture_base: usize,
+        work_pose: Option<crate::work_animation::Sample>,
     ) -> Result<
         (
             Vec<rc_package::geometry::Triangle>,
@@ -509,16 +591,21 @@ impl Game {
         if !c.joined || (c.health == 0 && !c.down) {
             return Ok((vec![], vec![]));
         }
-        let clip = mesh.clip(if c.moving {
-            "RunForward"
+        let clip = if let Some(pose) = work_pose {
+            pose.clip
         } else {
-            "ActionBreathe"
-        })?;
+            mesh.clip(if c.moving {
+                "RunForward"
+            } else {
+                "ActionBreathe"
+            })?
+        };
         let seq = &mesh.mesh.clips[clip].sequence;
         let frame =
             (self.state.statistics.ticks as f64 * STEP * f32::from_bits(seq.rate_bits) as f64
                 / seq.frames as f64)
                 .rem_euclid(1.) as f32;
+        let frame = work_pose.map_or(frame, |pose| pose.frame);
         let channel = mesh.channel(clip, frame)?;
         let mut g = mesh.geometry_with_root(&channel, true)?;
         for t in &mut g.triangles {
@@ -539,31 +626,33 @@ impl Game {
         for f in g.appearance.iter_mut().flatten() {
             f.texture += texture_base;
         }
-        let transform = mesh.attachment_transform(&channel, "weaponAttach_R", true)?;
-        let (sin, cos) = (c.yaw as f32).sin_cos();
-        for t in &p.weapon.triangles {
-            let mut t = t.clone();
-            t.points = t.points.map(|v| {
-                let v: [f32; 3] = std::array::from_fn(|i| {
-                    v[0] * transform[0][i]
-                        + v[1] * transform[1][i]
-                        + v[2] * transform[2][i]
-                        + transform[3][i]
+        if work_pose.is_none() {
+            let transform = mesh.attachment_transform(&channel, "weaponAttach_R", true)?;
+            let (sin, cos) = (c.yaw as f32).sin_cos();
+            for t in &p.weapon.triangles {
+                let mut t = t.clone();
+                t.points = t.points.map(|v| {
+                    let v: [f32; 3] = std::array::from_fn(|i| {
+                        v[0] * transform[0][i]
+                            + v[1] * transform[1][i]
+                            + v[2] * transform[2][i]
+                            + transform[3][i]
+                    });
+                    [
+                        c.position[0] as f32 + v[0] * cos - v[1] * sin,
+                        c.position[1] as f32 + v[0] * sin + v[1] * cos,
+                        c.position[2] as f32 - 84. + v[2] - mesh.rest_bounds[0][2],
+                    ]
                 });
-                [
-                    c.position[0] as f32 + v[0] * cos - v[1] * sin,
-                    c.position[1] as f32 + v[0] * sin + v[1] * cos,
-                    c.position[2] as f32 - 84. + v[2] - mesh.rest_bounds[0][2],
-                ]
-            });
-            g.triangles.push(t);
+                g.triangles.push(t);
+            }
+            g.appearance.extend(p.weapon.appearance.iter().map(|f| {
+                (*f).map(|mut f| {
+                    f.texture += p.weapon_texture;
+                    f
+                })
+            }));
         }
-        g.appearance.extend(p.weapon.appearance.iter().map(|f| {
-            (*f).map(|mut f| {
-                f.texture += p.weapon_texture;
-                f
-            })
-        }));
         Ok((g.triangles, g.appearance))
     }
 }

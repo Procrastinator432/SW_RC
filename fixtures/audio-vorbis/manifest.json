@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "synthetic": true,
+  "encoder": "ffmpeg version 8.1-essentials_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+  "reference": {
+    "soundfile": "0.13.1",
+    "libsndfile": "1.2.2",
+    "conversion": "round-to-even(float64(decoded_f32)*32768), saturate [-32768,32767]"
+  },
+  "files": [
+    {
+      "name": "mono",
+      "frames": 2756,
+      "channels": 1,
+      "frequency": 22050,
+      "overrange_samples": 0,
+      "ogg_sha256": "472f55fd3d64e43678f5cffe5787ef3dd05c4c0fd3761bb1105f70ff15f164f6",
+      "pcm_sha256": "45ff532fb627763a718750155eff9c37a795066f270456ca5f3c76d1430ceb7b"
+    },
+    {
+      "name": "stereo",
+      "frames": 88200,
+      "channels": 2,
+      "frequency": 44100,
+      "overrange_samples": 0,
+      "ogg_sha256": "2a129e762cd98be9b27f2c6a0ec88f0464a9ff557d4d34a44a690f919e80e18f",
+      "pcm_sha256": "680ca32dbb1136f84bf36458bd11525a9a888f331ef29690d39b8c3a28c5909f"
+    },
+    {
+      "name": "silence",
+      "frames": 221,
+      "channels": 1,
+      "frequency": 22050,
+      "overrange_samples": 0,
+      "ogg_sha256": "2eb73dc02c911862187cd0b3e877439f28e803deabddf3e03e13367ccd595e87",
+      "pcm_sha256": "826e41038409f3996cf13cf3ea74ff160b62cd5c6ac6be79e2369d52d0b148f4"
+    },
+    {
+      "name": "clipped",
+      "frames": 2205,
+      "channels": 1,
+      "frequency": 22050,
+      "overrange_samples": 720,
+      "ogg_sha256": "18044955c5af0510e67697e297120f4c2169f10ffbf6b2b94a7ce740b416f456",
+      "pcm_sha256": "89518db91ba3d5426a6efbae46ae665a59f9a1b2b82e7d1a967e26abb952705c"
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "driver": {
+    "node": {
+      "source": {
+        "allocated": true,
+        "sound": 83902464,
+        "original_sound": 83902464,
+        "actor": 0,
+        "lifetime_words": [
+          0,
+          3220176896
+        ],
+        "flags": 260,
+        "identity": 100,
+        "unique_id": 1,
+        "engine_index": -1,
+        "priority_bits": 0,
+        "cursor": 3,
+        "requested_pause": 0,
+        "voice_exempt": true,
+        "fade": {
+          "curve": {
+            "words": [
+              3212836864,
+              3212836864,
+              3212836864,
+              0,
+              1061158912,
+              1061158912
+            ],
+            "kind": 0
+          },
+          "duration_bits": 0,
+          "elapsed_bits": 0,
+          "mode": 0,
+          "held_bits": 1065353216
+        },
+        "location_bits": [
+          1174599162,
+          1174454163,
+          3316452511
+        ],
+        "velocity_bits": [
+          1082130432,
+          1084227584,
+          1086324736
+        ],
+        "base_radius_bits": 1109393408,
+        "radii": {
+          "radius_bits": [
+            1109393408,
+            1065353216,
+            1109393408
+          ],
+          "changed_at_bits": [
+            0,
+            3220176896
+          ]
+        },
+        "pitch_bits": 1066192077,
+        "volume_bits": 1061158912,
+        "output_volume_bits": 1077936128,
+        "reserved98": 0
+      },
+      "hardware": 1000,
+      "buffer": 84344832
+    },
+    "buffers": [
+      {
+        "handle": 84344832,
+        "stream_token": 0,
+        "count_word": 1,
+        "storage": [
+          101,
+          102,
+          103,
+          104
+        ]
+      }
+    ],
+    "sounds": [
+      {
+        "handle": 83902464,
+        "flags": 0,
+        "duration_bits": 0,
+        "native_handle": 0
+      }
+    ]
+  },
+  "progress": [],
+  "streams": []
+}

@@ -246,6 +246,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let assets = Assets {
         rigid_interactions: None,
         ambient_profiles: vec![],
+        ambient_geometry: None,
         ambient_policy: None,
         rigid: vec![],
         world_effects: vec![],

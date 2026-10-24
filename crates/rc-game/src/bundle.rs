@@ -49,7 +49,7 @@ pub struct Settings {
     pub water: bool,
     pub zone_velocity: [f32; 3],
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VolumeNode {
     pub plane: [f32; 4],
     pub front: i32,
@@ -57,7 +57,7 @@ pub struct VolumeNode {
     pub flags: u8,
     pub vertex_count: u8,
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Transform {
     pub location: [f32; 3],
     pub rotation: [i32; 3],
@@ -449,6 +449,7 @@ pub fn encode(manifest: &Manifest, scene: &rc_render::Scene) -> Result<Vec<u8>, 
 /// unoptimized builds, overflowing the standard 2 MiB Rust test-thread stack.
 pub fn decode(bytes: &[u8]) -> Result<Game, String> {
     match bytes.get(..8) {
+        Some(b"RCPLAY15") => decode_rcplay15(bytes),
         Some(b"RCPLAY14") => decode_rcplay14(bytes),
         Some(b"RCPLAY13") => decode_rcplay13(bytes),
         Some(b"RCPLAY12") => decode_rcplay12(bytes),
@@ -464,6 +465,56 @@ pub fn decode(bytes: &[u8]) -> Result<Game, String> {
         Some(b"RCPLAY02") => decode_rcplay02(bytes),
         _ => decode_base(bytes),
     }
+}
+#[inline(never)]
+fn decode_rcplay15(bytes: &[u8]) -> Result<Game, String> {
+    if bytes.len() < 20 || bytes.len() > 112 * 1024 * 1024 {
+        return Err("Invalid soundtrack scene size".into());
+    }
+    let n = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
+    let m = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
+    if n > 256 * 1024 || m > rc_package::mission_music::MAX_BANK {
+        return Err("Soundtrack scene budget".into());
+    }
+    let score: crate::music::Score =
+        serde_json::from_slice(bytes.get(16..16 + n).ok_or("Truncated music score")?)
+            .map_err(|e| e.to_string())?;
+    score.validate()?;
+    let bank = bytes
+        .get(16 + n..16 + n + m)
+        .ok_or("Truncated music resources")?;
+    let tracks = rc_package::mission_music::bank(bank)?;
+    if tracks.len() != score.tracks.len() {
+        return Err("Music score/bank mismatch".into());
+    }
+    for (raw, track) in tracks.iter().zip(&score.tracks) {
+        let p = rc_package::audio_vorbis::Provider::new(raw.to_vec())?;
+        if p.metadata().frames != track.frames || p.metadata().frequency != track.rate {
+            return Err("Music score/decoder metadata mismatch".into());
+        }
+    }
+    let base = bytes.get(16 + n + m..).ok_or("Missing music scene")?;
+    if !matches!(base.get(..8), Some(b"RCPLAY13" | b"RCPLAY14")) {
+        return Err("Music requires a campaign scene".into());
+    }
+    let mut game = decode(base)?;
+    game.music = Some(crate::music::Assets {
+        score,
+        bank: bank.to_vec(),
+    });
+    game.state.music = Some(crate::music::MusicState {
+        events: std::collections::BTreeMap::from([("levelstart".into(), 0)]),
+        ..Default::default()
+    });
+    if game
+        .music
+        .as_ref()
+        .is_some_and(|a| !a.score.groups.is_empty())
+    {
+        game.tick_music()?;
+    }
+    game.initial = game.state.clone();
+    Ok(game)
 }
 
 #[inline(never)]

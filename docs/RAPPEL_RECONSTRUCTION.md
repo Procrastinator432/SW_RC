@@ -1,5 +1,9 @@
 # Originale Abseilsequenz: vorbereitete Bindungen
 
+**28.10.2026: Sichtbares Abseilseil ergänzt (0.76.0).** Ein ausdrücklich gewählter Portadapter koppelt den vorhandenen Seilclip an den gespeicherten Spielerkanal. 19.319 A-Eingaben ergeben 93 unveränderte Spielzustände und identische Audioereignisse; fünf kalte Animationsrestores sind bildgleich. Neues Paket und neue APK gemeinsam verwenden. Hände/Rüstung und die vollständige ursprüngliche Receiverbindung bleiben offen. [Bericht und Lieferung](RAPPEL_VISUAL.md).
+
+**Nachprüfung 28.10.2026:** Rope7.AnimTriggered verweist auf CloneEntrance1760; der tatsächliche Ego-/Seilreceiver bleibt offen. [Aktueller Befund](MISSION_VOICE_ROUTING.md).
+
 Stand 2026-10-13: **Live-Abseil-Meilenstein0.31.0 / Code35 erreicht**. Lieferung `analysis/mission13-rappel/delivery`: `republic-commando-0.31.0.apk` und `geo_01a-rappel.rcplay` gemeinsam verwenden. Die folgenden ursprünglichen Untersuchungsbefunde bleiben als Herkunftsnachweis erhalten; die Live-Integration ist unten beschrieben.
 
 `rc-rappel-audit GAME_DATA OUT` liest die Karte und Klassenwerte, löst die ausgewählten Animationssets auf und bereitet Spieler, Seil, Trooper und Warrior mit dem vorhandenen Rust-Posehost vor. Animationsereignisse werden aus den Sequenzreferenzen gelesen, nicht aus einer angenommenen Reihenfolge von Exportnummern.

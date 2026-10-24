@@ -615,7 +615,7 @@ fn presentation_snapshot_survives_simulation_and_rejects_bad_dimensions() {
         game.render_frame(160, 100).unwrap().gpu_packet(&game.scene)
     );
 }
-fn game(wall: bool) -> Game {
+pub(super) fn game(wall: bool) -> Game {
     let mut triangles = vec![Triangle {
         points: [
             [-2000., -2000., -84.5],
@@ -858,6 +858,7 @@ fn foley_campaign_caps_all_producers_after_tick_and_preserves_legacy_queue() {
         let mut profile = dc15_profile();
         if foley {
             profile.animation = Some(weapon_animation::Assets {
+                raise_after_briefing: false,
                 fire_anim: "Fire".into(),
                 idle_delay: 20.,
                 foley: Some(weapon_animation::Foley {

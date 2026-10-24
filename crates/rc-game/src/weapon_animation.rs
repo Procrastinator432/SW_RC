@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assets {
+    /// Selected GEO_01A Briefing.EndState -> BringUp/PlaySelect visual path.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub raise_after_briefing: bool,
     pub fire_anim: String,
     pub idle_delay: f32,
     /// Absent in old scenes. Grenade notifies remain owned by throw_runtime.
@@ -95,7 +98,8 @@ impl Assets {
                 crate::combat::validate_wave(&sound.wave)?;
             }
             for (i, n) in foley.notifies.iter().enumerate() {
-                if !["Run", "Idle"].contains(&n.clip.as_str())
+                if !(["Run", "Idle"].contains(&n.clip.as_str())
+                    || self.raise_after_briefing && n.clip == "Load")
                     || n.original <= 0
                     || !n.time.is_finite()
                     || !(0. ..1.).contains(&n.time)
@@ -131,10 +135,18 @@ impl Assets {
         for name in ["ActionBreathe", "Walk", "Run", "Idle", &self.fire_anim] {
             mesh.clip(name)?;
         }
+        if self.raise_after_briefing {
+            mesh.clip("Load")?;
+        }
         if let Some(foley) = &self.foley {
-            for name in ["Run", "Idle"] {
+            let names = if self.raise_after_briefing {
+                &["Run", "Idle", "Load"][..]
+            } else {
+                &["Run", "Idle"][..]
+            };
+            for name in names {
                 let original = &mesh.mesh.clips[mesh.clip(name)?].sequence.notifies;
-                let bound: Vec<_> = foley.notifies.iter().filter(|n| n.clip == name).collect();
+                let bound: Vec<_> = foley.notifies.iter().filter(|n| n.clip == *name).collect();
                 if original.len() != bound.len()
                     || original.iter().zip(bound).any(|(a, b)| {
                         a.object_index != b.original || a.time_bits != b.time.to_bits()
@@ -207,16 +219,17 @@ impl State {
         validate_player(mesh, base)?;
         let name = &mesh.mesh.clips[base.clip].sequence.name.name;
         if self.idle_started.is_some_and(|t| t > tick)
-            || ![
-                "ActionBreathe",
-                "Walk",
-                "Run",
-                "Idle",
-                "Reload",
-                "ThrowGrenade",
-            ]
-            .iter()
-            .any(|n| name.eq_ignore_ascii_case(n))
+            || !(a.raise_after_briefing && name == "Load"
+                || [
+                    "ActionBreathe",
+                    "Walk",
+                    "Run",
+                    "Idle",
+                    "Reload",
+                    "ThrowGrenade",
+                ]
+                .iter()
+                .any(|n| name.eq_ignore_ascii_case(n)))
             || self.playing_idle && (!name.eq_ignore_ascii_case("Idle") || base.finished)
         {
             return Err("Invalid weapon idle checkpoint".into());
@@ -227,6 +240,11 @@ impl State {
             {
                 return Err("Invalid weapon fire channel checkpoint".into());
             }
+        }
+        if name == "Load"
+            && (self.fire.is_some() || self.idle_started.is_some() || self.playing_idle)
+        {
+            return Err("Invalid raising weapon checkpoint".into());
         }
         Ok(())
     }
@@ -267,13 +285,26 @@ impl State {
             self.fire = None;
             self.idle_started = None;
         }
+        let raising = a.raise_after_briefing
+            && mesh.mesh.clips[base.clip].sequence.name.name == "Load"
+            && !base.finished;
+        if raising {
+            self.idle_started = None;
+            self.playing_idle = false;
+            self.fire = None;
+            // Preserve current gameplay requests. The full original Active-state
+            // bWeaponUp/queued-trigger gate is not introduced by this visual path.
+            if shot {
+                base.select(mesh, "ActionBreathe", true)?;
+            }
+        }
         if shot {
             self.fire = Some(Player::new(mesh, &a.fire_anim)?);
             self.idle_started = None;
         }
         if let Some(fire) = &mut self.fire {
             fire.advance(mesh, false, None)?;
-        } else {
+        } else if !raising {
             let stationary = now.pawn.body.velocity.iter().all(|&v| v as f32 == 0.);
             let mut fidget = false;
             if stationary {
@@ -431,6 +462,35 @@ pub(crate) fn validate_game(game: &crate::Game, s: &crate::State) -> Result<(), 
 }
 
 impl crate::Game {
+    pub(crate) fn briefing_weapon_bring_up(&mut self) -> Result<(), String> {
+        if !self
+            .dc15
+            .as_ref()
+            .and_then(|a| a.animation.as_ref())
+            .is_some_and(|a| a.raise_after_briefing)
+        {
+            return Ok(());
+        }
+        let mesh = &self
+            .visuals
+            .as_ref()
+            .ok_or("Missing briefing weapon mesh")?
+            .weapon;
+        let visual = self
+            .state
+            .visuals
+            .as_mut()
+            .ok_or("Missing briefing weapon visual")?;
+        visual.weapon = Player::new(mesh, "Load")?;
+        let state = visual
+            .weapon_animation
+            .as_mut()
+            .ok_or("Missing briefing weapon animation")?;
+        state.fire = None;
+        state.idle_started = None;
+        state.playing_idle = false;
+        Ok(())
+    }
     /// Older campaign producers sometimes append several cues without a cap.
     /// New Foley scenes share the existing most-recent-256 event policy after
     /// every tick, including cinematic/defeat/win early returns. Legacy pairs
@@ -578,6 +638,16 @@ impl crate::Game {
             .visuals
             .take()
             .ok_or("Missing locked weapon state")?;
+        // EndBriefing can precede the last rappel pose. BringUp belongs to that
+        // event, so keep its visual/audio channel alive during the remaining
+        // movement lock without enabling gameplay controls.
+        let raising = a.raise_after_briefing
+            && self.state.opening.as_ref().is_some_and(|s| !s.locked)
+            && assets.weapon.mesh.clips[visual.weapon.clip]
+                .sequence
+                .name
+                .name
+                == "Load";
         let result = visual
             .weapon_animation
             .as_mut()
@@ -588,10 +658,16 @@ impl crate::Game {
                 &mut visual.weapon,
                 &self.state,
                 &self.state,
-                true,
+                !raising,
             );
         self.state.visuals = Some(visual);
-        result.map(|_| ())
+        let events = result?;
+        self.emit_weapon_foley(
+            &events
+                .into_iter()
+                .map(|sound| (sound, -1))
+                .collect::<Vec<_>>(),
+        )
     }
 }
 

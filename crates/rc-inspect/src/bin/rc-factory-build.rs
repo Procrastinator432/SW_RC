@@ -45,6 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     sev.clips
         .retain(|c| ["ActionBreathe", "RunForward"].contains(&c.sequence.name.name.as_str()));
     let assets = rc_game::map_runtime::Assets {
+        sound_policies: vec![],
         enemy_fire_sound: None,
         opening: None,
         gameplay: None,

@@ -263,6 +263,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .0,
     );
     let assets = rc_game::map_runtime::Assets {
+        sound_policies: vec![],
         enemy_fire_sound: None,
         sev_mesh: None,
         opening: None,

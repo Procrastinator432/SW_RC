@@ -2,7 +2,18 @@
 use crate::{collision::SolidBsp, geometry::Bsp};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    sync::{Arc, Weak},
+};
 
+type ValidatedSets = HashMap<usize, (Weak<HullSet>, bool)>;
+thread_local! {
+    // Arc identity includes a weak owner, so freed allocations cannot be reused
+    // under a stale entry. Public, mutable raw HullSets keep the uncached path.
+    static VALIDATED_SETS: RefCell<ValidatedSets> = RefCell::default();
+}
 #[derive(Debug, Serialize)]
 pub struct Hull {
     pub offset: usize,
@@ -38,6 +49,59 @@ fn normal(p: [f64; 4]) -> [f64; 3] {
 }
 
 impl HullSet {
+    pub(crate) fn sweep_shared(
+        set: &Arc<Self>,
+        start: [f64; 3],
+        end: [f64; 3],
+        extent: [f64; 3],
+        motion: bool,
+    ) -> Result<Option<SweepHit>, String> {
+        let valid = VALIDATED_SETS.with(|cache| {
+            let key = Arc::as_ptr(set) as usize;
+            let mut cache = cache.borrow_mut();
+            if let Some((_, valid)) = cache.get(&key) {
+                return *valid;
+            }
+            let valid = set.hulls.iter().all(Hull::valid_sweep);
+            if cache.len() >= 4096 {
+                cache.clear();
+            }
+            cache.insert(key, (Arc::downgrade(set), valid));
+            valid
+        });
+        if !valid || set.missing_solid_leaves > 0 || set.empty_root_solid {
+            return set.sweep_with_policy(start, end, extent, motion);
+        }
+        if start
+            .into_iter()
+            .chain(end)
+            .chain(extent)
+            .any(|v| !v.is_finite() || v.abs() > 1e9)
+            || extent.iter().any(|v| *v < 0.)
+        {
+            return Err("invalid hull sweep input".into());
+        }
+        let mut nearest: Option<SweepHit> = None;
+        for hull in &set.hulls {
+            if (0..3).any(|i| {
+                start[i].min(end[i]) - extent[i] > hull.bounds[1][i]
+                    || start[i].max(end[i]) + extent[i] < hull.bounds[0][i]
+            }) {
+                continue;
+            }
+            if let Some(hit) = hull.sweep_with_policy(start, end, extent, motion)? {
+                if nearest.as_ref().is_none_or(|current| {
+                    hit.fraction < current.fraction
+                        || (hit.fraction == current.fraction
+                            && hit.start_overlapping
+                            && !current.start_overlapping)
+                }) {
+                    nearest = Some(hit);
+                }
+            }
+        }
+        Ok(nearest)
+    }
     /// Transform original local hulls to world space before world-axis AABB support.
     /// Transforming only the extent as a vector would lose rotated-box edge axes.
     pub fn transformed(
@@ -299,6 +363,18 @@ fn decode_hull(offset: usize, words: &[u32], nodes: &[[f32; 4]]) -> Result<Hull,
     })
 }
 impl Hull {
+    fn valid_sweep(&self) -> bool {
+        self.planes.len() <= 70
+            && self
+                .planes
+                .iter()
+                .all(|p| p.iter().all(|v| v.is_finite()) && dot(normal(*p), normal(*p)) >= 1e-12)
+            && (0..3).all(|i| {
+                self.bounds[0][i].is_finite()
+                    && self.bounds[1][i].is_finite()
+                    && self.bounds[0][i] <= self.bounds[1][i]
+            })
+    }
     /// Add box-axis and edge/box-axis separating planes before support expansion.
     /// Positive combinations of hull faces are valid even for nonadjacent pairs.
     fn sweep_planes(&self) -> Vec<[f64; 4]> {
@@ -444,6 +520,87 @@ impl Hull {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn shared_broadphase_matches_raw_sweeps_and_contact_ties() {
+        let set = Arc::new(HullSet {
+            hulls: vec![
+                Hull {
+                    offset: 7,
+                    planes: vec![],
+                    bounds: [[-1.; 3], [1.; 3]],
+                },
+                Hull {
+                    offset: 8,
+                    planes: vec![],
+                    bounds: [[-1.; 3], [1.; 3]],
+                },
+                Hull {
+                    offset: 9,
+                    planes: vec![[1., 1., 0., 2.]],
+                    bounds: [[4., -1., -1.], [6., 1., 1.]],
+                },
+            ],
+            missing_solid_leaves: 0,
+            empty_root_solid: false,
+        });
+        for x in [-8., -1.5, -1., 0., 1., 1.5, 8.] {
+            for y in [-3., 0., 3.] {
+                for extent in [[0.; 3], [0.5; 3], [2.; 3]] {
+                    for motion in [false, true] {
+                        let a = [x, y, 0.];
+                        let b = [-x, y, 0.];
+                        let raw = set.sweep_with_policy(a, b, extent, motion).unwrap();
+                        for _ in 0..2 {
+                            let fast = HullSet::sweep_shared(&set, a, b, extent, motion).unwrap();
+                            assert_eq!(
+                                serde_json::to_value(raw.as_ref()).unwrap(),
+                                serde_json::to_value(fast).unwrap()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn shared_broadphase_keeps_errors_outside_query_and_special_worlds() {
+        for (missing, empty) in [(0, false), (1, false), (0, true), (1, true)] {
+            let set = Arc::new(HullSet {
+                hulls: vec![Hull {
+                    offset: 0,
+                    planes: vec![[0.; 4]],
+                    bounds: [[100.; 3], [101.; 3]],
+                }],
+                missing_solid_leaves: missing,
+                empty_root_solid: empty,
+            });
+            for extent in [[0.; 3], [-1.; 3], [f64::NAN; 3]] {
+                let raw = set.sweep([0.; 3], [1.; 3], extent);
+                let fast = HullSet::sweep_shared(&set, [0.; 3], [1.; 3], extent, false);
+                assert_eq!(format!("{raw:?}"), format!("{fast:?}"));
+            }
+        }
+    }
+    #[test]
+    fn shared_broadphase_distinguishes_replacement_geometry() {
+        for x in [0., 100., 0., 100.] {
+            let set = Arc::new(HullSet {
+                hulls: vec![Hull {
+                    offset: 0,
+                    planes: vec![],
+                    bounds: [[x - 1.; 3], [x + 1.; 3]],
+                }],
+                missing_solid_leaves: 0,
+                empty_root_solid: false,
+            });
+            assert_eq!(
+                HullSet::sweep_shared(&set, [-5.; 3], [5.; 3], [0.; 3], false)
+                    .unwrap()
+                    .is_some(),
+                x == 0.
+            );
+        }
+    }
     #[test]
     fn hull_reference_flip_bounds_limits_and_truncations() {
         let mut words = vec![0x40000000, u32::MAX];

@@ -80,54 +80,8 @@ pub fn load(
                 Value::Int(v) => v,
                 _ => return Err("Priority not Int".into()),
             };
-            let shape = (|| -> Result<VolumeShape, String> {
-                let brush = catalog.instance(&class, &props, "Brush", 0, source)?;
-                let index = match brush.value {
-                    Value::Object { index, .. } => index,
-                    _ => return Err("Brush not Object".into()),
-                };
-                if index == 0 {
-                    return Ok(VolumeShape::Empty);
-                }
-                if index < 0 || brush.stage != "instance_delta" {
-                    return Err("volume Brush is not a local instance Model".into());
-                }
-                let model = pkg
-                    .exports
-                    .get(index as usize - 1)
-                    .ok_or("invalid Brush export")?;
-                if !pkg
-                    .object_path(model.class)?
-                    .eq_ignore_ascii_case("Engine.Model")
-                {
-                    return Err("Brush not Model".into());
-                }
-                let bsp = geometry::read_bsp(pkg, data, model)?;
-                let solid = collision::read_model_collision(pkg, data, model, &bsp)?;
-                let vector = |field| match value(field)? {
-                    Value::Vector(v) => Ok::<[f32; 3], String>(v),
-                    _ => Err("transform not Vector".into()),
-                };
-                let rotation = match value("Rotation")? {
-                    Value::Rotator(v) => v,
-                    _ => return Err("Rotation not Rotator".into()),
-                };
-                let scale = match value("DrawScale")? {
-                    Value::Float(v) => v,
-                    _ => return Err("DrawScale not Float".into()),
-                };
-                Ok(VolumeShape::Brush {
-                    bsp: Box::new(bsp),
-                    solid,
-                    transform: ActorTransform {
-                        location: vector("Location")?,
-                        rotation,
-                        scale: vector("DrawScale3D")?.map(|v| v * scale),
-                        pivot: vector("PrePivot")?,
-                    },
-                })
-            })()
-            .unwrap_or_else(VolumeShape::Unsupported);
+            let shape = shape(pkg, data, catalog, &class, &props, source)
+                .unwrap_or_else(VolumeShape::Unsupported);
             Ok(PhysicsVolume {
                 name: name.clone(),
                 priority,
@@ -158,5 +112,63 @@ pub fn load(
         actors,
         unidentified,
         errors: failures,
+    })
+}
+
+pub fn shape(
+    pkg: &Package,
+    data: &[u8],
+    catalog: &Catalog,
+    class: &str,
+    props: &properties::Properties,
+    source: &str,
+) -> Result<VolumeShape, String> {
+    let brush = catalog.instance(class, props, "Brush", 0, source)?;
+    let index = match brush.value {
+        Value::Object { index, .. } => index,
+        _ => return Err("Brush not Object".into()),
+    };
+    if index == 0 {
+        return Ok(VolumeShape::Empty);
+    }
+    if index < 0 || brush.stage != "instance_delta" {
+        return Err("volume Brush is not a local instance Model".into());
+    }
+    let model = pkg
+        .exports
+        .get(index as usize - 1)
+        .ok_or("invalid Brush export")?;
+    if !pkg
+        .object_path(model.class)?
+        .eq_ignore_ascii_case("Engine.Model")
+    {
+        return Err("Brush not Model".into());
+    }
+    let bsp = geometry::read_bsp(pkg, data, model)?;
+    let solid = collision::read_model_collision(pkg, data, model, &bsp)?;
+    let vector = |field| match catalog.instance(class, props, field, 0, source)?.value {
+        Value::Vector(v) => Ok::<[f32; 3], String>(v),
+        _ => Err("transform not Vector".into()),
+    };
+    let rotation = match catalog.instance(class, props, "Rotation", 0, source)?.value {
+        Value::Rotator(v) => v,
+        _ => return Err("Rotation not Rotator".into()),
+    };
+    let scale = match catalog
+        .instance(class, props, "DrawScale", 0, source)?
+        .value
+    {
+        Value::Float(v) => v,
+        _ => return Err("DrawScale not Float".into()),
+    };
+    Ok(VolumeShape::Brush {
+        bsp: Box::new(bsp),
+        solid,
+        transform: ActorTransform {
+            location: vector("Location")?,
+            rotation,
+            scale: vector("DrawScale3D")?.map(|v| v * scale),
+            pivot: vector("PrePivot")?,
+        },
     })
 }

@@ -251,7 +251,13 @@ try:
   cold=pause_save();assert cold['state']['opening']['ambient_audio']==original['state']['opening']['ambient_audio']
   box,layout=controls();density=layout['density'];adb('logcat','-c');tap('Fortsetzen');time.sleep(.8)
   swipe(box[0]+layout['width']*.52,box[1]+layout['height']*.30,box[0]+layout['width']*.52+160,box[1]+layout['height']*.30,650);time.sleep(.8)
-  turned=pause_save();assert turned['state']['opening']['ambient_audio']==cold['state']['opening']['ambient_audio'],'Looking rerolled ambient pitch/seed'
+  turned=pause_save()
+  assert abs(abs(angle(turned['state']['yaw'],cold['state']['yaw']))-160/density*3/640)<.04,'Measured view gesture was not applied'
+  # Region caches and smoothed radii legitimately advance during simulation.
+  # Selection, admission identity/priority and RNG must remain unchanged.
+  def activation_state(value):
+   return value['seed'],sorted([{k:v.get(k) for k in ['owner','sound','started','priority','playback']} for v in value['voices']],key=lambda v:v['owner'])
+  assert activation_state(turned['state']['opening']['ambient_audio'])==activation_state(cold['state']['opening']['ambient_audio']),'Looking rerolled ambient selection or activation'
   soundlog=adb('logcat','-d','-s','RCAudio:I','*:S');(OUT/'spatial-ambient.log').write_text(soundlog)
   pattern=r'ambient_mix owner=(\d+) sound=(\d+) stream=(\d+) left=([0-9.Ee+-]+) right=([0-9.Ee+-]+) rate=([0-9.Ee+-]+) spatial=true'
   mixes=re.findall(pattern,soundlog);assert mixes,'No spatial SoundPool updates'
@@ -273,7 +279,7 @@ try:
   restored_log=adb('logcat','-d','-s','RCAudio:I','*:S');(OUT/'spatial-ambient-cold.log').write_text(restored_log)
   assert re.findall(pattern,restored_log),'Cold resume did not rebuild current ambient streams'
   launch();fixture('A-ambient-bacta.rcsave',props['GEO_01A.sha256']);tap('Fortsetzen');wait(lambda:has('GEO_01A') and has('Fortsetzen'))
-  box,layout=controls();use=next(k for k in layout['keys'] if k[0]==6);adb('logcat','-c');tap('Fortsetzen')
+  box,layout=controls();use=next(k for k in layout['keys'] if k[0]==6);adb('logcat','-c');resume_touch()
   swipe(box[0]+use[1],box[1]+use[2],box[0]+use[1],box[1]+use[2],2500);pause_save()
   bacta_log=adb('logcat','-d','-s','RCAudio:I','*:S');(OUT/'spatial-bacta.log').write_text(bacta_log)
   bacta_mix=[v for v in re.findall(pattern,bacta_log) if int(v[0])==736]

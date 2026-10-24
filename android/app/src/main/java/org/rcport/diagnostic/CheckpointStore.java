@@ -94,6 +94,23 @@ final class CheckpointStore {
         if(!valid)atomic(file,bytes);
         return name;
     }
+    String cache(File source) throws IOException {
+        if(source.length()<12 || source.length()>SceneBytes.LIMIT)throw new IOException("Ungültige Szenengröße");
+        String name=CampaignStore.hash(source)+".rcplay";File target=sceneFile(name);
+        if(source.getCanonicalFile().equals(target.getCanonicalFile()))return name;
+        if(target.isFile() && target.length()==source.length() && CampaignStore.hash(target).equals(name.substring(0,64)))return name;
+        if(!scenes.isDirectory() && !scenes.mkdirs())throw new IOException("Szenenspeicher konnte nicht erstellt werden");
+        File temporary;try(InputStream in=new FileInputStream(source)){temporary=SceneBytes.spool(in,source.length(),root);}
+        try {
+            if(!CampaignStore.hash(temporary).equals(name.substring(0,64)))throw new IOException("Szenendatei wurde während des Kopierens geändert");
+            Files.move(temporary.toPath(),target.toPath(),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
+        }finally{Files.deleteIfExists(temporary.toPath());}
+        return name;
+    }
+    File verifiedScene(String name)throws IOException {
+        File scene=sceneFile(name);
+        if(scene.length()<12 || scene.length()>SceneBytes.LIMIT || !CampaignStore.hash(scene).equals(name.substring(0,64)))throw new IOException("Die gespeicherte Szenendatei ist beschädigt");return scene;
+    }
     byte[] scene(String name,File cache) throws IOException {
         File file=sceneFile(name);final byte[] b;
         try(InputStream in=new FileInputStream(file)){b=SceneBytes.read(in,file.length(),cache);}

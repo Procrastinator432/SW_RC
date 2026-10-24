@@ -329,9 +329,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         g.state.squad.as_ref().unwrap().order,
         squad::Order::Focus(_)
     ));
+    assert_eq!(
+        g.state.squad.as_ref().unwrap().return_order,
+        Some(squad::Order::Hold)
+    );
+    g.advance(STEP, Input::default())?;
+    g.suspend();
+    let identity = format!("{}:{}", scene.len(), rc_game::replay::fingerprint(&scene));
+    let checkpoint = g.checkpoint(&identity)?;
+    fs::write(out.join("focus-hold-checkpoint.bin"), &checkpoint)?;
+    frame(&g, out, "focus-hold")?;
+    let mut cold = rc_game::bundle::decode(&scene)?;
+    cold.restore_checkpoint(&checkpoint, &identity)?;
+    assert_eq!(cold.checkpoint(&identity)?, checkpoint);
+    assert_eq!(cold.render(640, 400)?, g.render(640, 400)?);
+    let mut continuation_checks = 0;
     let mut targeted_scorch = false;
-    for _ in 0..900 {
+    for step in 0..900 {
         g.advance(STEP, Input::default())?;
+        cold.advance(STEP, Input::default())?;
+        assert_eq!(g.checkpoint(&identity)?, cold.checkpoint(&identity)?);
+        if step % 60 == 0 {
+            assert_eq!(g.render(640, 400)?, cold.render(640, 400)?);
+        }
+        continuation_checks += 1;
         targeted_scorch |= g.state.artillery.as_ref().unwrap().warriors[0]
             .ai
             .as_ref()
@@ -341,6 +362,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             break;
         }
     }
+    g.advance(STEP, Input::default())?;
+    cold.advance(STEP, Input::default())?;
+    assert_eq!(g.checkpoint(&identity)?, cold.checkpoint(&identity)?);
+    assert_eq!(g.state.squad.as_ref().unwrap().order, squad::Order::Hold);
+    assert!(g.state.squad.as_ref().unwrap().return_order.is_none());
+    assert!(g.state.squad.as_ref().unwrap().route.is_empty());
     let fighting = g.state.squad.as_ref().unwrap();
     assert!(fighting.shots > 0 && fighting.hits > 0 && fighting.kills == 1);
     assert!(targeted_scorch);
@@ -350,7 +377,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     fs::write(
         out.join("validation.json"),
         serde_json::to_vec_pretty(
-            &serde_json::json!({"passed":true,"scope":"Explicit isolated fixtures on original geometry after an input-only demolition prefix; actor repositioning and health assignment are test setup, not a mission playthrough", "orders_edge_only":orders,"interrupted_hold_revive_resets":true,"scorch_revive":scorch_revive,"player_revive":player_revive,"incapacitated_input_blocks_movement_fire":true,"both_incapacitated_loses":true,"follow":follow,"combat":combat,"enemy_selects_scorch":targeted_scorch}),
+            &serde_json::json!({"passed":true,"scope":"Explicit isolated fixtures on original geometry after an input-only demolition prefix; actor repositioning and health assignment are test setup, not a mission playthrough", "focus_cold_restore_exact":true,"focus_continuation_steps":continuation_checks,"focus_completion_returns_to_hold":true,"orders_edge_only":orders,"interrupted_hold_revive_resets":true,"scorch_revive":scorch_revive,"player_revive":player_revive,"incapacitated_input_blocks_movement_fire":true,"both_incapacitated_loses":true,"follow":follow,"combat":combat,"enemy_selects_scorch":targeted_scorch}),
         )?,
     )?;
     println!(

@@ -21,6 +21,21 @@ final class SceneBytes {
             try(InputStream stored=new FileInputStream(temporary)) {return exact(stored,size);}
         } finally {if(!temporary.delete()) temporary.deleteOnExit();}
     }
+    static File spool(InputStream input,long length,File cache)throws IOException {
+        if(length==0 || length>LIMIT)throw new IOException("Ungültige Szenengröße");
+        File temporary=File.createTempFile("rc-scene-",".tmp",cache);boolean complete=false;
+        try {
+            long size=0;byte[] block=new byte[32768];
+            try(FileOutputStream out=new FileOutputStream(temporary)) {
+                int n;while((n=input.read(block))!=-1) {
+                    if(n==0){int one=input.read();if(one<0)break;block[0]=(byte)one;n=1;}
+                    size+=n;if(size>LIMIT || (length>=0 && size>length))throw new IOException("Szenengröße überschritten");out.write(block,0,n);
+                }
+                if(size==0 || (length>=0 && size!=length))throw new EOFException("Szenendatei ist unvollständig");out.getFD().sync();
+            }
+            complete=true;return temporary;
+        }finally{if(!complete && !temporary.delete())temporary.deleteOnExit();}
+    }
     private static byte[] exact(InputStream input,long length) throws IOException {
         if(length<1 || length>LIMIT) throw new IOException("Ungültige Szenengröße (maximal 112 MiB)");
         byte[] bytes=new byte[(int)length];int at=0;

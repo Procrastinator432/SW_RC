@@ -15,12 +15,13 @@ final class AmbientLoops {
     private Map<Integer,Voice> desired=new LinkedHashMap<>();
     int[] select(byte[] packet,int bankCount) throws IOException {
         if(packet.length<12)throw new IOException("Invalid ambient snapshot");
-        String magic=new String(packet,0,8,StandardCharsets.US_ASCII);boolean identified=magic.equals("RCLOOP03"),spatial=identified || magic.equals("RCLOOP02");
+        String magic=new String(packet,0,8,StandardCharsets.US_ASCII);boolean pitched=magic.equals("RCLOOP04"),identified=pitched || magic.equals("RCLOOP03"),spatial=identified || magic.equals("RCLOOP02");
         if(!spatial && !magic.equals("RCLOOP01"))throw new IOException("Invalid ambient snapshot");
         ByteBuffer b=ByteBuffer.wrap(packet).order(ByteOrder.LITTLE_ENDIAN);b.position(8);int count=b.getInt();
-        if(count<0 || count>16 || b.remaining()!=(spatial?16:0)+count*(identified?44:spatial?36:8))throw new IOException("Invalid ambient count");
+        if(count<0 || count>16 || b.remaining()!=(pitched?20:spatial?16:0)+count*(identified?44:spatial?36:8))throw new IOException("Invalid ambient count");
         float[] listener=new float[3];float yaw=0;
         if(spatial){for(int i=0;i<3;i++)listener[i]=SpatialAudio.finite(b,-1e7f,1e7f);yaw=SpatialAudio.finite(b,-1e7f,1e7f);}
+        if(pitched)SpatialAudio.finite(b,-1.571f,1.571f);
         Map<Integer,Voice> next=new LinkedHashMap<>();
         for(int i=0;i<count;i++) {
             int sound=b.getInt(),owner=b.getInt();

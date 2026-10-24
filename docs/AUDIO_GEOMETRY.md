@@ -1,5 +1,7 @@
 # Originale Audio-Geometrie und Radiusfortlauf
 
+**Quellfortsetzung 24.10.2026:** [Zonentabellen und Laufzeitanbindung](AUDIO_GEOMETRY_RUNTIME.md) sind im ausgewählten Quellenhost umgesetzt; vollständige Missionsregressionen und Androidabnahme stehen noch aus. Der folgende Text dokumentiert den früheren Grundlagenabschluss.
+
 Stand: 23.10.2026 · Quellbaustein nach 0.60.0. Die spielbare Lieferung bleibt [0.60.0](AMBIENT_LIFECYCLE.md). Dieser Baustein ist noch nicht mit der Szenenlaufzeit oder Android-Audio verbunden.
 
 ## Fünf umgesetzte Punkte

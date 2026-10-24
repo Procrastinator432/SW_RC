@@ -260,6 +260,9 @@ pub struct State {
     pub trail: Vec<Point>,
     pub trail_cursor: usize,
     pub order: Order,
+    /// Ground order resumed when a temporary focus command ends. Absent in old saves.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub return_order: Option<Order>,
     pub use_held: bool,
     pub route: Vec<Point>,
     pub waypoint: usize,
@@ -301,6 +304,7 @@ impl State {
             trail: vec![],
             trail_cursor: 0,
             order: Order::Follow,
+            return_order: None,
             use_held: false,
             route: vec![],
             waypoint: 0,
@@ -352,6 +356,10 @@ impl Game {
         }
         if !s.player_down {
             s.player_down = true;
+            if let Some(d) = &mut self.state.demolition {
+                d.flow.pause(62);
+            }
+            s.invalidate_route();
             s.progress = 0.;
             s.player_recovery = None;
             s.player_recovery_health = None;
@@ -424,6 +432,10 @@ impl Game {
             s.cooldown = (s.cooldown - STEP).max(0.);
             if s.health == 0 && !s.down {
                 s.down = true;
+                if let Some(d) = &mut self.state.demolition {
+                    d.flow.pause(62);
+                }
+                s.invalidate_route();
                 s.progress = 0.;
                 s.frame = 0.;
                 s.clip = "ImmobileBreathe".into();
@@ -452,6 +464,7 @@ impl Game {
                 if *elapsed >= seq.frames as f64 / f32::from_bits(seq.rate_bits) as f64 {
                     self.state.health = (self.mission.as_ref().unwrap().max_health / 2.) as u32;
                     s.player_down = false;
+                    s.invalidate_route();
                     s.player_requested_revive = false;
                     s.player_recovery = None;
                     s.player_recovery_health = None;
@@ -479,6 +492,7 @@ impl Game {
                 if *elapsed >= seq.frames as f64 / f32::from_bits(seq.rate_bits) as f64 {
                     s.health = a.max_health / 2;
                     s.down = false;
+                    s.invalidate_route();
                     s.scorch_recovery = None;
                     s.scorch_recovery_health = None;
                     s.clip = "ActionBreathe".into();
@@ -532,12 +546,13 @@ impl Game {
                             let dot = (0..3)
                                 .map(|j| (w.pawn.body.position[j] - eye[j]) * aim[j])
                                 .sum::<f64>();
-                            d < 2600. && dot / d.max(1.) > 0.95
+                            d < 2600.
+                                && dot / d.max(1.) > 0.95
+                                && sight(&self.world, eye, w.pawn.body.position).unwrap_or(false)
                         })
                         .map(|w| w.original);
                     if let Some(id) = focus {
-                        s.order = Order::Focus(id);
-                        s.focus_point = self
+                        let point = self
                             .state
                             .artillery
                             .as_ref()
@@ -545,22 +560,13 @@ impl Game {
                             .warriors
                             .iter()
                             .find(|w| w.original == id)
-                            .map(|w| w.pawn.body.position);
-                        s.focus_until = time + 3.;
-                        s.route.clear();
-                        s.next_plan = 0.;
-                        s.orders += 1;
-                        s.events.push((tick, format!("Focus{id}")));
+                            .unwrap()
+                            .pawn
+                            .body
+                            .position;
+                        s.issue_focus(id, point, time, tick);
                     } else if facing_scorch {
-                        s.order = if s.order == Order::Hold {
-                            Order::Follow
-                        } else {
-                            Order::Hold
-                        };
-                        s.orders += 1;
-                        s.route.clear();
-                        s.next_plan = 0.;
-                        s.events.push((tick, format!("Order{:?}", s.order)));
+                        s.toggle_order(tick);
                     }
                 }
                 let muzzle = [pawn[0], pawn[1], pawn[2] + 44.];
@@ -590,7 +596,7 @@ impl Game {
                     .map(|w| w.pawn.body.position);
                 if matches!(s.order,Order::Focus(id) if !self.state.artillery.as_ref().unwrap().warriors.iter().any(|w|w.original==id && w.health>0))
                 {
-                    s.order = Order::Follow;
+                    s.finish_focus(tick, "TargetGone");
                 }
                 s.clip = if s.crouched {
                     "CrouchBreathe"
@@ -613,11 +619,9 @@ impl Game {
                     } else {
                         false
                     };
-                    if seen {
-                        s.focus_point = at;
-                        s.focus_until = time + 3.;
-                    }
-                    if time <= s.focus_until
+                    s.observe_focus(at, seen, time, tick);
+                    if matches!(s.order, Order::Focus(_))
+                        && time <= s.focus_until
                         && (!seen || at.is_some_and(|at| crate::distance(pawn, at) > 1200.))
                     {
                         s.focus_point

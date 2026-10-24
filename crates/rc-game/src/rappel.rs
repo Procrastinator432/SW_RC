@@ -26,6 +26,11 @@ pub struct Notify {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assets {
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub show_arms: bool,
+    /// Selected port visual adapter, not proof of an original rope receiver.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub synchronize_rope: bool,
     pub player: Option<Mesh>,
     pub rope: Option<Mesh>,
     pub start: Point,
@@ -37,6 +42,8 @@ pub struct Assets {
     pub notifies: Vec<Notify>,
 }
 pub struct Prepared {
+    pub arm_mask: Vec<bool>,
+    pub arm_texture_base: usize,
     pub assets: Assets,
     pub player: PreparedMesh,
     pub rope: PreparedMesh,
@@ -126,6 +133,28 @@ impl Assets {
             .ok_or("Missing rappel rope")?
             .prepare_reference()?;
         rope.clip("ActionBreathe")?;
+        if self.synchronize_rope {
+            let rope_clip = rope.clip("CloneEntrance600")?;
+            let rope_seq = &rope.mesh.clips[rope_clip].sequence;
+            if rope_seq.frames != seq.frames || rope_seq.rate_bits != seq.rate_bits {
+                return Err("Rappel visual rope timing differs from player".into());
+            }
+        }
+        let arm_mask = if self.show_arms {
+            crate::rappel_arms::triangle_mask(&player.mesh)?
+        } else {
+            vec![]
+        };
+        let arm_texture_base = scene.textures.len();
+        if self.show_arms {
+            scene
+                .textures
+                .extend(player.mesh.materials.iter().map(|m| rc_render::Texture {
+                    width: m.width,
+                    height: m.height,
+                    pixels: m.pixels.clone(),
+                }));
+        }
         let texture_base = scene.textures.len();
         scene
             .textures
@@ -142,6 +171,8 @@ impl Assets {
         .try_into()
         .unwrap();
         Ok(Prepared {
+            arm_mask,
+            arm_texture_base,
             assets: self,
             player,
             rope,
@@ -256,6 +287,93 @@ impl Prepared {
     }
 }
 impl Game {
+    pub(crate) fn rappel_arms_geometry(
+        &self,
+    ) -> Result<
+        (
+            Vec<rc_package::geometry::Triangle>,
+            Vec<Option<rc_render::FaceTexture>>,
+        ),
+        String,
+    > {
+        // The new BringUp channel already owns the visible first-person arms.
+        // EndBriefing precedes the final body pose; never draw both arm sets.
+        if self.state.opening.as_ref().is_some_and(|s| !s.locked)
+            && self
+                .dc15
+                .as_ref()
+                .and_then(|a| a.animation.as_ref())
+                .is_some_and(|a| a.raise_after_briefing)
+        {
+            return Ok((vec![], vec![]));
+        }
+        let Some(p) = self
+            .opening
+            .as_ref()
+            .and_then(|o| o.rappel.as_ref())
+            .filter(|p| p.assets.show_arms)
+        else {
+            return Ok((vec![], vec![]));
+        };
+        let s = self
+            .state
+            .opening
+            .as_ref()
+            .unwrap()
+            .rappel
+            .as_ref()
+            .unwrap();
+        if !s.started || s.finished || s.playback.channels.is_empty() {
+            return Ok((vec![], vec![]));
+        }
+        let channel = &s.playback.channels[0];
+        // Root translation already moved the collision body. Apply it exactly
+        // once by placing the root-locked pose at the current pawn location.
+        let scene = p.player.geometry_with_root(channel, true)?;
+        if scene.triangles.len() != p.arm_mask.len() {
+            return Err("Arm visibility mask length differs".into());
+        }
+        let actor = rc_package::mesh_transform::Input {
+            actor_location: self.state.pawn.body.position.map(|v| (v as f32).to_bits()),
+            actor_rotation: p.assets.rotation,
+            actor_draw_scale: 1f32.to_bits(),
+            actor_draw_scale_3d: [1f32.to_bits(); 3],
+            actor_prepivot: [0; 3],
+            actor_flags: 0x800,
+            actor_height: (self.profile.physics.extent[2] as f32).to_bits(),
+            mesh_scale: [1f32.to_bits(); 3],
+            mesh_origin: [0; 3],
+            mesh_rotation: [0; 3],
+            suppress_origin: 0,
+            bypass_mesh_adjustments: 0,
+        }
+        .build()?
+        .matrix
+        .map(|r| r.map(f32::from_bits));
+        let mut triangles = vec![];
+        let mut appearance = vec![];
+        for ((mut t, mut face), keep) in scene
+            .triangles
+            .into_iter()
+            .zip(scene.appearance)
+            .zip(&p.arm_mask)
+        {
+            if !keep {
+                continue;
+            }
+            t.points = t.points.map(|v| {
+                std::array::from_fn(|i| {
+                    v[0] * actor[0][i] + v[1] * actor[1][i] + v[2] * actor[2][i] + actor[3][i]
+                })
+            });
+            if let Some(f) = &mut face {
+                f.texture += p.arm_texture_base;
+            }
+            triangles.push(t);
+            appearance.push(face);
+        }
+        Ok((triangles, appearance))
+    }
     pub(crate) fn rappel_tick(&mut self) -> Result<bool, String> {
         let Some(opening) = &self.opening else {
             return Ok(false);
@@ -401,8 +519,9 @@ impl Game {
         if s.rope_destroyed {
             return Ok((vec![], vec![]));
         }
-        let c = p.rope.clip("ActionBreathe")?;
-        let mut scene = p.rope.geometry(&p.rope.channel(c, 0.)?)?;
+        let (name, frame) = rope_visual_frame(p.assets.synchronize_rope, s);
+        let c = p.rope.clip(name)?;
+        let mut scene = p.rope.geometry(&p.rope.channel(c, frame)?)?;
         for t in &mut scene.triangles {
             t.points = t.points.map(|v| {
                 rc_package::mesh::transform_point(
@@ -420,11 +539,64 @@ impl Game {
         Ok((scene.triangles, scene.appearance))
     }
 }
+fn rope_visual_frame(synchronize: bool, s: &State) -> (&'static str, f32) {
+    if synchronize && s.started {
+        (
+            "CloneEntrance600",
+            s.playback
+                .channels
+                .first()
+                .map_or(0., |c| f32::from_bits(c.words[7]))
+                .clamp(0., 140. / 141.),
+        )
+    } else {
+        ("ActionBreathe", 0.)
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn visual_rope_uses_saved_player_phase_without_its_own_clock() {
+        let mut s = State::default();
+        assert_eq!(rope_visual_frame(true, &s), ("ActionBreathe", 0.));
+        s.started = true;
+        assert_eq!(rope_visual_frame(true, &s), ("CloneEntrance600", 0.));
+        let mut channel = AnimationChannel::default();
+        channel.words[7] = 0.5f32.to_bits();
+        s.playback.channels.push(channel);
+        assert_eq!(rope_visual_frame(false, &s), ("ActionBreathe", 0.));
+        assert_eq!(rope_visual_frame(true, &s), ("CloneEntrance600", 0.5));
+        let restored: State = serde_json::from_slice(&serde_json::to_vec(&s).unwrap()).unwrap();
+        assert_eq!(
+            rope_visual_frame(true, &restored),
+            rope_visual_frame(true, &s)
+        );
+        s.finished = true;
+        s.playback.channels[0].words[7] = 1f32.to_bits();
+        assert_eq!(
+            rope_visual_frame(true, &s),
+            ("CloneEntrance600", 140. / 141.)
+        );
+    }
+    #[test]
+    fn legacy_scene_omits_visual_opt_in_and_keeps_rest_pose() {
+        let a = assets();
+        let json = serde_json::to_value(&a).unwrap();
+        assert!(json.get("synchronize_rope").is_none());
+        assert!(json.get("show_arms").is_none());
+        let mut restored: Assets = serde_json::from_value(json).unwrap();
+        assert!(!restored.synchronize_rope);
+        assert!(!restored.show_arms);
+        restored.synchronize_rope = true;
+        let roundtrip: Assets =
+            serde_json::from_slice(&serde_json::to_vec(&restored).unwrap()).unwrap();
+        assert!(roundtrip.synchronize_rope);
+    }
     fn assets() -> Assets {
         Assets {
+            show_arms: false,
+            synchronize_rope: false,
             player: None,
             rope: None,
             start: [0.; 3],

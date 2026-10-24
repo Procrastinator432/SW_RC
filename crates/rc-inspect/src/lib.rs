@@ -12,3 +12,5 @@ pub mod visual_assets;
 pub mod weapon_notifies;
 
 pub mod audio_params;
+
+pub mod ambient_geometry;

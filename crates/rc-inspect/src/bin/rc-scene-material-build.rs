@@ -85,11 +85,42 @@ fn repair(scene: &mut rc_render::Scene, index: &HashMap<Key, Option<Proof>>) -> 
 fn snapshots(
     value: &mut serde_json::Value,
     index: &HashMap<Key, Option<Proof>>,
+    assets: &mut Assets,
     audits: &mut Vec<serde_json::Value>,
     path: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     match value {
         serde_json::Value::Object(object) => {
+            if object.contains_key("uv_scale")
+                && object.contains_key("pixels")
+                && object.contains_key("source")
+            {
+                let mut material: rc_game::visual::Material =
+                    serde_json::from_value(serde_json::Value::Object(object.clone()))?;
+                let material_path = material
+                    .opacity
+                    .get("material")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&material.source)
+                    .to_owned();
+                let decision = assets.opaque(&material_path);
+                let mut changed = 0;
+                if decision == Ok(true) {
+                    for p in &mut material.pixels {
+                        if *p >> 24 != 255 {
+                            changed += 1;
+                            *p |= 0xff000000;
+                        }
+                    }
+                }
+                if changed > 0 {
+                    material.opacity =
+                        serde_json::json!({"material":material_path,"original_opaque":decision});
+                    *object = serde_json::to_value(material)?.as_object().unwrap().clone();
+                }
+                audits.push(serde_json::json!({"path":path,"kind":"visual material","material":material_path,"opaque":decision,"changed_pixels":changed}));
+                return Ok(());
+            }
             for (k, v) in object {
                 let path = format!("{path}/{k}");
                 if k.ends_with("snapshot") && v.is_array() {
@@ -103,14 +134,14 @@ fn snapshots(
                         audits.push(serde_json::json!({"path":path,"repair":report}));
                     }
                 } else if !["pixels", "wave"].contains(&k.as_str()) {
-                    snapshots(v, index, audits, &path)?;
+                    snapshots(v, index, assets, audits, &path)?;
                 }
             }
         }
         serde_json::Value::Array(values) => {
             for (i, v) in values.iter_mut().enumerate() {
                 if v.is_object() || v.is_array() {
-                    snapshots(v, index, audits, &format!("{path}/{i}"))?;
+                    snapshots(v, index, assets, audits, &format!("{path}/{i}"))?;
                 }
             }
         }
@@ -134,6 +165,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &root.join("Textures"),
         &root.join("StaticMeshes"),
         &root.join("System"),
+        &root.join("Maps"),
     ])?;
     let mut index = HashMap::new();
     let binding = rc_package::level::world_binding(&pkg, &bytes)?;
@@ -264,12 +296,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for _ in 0..16 {
         let header = raw.get(at..at + 12).ok_or("Truncated layer")?;
         let size = u32::from_le_bytes(header[8..12].try_into()?) as usize;
+        if &header[..8] == b"RCPLAY15" {
+            let music = u32::from_le_bytes(
+                raw.get(at + 12..at + 16)
+                    .ok_or("Truncated music header")?
+                    .try_into()?,
+            ) as usize;
+            let end = at
+                .checked_add(16 + size)
+                .and_then(|v| v.checked_add(music))
+                .ok_or("Music wrapper overflow")?;
+            result.extend_from_slice(raw.get(at..end).ok_or("Truncated music wrapper")?);
+            at = end;
+            continue;
+        }
         let end = at.checked_add(12 + size).ok_or("Layer overflow")?;
         let mut metadata: serde_json::Value =
             serde_json::from_slice(raw.get(at + 12..end).ok_or("Truncated metadata")?)?;
         snapshots(
             &mut metadata,
             &index,
+            &mut assets,
             &mut audits,
             std::str::from_utf8(&header[..8])?,
         )?;
@@ -287,10 +334,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     result.extend(scene.snapshot()?);
     rc_game::bundle::decode(&result)?;
     fs::write(out.join(format!("{}.rcplay", args[2])), result)?;
+    let evidence = assets
+        .opacity_decisions()
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .map(|p| {
+            assets
+                .opacity_evidence(&p)
+                .unwrap_or_else(|e| serde_json::json!({"material":p,"error":e}))
+        })
+        .collect::<Vec<_>>();
     fs::write(
         out.join("material-refresh.json"),
         serde_json::to_vec_pretty(
-            &serde_json::json!({"map":args[2],"world":world,"snapshots":audits,"material_decisions":assets.opacity_decisions(),"unresolved_meshes":errors,"policy":"Exact original world-space face identity; original defaults and actor skins; shared textures copied when any user lacks opaque proof; conflicting, masked, blended and unknown bindings preserved; geometry/UV/collision unchanged"}),
+            &serde_json::json!({"map":args[2],"world":world,"snapshots":audits,"material_decisions":assets.opacity_decisions(),"original_material_states":evidence,"unresolved_meshes":errors,"policy":"Exact original world-space face identity; original defaults and actor skins; shared textures copied when any user lacks opaque proof; conflicting, masked, blended and unknown bindings preserved; geometry/UV/collision unchanged"}),
         )?,
     )?;
     println!("{}: {world}", args[2]);
