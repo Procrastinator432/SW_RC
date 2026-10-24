@@ -6,6 +6,7 @@ param(
     [ValidatePattern('^[a-zA-Z0-9_.:-]+$')][string]$Serial='emulator-5554'
 )
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'Host-Tools.ps1')
 $root=Split-Path $PSScriptRoot -Parent
 $out=[IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Force -Path $out,(Join-Path $out 'native') | Out-Null
@@ -23,7 +24,7 @@ foreach($key in @('map_a_scene','map_a_replay','map_b_scene')) {
     if((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $entry.sha256){throw "Input SHA-256 mismatch: $key"}
     $files[$key]=$path
 }
-$adb=Join-Path $root 'tools/android-sdk/platform-tools/adb.exe'
+$adb=Join-Path $root "tools/android-sdk/platform-tools/$(Get-RcExecutable 'adb')"
 function Adb([string[]]$Arguments) {& $adb -s $Serial @Arguments;if($LASTEXITCODE -ne 0){throw "ADB failed: $($Arguments[0])"}}
 function PullAppImage([string]$Remote,[string]$Local) {
     # Export private captures as the debug application's UID.
@@ -48,11 +49,12 @@ function PullAppImage([string]$Remote,[string]$Local) {
 $abi=(Adb @('shell','getprop','ro.product.cpu.abi')).Trim()
 $target=switch($abi){'x86_64'{'x86_64-linux-android'}'arm64-v8a'{'aarch64-linux-android'}default{throw "Unsupported probe ABI: $abi"}}
 $library=Join-Path $root "android/app/src/main/jniLibs/$abi/librc_native.so"
-$compiler=Join-Path $root "tools/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/windows-x86_64/bin/${target}26-clang.cmd"
+$clangName=if($IsWindows){"${target}26-clang.cmd"}else{"${target}26-clang"}
+$compiler=Join-Path $root "tools/android-sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/$(Get-RcNdkHost)/bin/$clangName"
 $saved=@{}
 foreach($key in @('JAVA_HOME','ANDROID_HOME','GRADLE_USER_HOME','TEMP','TMP')){$saved[$key]=[Environment]::GetEnvironmentVariable($key,'Process')}
 try {
-    $env:JAVA_HOME=(Get-ChildItem (Join-Path $root 'tools/jdk21') -Directory | Select-Object -First 1).FullName
+    $env:JAVA_HOME=Get-RcJdk (Join-Path $root 'tools')
     $env:ANDROID_HOME=Join-Path $root 'tools/android-sdk'
     $env:GRADLE_USER_HOME=Join-Path $root 'tools/gradle-home'
     $env:TEMP=Join-Path $out 'compiler-temp';$env:TMP=$env:TEMP
@@ -60,7 +62,8 @@ try {
     & $compiler -O2 -Wall -Wextra -Werror (Join-Path $root 'scripts/android-presentation-replay.c') "-L$(Split-Path $library -Parent)" -lrc_native '-Wl,-z,max-page-size=16384' -o (Join-Path $out 'android-presentation-replay')
     if($LASTEXITCODE -ne 0){throw 'Android-native presentation probe compilation failed'}
     $probeSources=Join-Path $root 'scripts/android-presentation-probe'
-    & (Join-Path $root 'tools/gradle-8.11.1/bin/gradle.bat') -p (Join-Path $root 'android') "-PrcAbis=$abi" "-PrcAcceptanceSources=$probeSources" --offline --no-daemon assembleDebug
+    $gradleName=if($IsWindows){'gradle.bat'}else{'gradle'}
+    & (Join-Path $root "tools/gradle-8.11.1/bin/$gradleName") -p (Join-Path $root 'android') "-PrcAbis=$abi" "-PrcAcceptanceSources=$probeSources" --offline --no-daemon assembleDebug
     if($LASTEXITCODE -ne 0){throw 'Optional acceptance APK compilation failed'}
     $apk=Join-Path $out 'presentation-probe.apk'
     Copy-Item -LiteralPath (Join-Path $root 'android/app/build/outputs/apk/debug/app-debug.apk') -Destination $apk

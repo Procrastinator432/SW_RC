@@ -7,6 +7,7 @@ param(
     [switch]$Online
 )
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'Host-Tools.ps1')
 $root=Split-Path $PSScriptRoot -Parent
 & (Join-Path $PSScriptRoot 'Test-BuildContract.ps1') -ProjectRoot $root
 $manifestPath=(Resolve-Path -LiteralPath $Inputs).Path
@@ -59,7 +60,7 @@ try {
         Write-Host "Building scene stage $name"
         & cargo build -p rc-inspect --bin $recipe.binary @options
         if($LASTEXITCODE -ne 0){throw "Builder compilation failed: $name"}
-        & (Join-Path $targetRoot "release/$($recipe.binary).exe") @arguments
+        & (Join-Path $targetRoot "release/$(Get-RcExecutable $recipe.binary)") @arguments
         if($LASTEXITCODE -ne 0){throw "Scene stage failed: $name"}
         $product=Join-Path $stageOut $recipe.product
         if(!(Test-Path -LiteralPath $product -PathType Leaf)){throw "Scene stage produced no scene: $name"}
@@ -74,24 +75,24 @@ try {
         $env:RC_BUILD_OUTPUT=Join-Path $out 'runtime-validation'
         & cargo build -p rc-inspect --bin rc-checkpoint-check @options
         if($LASTEXITCODE -ne 0){throw 'Mission checkpoint validator compilation failed'}
-        & (Join-Path $targetRoot 'release/rc-checkpoint-check.exe')
+        & (Join-Path $targetRoot "release/$(Get-RcExecutable 'rc-checkpoint-check')")
         if($LASTEXITCODE -ne 0){throw 'Rebuilt mission checkpoint validation failed'}
         & cargo build -p rc-inspect --bin rc-presentation-check @options
         if($LASTEXITCODE -ne 0){throw 'Player presentation validator compilation failed'}
-        & (Join-Path $targetRoot 'release/rc-presentation-check.exe') $resolved.map_a_scene.path $resolved.map_a_replay.path $resolved.map_b_scene.path (Join-Path $out 'player-presentation')
+        & (Join-Path $targetRoot "release/$(Get-RcExecutable 'rc-presentation-check')") $resolved.map_a_scene.path $resolved.map_a_replay.path $resolved.map_b_scene.path (Join-Path $out 'player-presentation')
         if($LASTEXITCODE -ne 0){throw 'Player presentation validation failed'}
         & cargo build -p rc-inspect --bin rc-karma-check @options
         if($LASTEXITCODE -ne 0){throw 'Karma interaction validator compilation failed'}
-        & (Join-Path $targetRoot 'release/rc-karma-check.exe') $resolved.map_a_scene.path $resolved.map_a_replay.path (Join-Path $out 'karma-interactions')
+        & (Join-Path $targetRoot "release/$(Get-RcExecutable 'rc-karma-check')") $resolved.map_a_scene.path $resolved.map_a_replay.path (Join-Path $out 'karma-interactions')
         if($LASTEXITCODE -ne 0){throw 'Karma interaction validation failed'}
         & cargo build -p rc-inspect --bin rc-weapon-animation-check @options
         if($LASTEXITCODE -ne 0){throw 'Weapon animation validator compilation failed'}
-        & (Join-Path $targetRoot 'release/rc-weapon-animation-check.exe') $resolved.factory_scene.path (Join-Path $out 'weapon-animation')
+        & (Join-Path $targetRoot "release/$(Get-RcExecutable 'rc-weapon-animation-check')") $resolved.factory_scene.path (Join-Path $out 'weapon-animation')
         if($LASTEXITCODE -ne 0){throw 'Weapon animation validation failed'}
         & cargo build -p rc-inspect --bin rc-weapon-foley-check @options
         if($LASTEXITCODE -ne 0){throw 'Weapon Foley validator compilation failed'}
         foreach($key in @('map_a_scene','map_b_scene','map_c_scene','factory_scene')) {
-            & (Join-Path $targetRoot 'release/rc-weapon-foley-check.exe') $resolved[$key].path (Join-Path $out "weapon-foley/$key")
+            & (Join-Path $targetRoot "release/$(Get-RcExecutable 'rc-weapon-foley-check')") $resolved[$key].path (Join-Path $out "weapon-foley/$key")
             if($LASTEXITCODE -ne 0){throw "Weapon Foley validation failed: $key"}
         }
     }

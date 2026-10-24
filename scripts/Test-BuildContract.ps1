@@ -17,7 +17,7 @@ foreach($file in Get-ChildItem (Join-Path $ProjectRoot 'crates/rc-inspect/src/bi
     $source=Get-Content -LiteralPath $file.FullName -Raw
     if($source -match 'analysis[/\\]mission' -or $source -match 'D:/SteamLibrary') {throw "Implicit historical/machine path in builder $($file.Name)"}
 }
-foreach($file in @('build.ps1','scripts/Build-Android.ps1','scripts/Build-Scenes.ps1','scripts/Build-CampaignPackage.ps1','scripts/Build-RevivalCheck.ps1','scripts/Test-PresentationAndroid.ps1')) {
+foreach($file in @('build.ps1','scripts/Host-Tools.ps1','scripts/Build-Android.ps1','scripts/Build-Scenes.ps1','scripts/Build-CampaignPackage.ps1','scripts/Build-RevivalCheck.ps1','scripts/Test-PresentationAndroid.ps1','scripts/Test-GpuFrame.ps1','scripts/Analyze-Binary.ps1','scripts/Analyze-Addresses.ps1')) {
     $source=Get-Content -LiteralPath (Join-Path $ProjectRoot $file) -Raw
     if($source -match 'analysis[/\\]mission') {throw "Historical delivery dependency in $file"}
     $tokens=$null;$parseErrors=$null

@@ -1,5 +1,7 @@
 # Republic Commando → natives Android / Rust
 
+**Linux-Entwicklung:** [Werkzeuge einrichten, Quellprüfungen und Android bauen](docs/LINUX.md).
+
 **23.10.2026: Audio-Geometriekern nach 0.60.0 abgeschlossen.** Fünf Punkte: originale Hörbarkeitspfadwahl, BSP-Linien, Punktregionen/Zonenimport, Radiusfaktoren samt Fortlauf und exakte Zustandsspeicherung. 512 synthetische BSP-Fälle, 1.024 Hörbarkeitsfälle, 256 Radiusfaktoren, 512 Radiusupdates und 820 echte Kartenabfragen gegen die Original-DLL; je 1.201 Bibliothekstests bestehen. [Umfang und Nachweise](docs/AUDIO_GEOMETRY.md). Noch keine Laufzeitanbindung; die spielbare Lieferung bleibt 0.60.0. Nächster Schritt: originale Zonendistanztabelle und danach Szenen-/Audiointegration.
 
 **23.10.2026: 0.60.0 / Lebenszyklus der Umgebungstöne.** Fünf Punkte abgeschlossen: originale Aufnahmegrenze, Freigabe mit 0,3-Sekunden-Ausblendung, Aufnahmepriorität, persistenter Zustand und sichere erneute Aktivierung einschließlich Androidprüfung. 800 Originalfälle mit drei Entfernungszweigen und 18 Ausblendschritte, je 1.196 Bibliothekstests sowie 32 ältere Spielstände bestehen. [Lieferung, Nachweise und Grenzen](docs/AMBIENT_LIFECYCLE.md). APK und Szenenpaket unter `build/releases/0.60.0` gemeinsam aktualisieren und eine neue Mission starten. Geometrische Verdeckung, allgemeiner Quellenallocator und freie physische Hör-/Handyabnahme bleiben offen.

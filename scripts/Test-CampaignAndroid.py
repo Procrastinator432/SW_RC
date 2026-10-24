@@ -3,7 +3,7 @@
 Transition fixtures are genuine map-end snapshots from the normal full replay.
 They exercise the APK travel path without another complete manual touch run.
 """
-import argparse,base64,hashlib,json,re,struct,subprocess,time,zipfile
+import argparse,base64,hashlib,json,os,re,struct,subprocess,time,zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -19,7 +19,7 @@ parser.add_argument('--expect-weapon-foley',action='store_true',help='Verify app
 parser.add_argument('--expect-audio-params',action='store_true',help='Verify original Foley volume/pitch reach actual SoundPool calls')
 parser.add_argument('--spatial-checkpoints',type=Path,help='Ordinary A replay snapshots from Test-SpatialAmbient.py; enables real ambient host checks')
 args=parser.parse_args();OUT=args.output;OUT.mkdir(parents=True,exist_ok=True)
-ADB=ROOT/'tools/android-sdk/platform-tools/adb.exe';APP='org.rcport.diagnostic'
+ADB=ROOT/'tools/android-sdk/platform-tools'/('adb.exe' if os.name=='nt' else 'adb');APP='org.rcport.diagnostic'
 
 def raw(*params,input=None):
  for attempt in range(6):

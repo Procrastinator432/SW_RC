@@ -4,13 +4,14 @@ param(
     [switch]$Offline=$true
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Host-Tools.ps1')
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $tools = [IO.Path]::GetFullPath($ToolsDirectory)
 $sdk = Join-Path $tools 'android-sdk'
-$ndkBin = Join-Path $sdk 'ndk\27.2.12479018\toolchains\llvm\prebuilt\windows-x86_64\bin'
+$ndkBin = Join-Path $sdk "ndk/27.2.12479018/toolchains/llvm/prebuilt/$(Get-RcNdkHost)/bin"
 $savedEnvironment=@{}
 foreach($key in @('JAVA_HOME','ANDROID_HOME','GRADLE_USER_HOME','TEMP','TMP','CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER','CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER')) {$savedEnvironment[$key]=[Environment]::GetEnvironmentVariable($key,'Process')}
-$env:JAVA_HOME = (Get-ChildItem (Join-Path $tools 'jdk21') -Directory | Select-Object -First 1).FullName
+$env:JAVA_HOME = Get-RcJdk $tools
 $env:ANDROID_HOME = $sdk
 $env:GRADLE_USER_HOME = Join-Path $tools 'gradle-home'
 $previousEncodedRustFlags = $env:CARGO_ENCODED_RUSTFLAGS
@@ -24,13 +25,14 @@ try {
     $env:TMP = $compilerTemp
     foreach ($abi in $Abis) {
     $target = if ($abi -eq 'arm64-v8a') { 'aarch64-linux-android' } else { 'x86_64-linux-android' }
-    $clang = Join-Path $ndkBin "${target}26-clang.cmd"
+    $clangName=if($IsWindows){"${target}26-clang.cmd"}else{"${target}26-clang"}
+    $clang = Join-Path $ndkBin $clangName
     if (!(Test-Path -LiteralPath $clang)) { throw 'Run scripts/Setup-Android.ps1 first' }
     $targetKey = $target.Replace('-', '_').ToUpperInvariant()
     [Environment]::SetEnvironmentVariable("CARGO_TARGET_${targetKey}_LINKER", $clang, 'Process')
     # Recent Rust Android std explicitly links libunwind. NDK r27 keeps it in the
     # architecture-specific clang resource directory, outside clang's default -L set.
-    $resourceDirectory = & (Join-Path $ndkBin 'clang.exe') --print-resource-dir
+    $resourceDirectory = & (Join-Path $ndkBin (Get-RcExecutable 'clang')) --print-resource-dir
     if ($LASTEXITCODE -ne 0) { throw 'Cannot locate NDK clang resources' }
     $unwindArchitecture = if ($abi -eq 'arm64-v8a') { 'aarch64' } else { 'x86_64' }
     $unwindDirectory = Join-Path $resourceDirectory "lib\linux\$unwindArchitecture"
@@ -46,7 +48,8 @@ try {
     & $clang -shared -fPIC -O2 -Wall -Wextra -Werror '-Wl,-z,max-page-size=16384' '-Wl,--no-undefined' '-Wl,-soname,librc_bridge.so' (Join-Path $projectRoot 'android\native\bridge.c') "-L$libs" -lrc_native -o (Join-Path $libs 'librc_bridge.so')
     if ($LASTEXITCODE -ne 0) { throw 'JNI bridge build failed' }
     }
-    $gradle = Join-Path $tools 'gradle-8.11.1\bin\gradle.bat'
+    $gradleName=if($IsWindows){'gradle.bat'}else{'gradle'}
+    $gradle = Join-Path $tools "gradle-8.11.1/bin/$gradleName"
     $gradleOptions=@('-p',(Join-Path $projectRoot 'android'),"-PrcAbis=$($Abis -join ',')",'--no-daemon')
     if($Offline){$gradleOptions+='--offline'}
     & $gradle @gradleOptions assembleDebug

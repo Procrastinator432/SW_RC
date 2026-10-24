@@ -5,7 +5,11 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
-$ghidra = Join-Path $projectRoot 'tools\ghidra_12.1.4_PUBLIC\support\analyzeHeadless.bat'
+. (Join-Path $PSScriptRoot 'Host-Tools.ps1')
+$headless=if($IsWindows){'analyzeHeadless.bat'}else{'analyzeHeadless'}
+$ghidra = Join-Path $projectRoot "tools/ghidra_12.1.4_PUBLIC/support/$headless"
+$env:JAVA_HOME=Get-RcJdk (Join-Path $projectRoot 'tools')
+$env:PATH=(Join-Path $env:JAVA_HOME 'bin')+[IO.Path]::PathSeparator+$env:PATH
 $db = Join-Path $projectRoot 'analysis\ghidra-projects'
 $out = Join-Path $projectRoot ('analysis\decompiled\' + [IO.Path]::GetFileName($Output))
 & $ghidra $db 'RepublicCommando' -process $Binary -noanalysis -scriptPath (Join-Path $PSScriptRoot 'ghidra') -postScript ExportAddresses.java $out @Addresses

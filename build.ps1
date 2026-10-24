@@ -11,6 +11,7 @@ param(
     [switch]$Online
 )
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'scripts/Host-Tools.ps1')
 $root=$PSScriptRoot
 $out=[IO.Path]::GetFullPath($OutputDirectory)
 $logs=Join-Path $out 'logs'
@@ -51,14 +52,12 @@ try {
         Step 'native-build' {Native cargo (@('build','-p','rc-native','--release')+$cargoOptions)}
         Step 'inspector-build' {Native cargo (@('build','-p','rc-inspect','--bin','rc-inspect','--release')+$cargoOptions)}
         Step 'java-checks' {
-            $jdk=if($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME 'bin/javac.exe'))) {$env:JAVA_HOME}
-                 elseif(Test-Path (Join-Path $ToolsDirectory 'jdk21')) {(Get-ChildItem (Join-Path $ToolsDirectory 'jdk21') -Directory | Sort-Object Name | Select-Object -First 1).FullName}
-                 else {throw 'JDK missing: set JAVA_HOME or provide -ToolsDirectory (see docs/BUILD.md)'}
+            $jdk=Get-RcJdk $ToolsDirectory
             $classes=Join-Path $out 'java/classes';$cache=Join-Path $out 'java/cache'
             New-Item -ItemType Directory -Force -Path $classes,$cache | Out-Null
             $sources=@('CampaignRoutes','CheckpointStore','CheckpointPolicy','AudioTimeline','SoundOwnership','AmbientLoops','SpatialAudio','AudioPlayback','FramePass','SceneBytes','CampaignStore','TouchLayout') | ForEach-Object {Join-Path $root "android/app/src/main/java/org/rcport/diagnostic/$_.java";Join-Path $root "scripts/java/${_}Check.java"}
-            Native (Join-Path $jdk 'bin/javac.exe') (@('-d',$classes)+$sources)
-            $java=Join-Path $jdk 'bin/java.exe'
+            Native (Join-Path $jdk "bin/$(Get-RcExecutable 'javac')") (@('-d',$classes)+$sources)
+            $java=Join-Path $jdk "bin/$(Get-RcExecutable 'java')"
             Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.CampaignRoutesCheck')
             Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.CheckpointStoreCheck',(Join-Path $out 'java/store'))
             Native $java @('-Xmx96m','-cp',$classes,'org.rcport.diagnostic.CampaignStoreCheck',(Join-Path $out 'java/campaign'))

@@ -1,5 +1,8 @@
 # Build und geprüfter Quellstand
 
+**Linux:** [Lokale Einrichtung, Buildbefehle und fehlende historische Eingaben](LINUX.md).
+`./build.sh` nutzt dieselbe PowerShell-Buildstrecke mit Linux-Werkzeugpfaden.
+
 Der [Audio-Geometriekern nach 0.60.0](AUDIO_GEOMETRY.md) ergänzt fünf Tests im zentralen Check: je 1.201 Debug-/Release-Bibliothekstests. Der optionale neue Kartenprüfer `rc-audio-geometry-check` liest die vier Weltmodelle und erzeugt Vergleichsabfragen für das Original. Er baut keine spielbare Szene; APK und Paket bleiben 0.60.0, bis die Laufzeitanbindung erfolgt.
 
 [0.60.0 – Ambient-Lebenszyklus](AMBIENT_LIFECYCLE.md) ergänzt vier Bibliothekstests mit 800 Originalfällen für drei Entfernungszweige und 18 Fade-Schritten. Der zentrale Check besteht mit je 1.196 Tests. Java prüft zusätzlich RCLOOP03, unveränderte laufende Aktivierungen, neue Aktivierungskennungen und atomare Paketabweisung. Die optionale echte APK-Prüfung bleibt am Ende des vollständigen Szenen-/Native-Baus; der neue Fachtext nennt die genaue Lieferzuordnung.
