@@ -1,9 +1,19 @@
 # Build und geprüfter Quellstand
 
+**Quellfortsetzung 24.10.2026:** [Transient-Kanäle, Aktivierungsvorbereitung und Stimmenzählung](AUDIO_ACTIVATION.md), fünf weitere intern umgesetzte Pakete und acht neue Testgruppen; je 1.240 Debug-/Release-Bibliothekstests und der gesamte Zentralcheck bestehen. Die AL-Upload-/Playgrenze, globale Update-Sortierung und der allgemeine App-/Treiberanschluss bleiben ausdrücklich offen.
+
+**Weitere Quellfortsetzung 24.10.2026:** [Pause-/Stopbefehle und persistente Warteschlange](AUDIO_COMMANDS.md), fünf intern umgesetzte Punkte mit 1.088 Originalbefehlsaufrufen und je 1.232 Debug-/Release-Bibliothekstests. Dort ist auch die korrigierte Zuordnung `IsPaused +1c` / `IsQueued +20` dokumentiert. Allgemeiner App-/Treiberanschluss bleibt offen.
+
+**Nachfolgende Quellfortsetzung 24.10.2026:** [Audioquellenverwaltung](AUDIO_SOURCE_RUNTIME.md) ergänzt fünf intern umgesetzte Punkte, neun Testgruppen und 768 originale Zusammenschritte; je 1.224 Bibliothekstests bestehen in Debug und Release. Allgemeiner App-/Treiberanschluss und Missions-/Hörabnahme bleiben offen.
+
+**24.10.2026:** [Fünf allgemeine Audio-Controller](AUDIO_CONTROLLERS.md) ergänzen sieben interne Testgruppen: Kurven, Fade/Lautstärke, Ducking, laufende Priorität und Quellenpool. 7.048 Originalfälle/-schritte; jeweils 1.215 Bibliothekstests in Debug und Release. Keine neue App-/Missions-/Hörabnahme.
+
+**Quellfortsetzung 24.10.2026:** [Audio-Geometrie-Laufzeitanbindung](AUDIO_GEOMETRY_RUNTIME.md) ergänzt den optionalen Import in `rc-presentation-build` und sieben interne Regressionstests (je 1.208 Bibliothekstests im Debug-/Release-Zentralcheck). Der vollständige Missionsnachweis benötigt weiterhin die lokalen, gehashten Missionseingaben.
+
 **Linux:** [Lokale Einrichtung, Buildbefehle und fehlende historische Eingaben](LINUX.md).
 `./build.sh` nutzt dieselbe PowerShell-Buildstrecke mit Linux-Werkzeugpfaden.
 
-Der [Audio-Geometriekern nach 0.60.0](AUDIO_GEOMETRY.md) ergänzt fünf Tests im zentralen Check: je 1.201 Debug-/Release-Bibliothekstests. Der optionale neue Kartenprüfer `rc-audio-geometry-check` liest die vier Weltmodelle und erzeugt Vergleichsabfragen für das Original. Er baut keine spielbare Szene; APK und Paket bleiben 0.60.0, bis die Laufzeitanbindung erfolgt.
+Der frühere [Audio-Geometriekern nach 0.60.0](AUDIO_GEOMETRY.md) ergänzt fünf Tests im zentralen Check: je 1.201 Debug-/Release-Bibliothekstests. Der optionale neue Kartenprüfer `rc-audio-geometry-check` liest die vier Weltmodelle und erzeugt Vergleichsabfragen für das Original. Er baut keine spielbare Szene; APK und Paket bleiben 0.60.0, bis auch der neue Laufzeitstand die vollständige Missions-/Androidprüfung besteht.
 
 [0.60.0 – Ambient-Lebenszyklus](AMBIENT_LIFECYCLE.md) ergänzt vier Bibliothekstests mit 800 Originalfällen für drei Entfernungszweige und 18 Fade-Schritten. Der zentrale Check besteht mit je 1.196 Tests. Java prüft zusätzlich RCLOOP03, unveränderte laufende Aktivierungen, neue Aktivierungskennungen und atomare Paketabweisung. Die optionale echte APK-Prüfung bleibt am Ende des vollständigen Szenen-/Native-Baus; der neue Fachtext nennt die genaue Lieferzuordnung.
 

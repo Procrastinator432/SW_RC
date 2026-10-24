@@ -1,6 +1,7 @@
 //! First playable vertical slice. Combat/encounter rules are explicit port policies,
 //! not a claim of reconstructed CTGame combat or campaign-script equivalence.
 pub mod ambient_audio;
+pub mod ambient_geometry;
 pub mod artillery;
 pub mod bacta;
 pub mod bot;

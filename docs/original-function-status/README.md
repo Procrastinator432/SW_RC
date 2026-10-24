@@ -1,5 +1,19 @@
 # Originalfunktionen und Umsetzungsstand
 
+**Aktuellste Quellfortsetzung 24.10.2026:** [FALSource-Steuerung und Abschlussregeln](../AUDIO_DRIVER.md) mit 2.720 ganzen Originalmethodenaufrufen intern geprüft. Echte FALSource-Methodenkörper bei kontrolliertem OpenAL, keine neue Audioausgabe oder pauschale Hochstufung des Gesamtkatalogs.
+
+**Neueste Quellfortsetzung 24.10.2026:** [AL-Upload und PlaySource-Befehlsfolge](../AUDIO_UPLOAD.md) intern geprüft: 512 ganze Originalaufrufe und 2.048 EAX-Grenzproben. Reiner Befehls-/Zustandskern mit kontrolliertem AL und Basis-Play/Pause; kein vollständiger Audiotreiber und keine pauschale Hochstufung des Gesamtkatalogs.
+
+**Quellfortsetzung 24.10.2026:** [Audioaktivierung und Stimmenzählung](../AUDIO_ACTIVATION.md) mit klar begrenzter AL-Vorbereitung. Kein vollständiger AL-Treiber und keine pauschale Hochstufung des älteren Gesamtkatalogs.
+
+**Quellfortsetzung 24.10.2026:** [Pause-/Stopbefehle und Warteschlange](../AUDIO_COMMANDS.md) intern geprüft. Der umfassende Katalog bleibt seine datierte Bestandsaufnahme; keine pauschale Hochstufung von App-/Treiberfunktionen.
+
+**Weitere Quellfortsetzung 24.10.2026:** [Audioquellenverwaltung](../AUDIO_SOURCE_RUNTIME.md) – Initialisierung, Actoranbindung, Lebensdauer, Suche und persistente Controllerkomposition intern geprüft. Keine pauschale Hochstufung des auf 0.53.0 datierten Gesamtkatalogs.
+
+**Weitere Quellfortsetzung 24.10.2026:** [Allgemeine Audio-Controller](../AUDIO_CONTROLLERS.md) – fünf intern geprüfte Kerne, sieben Testgruppen und 7.048 Originalvergleiche. Allgemeine App-/Treiberanbindung bleibt offen; der umfassende Katalog wird dadurch nicht pauschal hochgestuft.
+
+**Quellfortsetzung 24.10.2026:** [Audio-Geometrie-Laufzeitanbindung](../AUDIO_GEOMETRY_RUNTIME.md) im ausgewählten Host; vollständige Missionsregression und neue Androidabnahme offen. Keine pauschale Änderung des umfassenden Katalogs.
+
 **Neuer Quellbaustein nach 0.60.0:** [Audio-Geometrie](../AUDIO_GEOMETRY.md) mit originalen BSP-/Regionsabfragen, Zonenradiusfaktoren und gespeichertem Radiusfortlauf. Noch keine Szenen-/Android-Anbindung; keine pauschale Änderung des umfassenden Katalogs.
 
 **Neuere Laufzeitumsetzung:** [Ambient-Lebenszyklus / Prüflieferung 0.60.0](../AMBIENT_LIFECYCLE.md) – Aufnahme, Freigabe, lineare Ausblendung und Priorität für sechs ausgewählte Dauerquellen, mit persistenter Aktivierung und Android-Nachweis. Der umfassende Katalog bleibt auf 0.53.0 datiert.

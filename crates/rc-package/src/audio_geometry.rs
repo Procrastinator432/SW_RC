@@ -182,7 +182,20 @@ impl Bsp {
 #[serde(deny_unknown_fields)]
 pub struct SavedRadii {
     pub radius_bits: [u32; 3],
+    #[serde(with = "clock_words")]
     pub changed_at_bits: u64,
+}
+// Checkpoints bound individual JSON numbers to 1e12. Two integer words
+// preserve the f64 payload without widening that global validation boundary.
+mod clock_words {
+    use serde::{Deserialize, Serialize};
+    pub fn serialize<S: serde::Serializer>(bits: &u64, serializer: S) -> Result<S::Ok, S::Error> {
+        [*bits as u32, (*bits >> 32) as u32].serialize(serializer)
+    }
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {
+        let [low, high] = <[u32; 2]>::deserialize(deserializer)?;
+        Ok(u64::from(low) | (u64::from(high) << 32))
+    }
 }
 impl SavedRadii {
     pub fn capture(r: &crate::world_audio::Radii) -> Result<Self, String> {

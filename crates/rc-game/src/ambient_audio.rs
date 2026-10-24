@@ -15,6 +15,8 @@ pub struct Profile {
 #[serde(deny_unknown_fields)]
 pub struct Voice {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub geometry: Option<crate::ambient_geometry::Voice>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub priority: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fade: Option<rc_package::ambient_lifecycle::Fade>,
@@ -26,12 +28,15 @@ pub struct Voice {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AudioState {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub listener_region: Option<crate::ambient_geometry::CachedRegion>,
     pub seed: u32,
     pub voices: Vec<Voice>,
 }
 impl Default for AudioState {
     fn default() -> Self {
         Self {
+            listener_region: None,
             seed: 0x52434131,
             voices: vec![],
         }
@@ -46,6 +51,17 @@ pub struct Source {
     pub flags: u32,
 }
 pub fn validate_profiles(a: &crate::opening::Assets, sounds: usize) -> Result<(), String> {
+    if let Some(g) = &a.ambient_geometry {
+        g.validate()?;
+        if a.ambient_policy.is_none()
+            || g.actors.len() != a.ambient_profiles.len()
+            || a.ambient_profiles
+                .iter()
+                .any(|p| !g.actors.iter().any(|a| a.owner == p.owner))
+        {
+            return Err("Audio geometry/profile module mismatch".into());
+        }
+    }
     if let Some(p) = &a.ambient_policy {
         p.validate()?;
         if a.ambient_profiles.is_empty() {
@@ -86,6 +102,16 @@ pub fn validate_state(game: &Game, s: &State) -> Result<(), String> {
         return Err("Ambient audio checkpoint module mismatch".into());
     }
     if let Some(audio) = audio {
+        let geometry = game
+            .opening
+            .as_ref()
+            .and_then(|o| o.assets.ambient_geometry.as_ref());
+        if let Some(cache) = &audio.listener_region {
+            cache.validate(geometry.ok_or("Unexpected saved audio listener region")?)?;
+        }
+        if geometry.is_some() && !audio.voices.is_empty() && audio.listener_region.is_none() {
+            return Err("Missing saved audio listener region".into());
+        }
         let mut owners = std::collections::BTreeSet::new();
         if audio.voices.len() > profiles.len() {
             return Err("Too many saved ambient voices".into());
@@ -113,6 +139,15 @@ pub fn validate_state(game: &Game, s: &State) -> Result<(), String> {
                 .ok_or("Unknown saved ambient voice")?;
             if !owners.insert(v.owner) || v.started > s.statistics.ticks {
                 return Err("Invalid ambient voice identity".into());
+            }
+            match (&v.geometry, geometry) {
+                (Some(v), Some(g)) => v.validate(
+                    g,
+                    p.params.radius,
+                    (s.statistics.ticks as f64 * crate::STEP) as f32,
+                )?,
+                (None, None) => (),
+                _ => return Err("Saved audio geometry module mismatch".into()),
             }
             if let Some(pb) = &v.playback {
                 pb.validate()?;
@@ -145,39 +180,47 @@ pub fn validate_state(game: &Game, s: &State) -> Result<(), String> {
                         .and_then(|o| o.world_effects.as_ref())
                         .is_some_and(|w| w.live.iter().any(|b| b.original as i32 == p.owner))
                 };
-                if required && p.owner != 736 {
+                if required && (p.owner != 736 || geometry.is_some()) {
                     if let Some(policy) = game
                         .opening
                         .as_ref()
                         .and_then(|o| o.assets.ambient_policy.as_ref())
                     {
-                        let opening = game.opening.as_ref().unwrap();
-                        let binding = opening
-                            .assets
-                            .world_effects
-                            .iter()
-                            .find(|b| b.original as i32 == p.owner)
-                            .ok_or("Missing saved ambient binding")?;
-                        let location = s
-                            .opening
-                            .as_ref()
-                            .and_then(|o| o.world_effects.as_ref())
-                            .and_then(|w| {
-                                w.locations
-                                    .iter()
-                                    .find(|(id, _, _)| *id == binding.original)
-                            })
-                            .map_or(binding.location, |(_, p, _)| *p);
+                        let location = game.ambient_location_in(s, p.owner)?;
                         let mut listener = s.pawn.body.position;
                         listener[2] += if s.crouched {
                             56. * 0.65
                         } else {
                             game.profile.physics.extent[2] * 0.65
                         };
-                        let listener = listener.map(|v| v as f32);
+                        let listener = if geometry.is_some() {
+                            audio
+                                .listener_region
+                                .as_ref()
+                                .map_or(listener.map(|v| v as f32), |c| c.position())
+                        } else {
+                            listener.map(|v| v as f32)
+                        };
+                        let factor = if let Some(g) = geometry {
+                            let actor = g
+                                .actors
+                                .iter()
+                                .find(|a| a.owner == p.owner)
+                                .ok_or("Missing audio geometry actor")?;
+                            let (source, listener) = g.regions(location, listener)?;
+                            g.query(
+                                actor,
+                                &source,
+                                &listener,
+                                p.params.non_positional || p.params.disable_occlusion,
+                            )?
+                            .factor()
+                        } else {
+                            1.
+                        };
                         required = !s.opening.as_ref().is_some_and(|o| o.locked)
                             && policy
-                                .distances(location, listener, p.params.radius, 1.)?
+                                .distances(location, listener, p.params.radius, factor)?
                                 .admit;
                     }
                 }
@@ -219,6 +262,7 @@ impl Game {
                 && !state.voices.iter().any(|v| v.owner == p.owner)
             {
                 state.voices.push(Voice {
+                    geometry: None,
                     priority: None,
                     fade: None,
                     owner: p.owner,
@@ -237,13 +281,69 @@ impl Game {
     ) -> Result<(), String> {
         let opening = self.opening.as_ref().ok_or("Missing ambient opening")?;
         let listener = self.audio_listener().0;
+        let geometry = opening.assets.ambient_geometry.as_ref();
+        let audio = self
+            .state
+            .opening
+            .as_ref()
+            .and_then(|o| o.ambient_audio.as_ref())
+            .ok_or("Missing ambient lifecycle state")?;
+        let listener_region = geometry
+            .map(|g| {
+                crate::ambient_geometry::CachedRegion::resolve(
+                    &g.bsp,
+                    listener,
+                    g.level_info,
+                    audio.listener_region.as_ref(),
+                )
+            })
+            .transpose()?;
+        let tick = self.state.statistics.ticks;
+        let now = (tick as f64 * crate::STEP) as f32;
         let mut candidates = vec![];
         for p in &opening.assets.ambient_profiles {
             if !desired.contains(&(p.sound, p.owner)) {
                 continue;
             }
             let location = self.ambient_location(p.owner)?;
-            let distances = policy.distances(location, listener, p.params.radius, 1.)?;
+            let previous = audio
+                .voices
+                .iter()
+                .find(|v| v.owner == p.owner)
+                .and_then(|v| v.geometry.as_ref());
+            let (voice_geometry, hearing, factor) = if let Some(g) = geometry {
+                let source = crate::ambient_geometry::CachedRegion::resolve(
+                    &g.bsp,
+                    location,
+                    g.level_info,
+                    previous.map(|v| &v.source),
+                )?;
+                let actor = g
+                    .actors
+                    .iter()
+                    .find(|a| a.owner == p.owner)
+                    .ok_or("Missing geometric audio actor")?;
+                let hearing = g.query(
+                    actor,
+                    &source,
+                    listener_region.as_ref().unwrap(),
+                    p.params.non_positional || p.params.disable_occlusion,
+                )?;
+                (
+                    Some(crate::ambient_geometry::Voice::update(
+                        source,
+                        hearing,
+                        previous,
+                        p.params.radius,
+                        now,
+                    )?),
+                    Some(hearing),
+                    hearing.factor(),
+                )
+            } else {
+                (None, None, 1.)
+            };
+            let distances = policy.distances(location, listener, p.params.radius, factor)?;
             let priority = rc_package::world_audio::Priority {
                 location,
                 listener,
@@ -254,23 +354,24 @@ impl Game {
                 slot: 3,
             }
             .admission()?;
-            candidates.push((p, distances, priority));
+            candidates.push((p, distances, priority, voice_geometry, hearing));
         }
         candidates.sort_by(|a, b| b.2.total_cmp(&a.2).then(a.0.owner.cmp(&b.0.owner)));
-        let tick = self.state.statistics.ticks;
         let state = self
             .state
             .opening
             .as_mut()
             .and_then(|o| o.ambient_audio.as_mut())
             .ok_or("Missing ambient lifecycle state")?;
+        state.listener_region = listener_region;
         state.voices.retain_mut(|v| {
-            let Some((_, d, _)) = candidates
+            let Some((_, d, _, geometry, _)) = candidates
                 .iter()
-                .find(|(p, _, _)| p.owner == v.owner && p.sound == v.sound)
+                .find(|(p, _, _, _, _)| p.owner == v.owner && p.sound == v.sound)
             else {
                 return false;
             };
+            v.geometry = geometry.clone();
             if let Some(f) = &mut v.fade {
                 return !f.step();
             }
@@ -279,9 +380,23 @@ impl Game {
             }
             true
         });
-        for (p, d, priority) in candidates {
+        for (p, d, priority, geometry, hearing) in candidates {
             if d.admit && !state.voices.iter().any(|v| v.owner == p.owner) {
+                // A fade may have ended above. Every NEW activation runs Init;
+                // it must not inherit the retired voice's radius clock.
+                let geometry = match (geometry, hearing) {
+                    (Some(g), Some(h)) => Some(crate::ambient_geometry::Voice::update(
+                        g.source,
+                        h,
+                        None,
+                        p.params.radius,
+                        now,
+                    )?),
+                    (None, None) => None,
+                    _ => return Err("Incomplete ambient geometry candidate".into()),
+                };
                 state.voices.push(Voice {
+                    geometry,
                     owner: p.owner,
                     sound: p.sound,
                     started: tick,
@@ -294,9 +409,12 @@ impl Game {
         Ok(())
     }
     fn ambient_location(&self, owner: i32) -> Result<[f32; 3], String> {
+        self.ambient_location_in(&self.state, owner)
+    }
+    fn ambient_location_in(&self, state: &State, owner: i32) -> Result<[f32; 3], String> {
         if owner == 736 {
             let eye = self
-                .bacta_effect_anchors()?
+                .bacta_effect_anchors_in(state)?
                 .ok_or("Missing ambient Eye transform")?
                 .0;
             return Ok([eye[3][0], eye[3][1], eye[3][2]]);
@@ -311,8 +429,7 @@ impl Game {
                     .find(|b| b.original as i32 == owner)
             })
             .ok_or("Missing ambient source")?;
-        Ok(self
-            .state
+        Ok(state
             .opening
             .as_ref()
             .and_then(|o| o.world_effects.as_ref())
@@ -373,6 +490,20 @@ impl Game {
             if let Some(f) = &voice.fade {
                 playback.volume *= f.value;
                 if playback.volume <= 0.0001 {
+                    continue;
+                }
+            }
+            if let Some(g) = &voice.geometry {
+                // Preserve the original unbounded smoothing in checkpoints, including
+                // overshoot. The portable playback protocol only accepts 0..1e6.
+                playback.radius = g.radii.restore()?.current.clamp(0., 1e6);
+                // The legacy Android adapter interprets radius zero as no falloff.
+                // A collapsed geometric radius must instead produce no stream.
+                if profile.params.radius > 0.
+                    && playback.radius == 0.
+                    && !profile.params.non_positional
+                    && !profile.params.disable_falloff
+                {
                     continue;
                 }
             }

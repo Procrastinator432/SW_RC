@@ -4,7 +4,23 @@ pub mod actor_falling;
 pub mod ai_contact;
 pub mod animation_call;
 pub mod animation_replication;
+pub mod audio_activation;
+pub mod audio_census;
+pub mod audio_commands;
+pub mod audio_curve;
+pub mod audio_driver;
+pub mod audio_duck;
+pub mod audio_fade;
 pub mod audio_geometry;
+pub mod audio_handoff;
+pub mod audio_pool;
+pub mod audio_priority;
+pub mod audio_source;
+pub mod audio_source_lookup;
+pub mod audio_source_runtime;
+pub mod audio_source_update;
+pub mod audio_upload;
+pub mod audio_zones;
 pub mod auto_crouch;
 pub mod bsp_cells;
 pub mod channel_playback;
@@ -628,3 +644,21 @@ pub mod projectile_motion;
 pub mod ambient_lifecycle;
 pub mod audio_params;
 pub mod world_audio;
+
+#[cfg(test)]
+mod audio_controller_tests;
+
+#[cfg(test)]
+mod audio_source_tests;
+
+#[cfg(test)]
+mod audio_command_tests;
+
+#[cfg(test)]
+mod audio_activation_tests;
+
+#[cfg(test)]
+mod audio_upload_tests;
+
+#[cfg(test)]
+mod audio_driver_tests;

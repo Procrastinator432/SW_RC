@@ -449,6 +449,12 @@ impl Game {
         Ok(())
     }
     pub(crate) fn bacta_effect_anchors(&self) -> Result<Option<EffectAnchors>, String> {
+        self.bacta_effect_anchors_in(&self.state)
+    }
+    pub(crate) fn bacta_effect_anchors_in(
+        &self,
+        state: &crate::State,
+    ) -> Result<Option<EffectAnchors>, String> {
         let Some(p) = self
             .opening
             .as_ref()
@@ -457,8 +463,7 @@ impl Game {
         else {
             return Ok(None);
         };
-        let s = self
-            .state
+        let s = state
             .opening
             .as_ref()
             .and_then(|o| o.bacta.as_ref())
@@ -505,8 +510,8 @@ impl Game {
         let eye = std::array::from_fn(|r| {
             std::array::from_fn(|c| (0..4).map(|i| local[r][i] * actor[i][c]).sum())
         });
-        let position = self.state.pawn.body.position.map(|v| v as f32);
-        let (sin, cos) = (self.state.yaw as f32).sin_cos();
+        let position = state.pawn.body.position.map(|v| v as f32);
+        let (sin, cos) = (state.yaw as f32).sin_cos();
         let body = [
             [cos, sin, 0., 0.],
             [-sin, cos, 0., 0.],
@@ -520,11 +525,10 @@ impl Game {
             .mesh;
         let clip = mesh.clip("ActionBreathe")?;
         let seq = &mesh.mesh.clips[clip].sequence;
-        let frame = (self.state.statistics.ticks as f32
-            * crate::STEP as f32
-            * f32::from_bits(seq.rate_bits)
-            / seq.frames as f32)
-            .fract();
+        let frame =
+            (state.statistics.ticks as f32 * crate::STEP as f32 * f32::from_bits(seq.rate_bits)
+                / seq.frames as f32)
+                .fract();
         let mut joints = mesh.joint_positions(&mesh.channel(clip, frame)?, true)?;
         for p in &mut joints {
             p[2] -= 84. + mesh.rest_bounds[0][2];

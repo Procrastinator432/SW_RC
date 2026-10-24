@@ -17,6 +17,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let binding = level::world_binding(&pkg, &data)?;
         let export = &pkg.exports[binding.model_export];
         let bsp = audio_geometry::read_model(&pkg, &data, export)?;
+        let connectivity = rc_package::audio_zones::read_connectivity(&pkg, &data, export)?;
+        let distances = rc_package::audio_zones::Distances::build(&connectivity)?;
+        let distances_hex: String = distances.bytes.iter().map(|b| format!("{b:02x}")).collect();
         let geometry = geometry::read_bsp(&pkg, &data, export)?;
         let copy: audio_geometry::Bsp = serde_json::from_slice(&serde_json::to_vec(&bsp)?)?;
         let mut positions: Vec<[f32; 3]> = level::player_starts(&pkg, &data)?
@@ -53,7 +56,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let filename = format!("{name}.json");
         fs::write(
             out.join(&filename),
-            serde_json::to_vec(&serde_json::json!({"map":name,"bsp":bsp,"queries":queries}))?,
+            serde_json::to_vec(
+                &serde_json::json!({"map":name,"bsp":bsp,"connectivity":connectivity,"distances_hex":distances_hex,"queries":queries}),
+            )?,
         )?;
         reports.push(serde_json::json!({"map":name,"nodes":bsp.nodes.len(),"zones":bsp.zone_actors.len(),"queries":queries.len(),"blocked":queries.iter().filter(|v|v["clear"]==false).count(),"roundtrip_exact":true,"truncation_rejected":true,"file":filename}));
     }

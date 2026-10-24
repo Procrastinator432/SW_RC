@@ -615,7 +615,7 @@ fn presentation_snapshot_survives_simulation_and_rejects_bad_dimensions() {
         game.render_frame(160, 100).unwrap().gpu_packet(&game.scene)
     );
 }
-fn game(wall: bool) -> Game {
+pub(super) fn game(wall: bool) -> Game {
     let mut triangles = vec![Triangle {
         points: [
             [-2000., -2000., -84.5],

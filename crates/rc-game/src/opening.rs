@@ -46,6 +46,8 @@ pub struct Program {
 #[serde(deny_unknown_fields)]
 pub struct Assets {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ambient_geometry: Option<crate::ambient_geometry::Assets>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ambient_policy: Option<rc_package::ambient_lifecycle::Policy>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ambient_profiles: Vec<crate::ambient_audio::Profile>,
@@ -848,6 +850,335 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn audio_game(geometry: bool) -> Game {
+        use crate::ambient_geometry::{Actor, Assets as Geometry};
+        use rc_package::{
+            audio_geometry::{Bsp, Node},
+            audio_zones::Distances,
+        };
+        let mut game = crate::tests::game(false);
+        let mut a = assets();
+        a.ambient_policy = Some(rc_package::ambient_lifecycle::Policy::default());
+        a.ambient_profiles.push(crate::ambient_audio::Profile {
+            owner: 950,
+            sound: 0,
+            params: rc_package::audio_params::Params {
+                source: "synthetic-audio-regression".into(),
+                min_volume: 1.,
+                max_volume: 1.,
+                min_pitch: 1.,
+                max_pitch: 1.,
+                radius: 10.,
+                non_positional: false,
+                disable_falloff: false,
+                disable_occlusion: false,
+                category: 2,
+            },
+        });
+        a.world_effects.push(crate::world_effects::Binding {
+            original: 950,
+            ambient: Some(0),
+            sound: None,
+            teleport_action: None,
+            source: "synthetic-audio-regression".into(),
+            event: Some("fire".into()),
+            disabled: None,
+            location: [-100., 0., 0.],
+            rotation: [0; 3],
+            templates: vec![],
+        });
+        if geometry {
+            let connectivity = vec![1, 2, 6];
+            a.ambient_geometry = Some(Geometry {
+                bsp: Bsp {
+                    nodes: vec![
+                        Node {
+                            plane: [1., 0., 0., 0.],
+                            back: 1,
+                            front: -1,
+                            flags: 0,
+                            zones: [0, 1],
+                            leaves: [-1, 10],
+                        },
+                        Node {
+                            plane: [-1., 0., 0., 50.],
+                            back: -1,
+                            front: -1,
+                            flags: 0,
+                            zones: [0, 2],
+                            leaves: [0, 20],
+                        },
+                    ],
+                    root_outside: true,
+                    zone_actors: vec![0, 101, 102],
+                },
+                distances: Distances::build(&connectivity).unwrap(),
+                connectivity,
+                level_info: 4,
+                actors: vec![Actor {
+                    owner: 950,
+                    mode: 0,
+                    mover: false,
+                }],
+            });
+        }
+        crate::ambient_audio::validate_profiles(&a, 1).unwrap();
+        let mut state = State::new(&a);
+        state.locked = false;
+        let effects = state.world_effects.as_mut().unwrap();
+        effects.started.push(950);
+        effects.live.push(crate::world_effects::Burst {
+            original: 950,
+            particles: crate::particles::State::burst(&[], 950),
+        });
+        game.state.opening = Some(state);
+        game.opening = Some(Prepared {
+            rigid: crate::rigid::Prepared::new(vec![]),
+            world_effect_bases: vec![0],
+            bacta: None,
+            intro: None,
+            rappel: None,
+            assets: a,
+            sound_base: 0,
+        });
+        game.initial = game.state.clone();
+        // The activation occurs after the map's empty entry state.
+        let effects = game
+            .initial
+            .opening
+            .as_mut()
+            .unwrap()
+            .world_effects
+            .as_mut()
+            .unwrap();
+        effects.started.clear();
+        effects.live.clear();
+        game
+    }
+    fn audio_tick(game: &mut Game) {
+        game.state.statistics.ticks += 1;
+        game.tick_ambient_audio().unwrap();
+    }
+    #[test]
+    fn geometric_ambient_cold_checkpoint_and_continuation_are_bit_exact() {
+        let mut game = audio_game(true);
+        for _ in 0..30 {
+            audio_tick(&mut game);
+        }
+        let saved = game.checkpoint("audio-geometry-fixture").unwrap();
+        let pb = game
+            .spatial_ambient_sources()
+            .unwrap()
+            .remove(0)
+            .playback
+            .unwrap();
+        assert!(pb.radius > 0. && pb.radius < 10.);
+        for _ in 0..4 {
+            game.spatial_ambient_sources().unwrap();
+        }
+        assert_eq!(saved, game.checkpoint("audio-geometry-fixture").unwrap());
+        let mut fresh = audio_game(true);
+        fresh
+            .restore_checkpoint(&saved, "audio-geometry-fixture")
+            .unwrap();
+        assert_eq!(saved, fresh.checkpoint("audio-geometry-fixture").unwrap());
+        for _ in 0..120 {
+            audio_tick(&mut game);
+            audio_tick(&mut fresh);
+            assert_eq!(
+                game.checkpoint("audio-geometry-fixture").unwrap(),
+                fresh.checkpoint("audio-geometry-fixture").unwrap()
+            );
+        }
+        game.state.pawn.body.position[0] = 2000.;
+        audio_tick(&mut game);
+        assert!(game
+            .state
+            .opening
+            .as_ref()
+            .unwrap()
+            .ambient_audio
+            .as_ref()
+            .unwrap()
+            .voices[0]
+            .fade
+            .is_some());
+        let saved = game.checkpoint("audio-geometry-fixture").unwrap();
+        fresh
+            .restore_checkpoint(&saved, "audio-geometry-fixture")
+            .unwrap();
+        for _ in 0..18 {
+            audio_tick(&mut game);
+            audio_tick(&mut fresh);
+        }
+        assert!(game.spatial_ambient_sources().unwrap().is_empty());
+        assert_eq!(
+            game.checkpoint("audio-geometry-fixture").unwrap(),
+            fresh.checkpoint("audio-geometry-fixture").unwrap()
+        );
+        game.state.pawn.body.position[0] = 0.;
+        audio_tick(&mut game);
+        assert_eq!(game.spatial_ambient_sources().unwrap().len(), 1);
+        let radii = game
+            .state
+            .opening
+            .as_ref()
+            .unwrap()
+            .ambient_audio
+            .as_ref()
+            .unwrap()
+            .voices[0]
+            .geometry
+            .as_ref()
+            .unwrap()
+            .radii
+            .restore()
+            .unwrap();
+        assert_eq!(
+            radii.changed_at,
+            (game.state.statistics.ticks as f64 * crate::STEP) as f32 as f64
+        );
+    }
+    #[test]
+    fn geometric_radius_overshoot_is_saved_and_output_stays_valid() {
+        let mut game = audio_game(true);
+        audio_tick(&mut game);
+        game.state.pawn.body.position[0] = -80.;
+        game.state.statistics.ticks = 600;
+        audio_tick(&mut game);
+        let radii = game
+            .state
+            .opening
+            .as_ref()
+            .unwrap()
+            .ambient_audio
+            .as_ref()
+            .unwrap()
+            .voices[0]
+            .geometry
+            .as_ref()
+            .unwrap()
+            .radii
+            .restore()
+            .unwrap();
+        assert!(radii.current > 10.); // Original interpolation does not clamp elapsed time.
+        let saved = game.checkpoint("audio-geometry-fixture").unwrap();
+        let mut fresh = audio_game(true);
+        fresh
+            .restore_checkpoint(&saved, "audio-geometry-fixture")
+            .unwrap();
+        assert_eq!(saved, fresh.checkpoint("audio-geometry-fixture").unwrap());
+        game.state.pawn.body.position[0] = 0.;
+        game.state.statistics.ticks = 1200;
+        audio_tick(&mut game);
+        let radii = game
+            .state
+            .opening
+            .as_ref()
+            .unwrap()
+            .ambient_audio
+            .as_ref()
+            .unwrap()
+            .voices[0]
+            .geometry
+            .as_ref()
+            .unwrap()
+            .radii
+            .restore()
+            .unwrap();
+        assert!(radii.current < 0.);
+        assert!(game.spatial_ambient_sources().unwrap().is_empty());
+        let saved = game.checkpoint("audio-geometry-fixture").unwrap();
+        fresh
+            .restore_checkpoint(&saved, "audio-geometry-fixture")
+            .unwrap();
+        assert_eq!(saved, fresh.checkpoint("audio-geometry-fixture").unwrap());
+    }
+    #[test]
+    fn invalid_geometric_audio_checkpoints_are_rejected_atomically() {
+        let mut game = audio_game(true);
+        for _ in 0..20 {
+            audio_tick(&mut game);
+        }
+        let saved = game.checkpoint("audio-geometry-fixture").unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&saved[20..]).unwrap();
+        for mutation in [
+            "missing",
+            "listener",
+            "source_zone",
+            "listener_zone",
+            "future",
+            "nan",
+            "radius",
+        ] {
+            let mut value = body.clone();
+            let a = &mut value["state"]["opening"]["ambient_audio"];
+            match mutation {
+                "missing" => a["voices"][0].as_object_mut().unwrap().remove("geometry"),
+                "listener" => a.as_object_mut().unwrap().remove("listener_region"),
+                "source_zone" => Some(std::mem::replace(
+                    &mut a["voices"][0]["geometry"]["source"]["region"]["zone"],
+                    63.into(),
+                )),
+                "listener_zone" => Some(std::mem::replace(
+                    &mut a["listener_region"]["region"]["zone"],
+                    63.into(),
+                )),
+                "future" => Some(std::mem::replace(
+                    &mut a["voices"][0]["geometry"]["radii"]["changed_at_bits"],
+                    serde_json::json!([10f64.to_bits() as u32, (10f64.to_bits() >> 32) as u32]),
+                )),
+                "nan" => Some(std::mem::replace(
+                    &mut a["voices"][0]["geometry"]["radii"]["radius_bits"][1],
+                    f32::NAN.to_bits().into(),
+                )),
+                _ => Some(std::mem::replace(
+                    &mut a["voices"][0]["geometry"]["radii"]["radius_bits"][0],
+                    20f32.to_bits().into(),
+                )),
+            };
+            let data = serde_json::to_vec(&value).unwrap();
+            let hash = data.iter().fold(0xcbf29ce484222325u64, |h, b| {
+                (h ^ u64::from(*b)).wrapping_mul(0x100000001b3)
+            });
+            let mut corrupt = b"RCSAVE01".to_vec();
+            corrupt.extend((data.len() as u32).to_le_bytes());
+            corrupt.extend(hash.to_le_bytes());
+            corrupt.extend(data);
+            assert!(
+                game.restore_checkpoint(&corrupt, "audio-geometry-fixture")
+                    .is_err(),
+                "{mutation}"
+            );
+            assert_eq!(
+                saved,
+                game.checkpoint("audio-geometry-fixture").unwrap(),
+                "{mutation}"
+            );
+        }
+    }
+    #[test]
+    fn legacy_ambient_scenes_keep_their_serialized_contract() {
+        let mut game = audio_game(false);
+        for _ in 0..30 {
+            audio_tick(&mut game);
+        }
+        let saved = game.checkpoint("legacy-audio-fixture").unwrap();
+        let json = std::str::from_utf8(&saved[20..]).unwrap();
+        assert!(!json.contains("listener_region") && !json.contains("\"geometry\""));
+        let pb = game
+            .spatial_ambient_sources()
+            .unwrap()
+            .remove(0)
+            .playback
+            .unwrap();
+        assert_eq!(pb.radius, 10.);
+        let mut fresh = audio_game(false);
+        fresh
+            .restore_checkpoint(&saved, "legacy-audio-fixture")
+            .unwrap();
+        assert_eq!(saved, fresh.checkpoint("legacy-audio-fixture").unwrap());
+    }
     #[test]
     fn protected_existing_voice_rejects_same_owner_but_not_other_owners_or_sfx() {
         let mut voices = vec![];
@@ -911,6 +1242,7 @@ mod tests {
     }
     fn assets() -> Assets {
         Assets {
+            ambient_geometry: None,
             ambient_policy: None,
             ambient_profiles: vec![],
             rigid_interactions: None,

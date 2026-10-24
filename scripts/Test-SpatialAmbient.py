@@ -75,7 +75,7 @@ try:
     source=loops['sources'][owner];voice=next(v for v in voices if v['owner']==owner)
     assert source['activation']==voice['started'] and profiles[owner]['params']['max_volume']==1
     dx,dy,dz=[f32(source['location'][i]-loops['listener'][i]) for i in range(3)]
-    squared=f32(f32(f32(dz*dz)+f32(dy*dy))+f32(dx*dx));radius=f32(source['radius']*100)
+    squared=f32(f32(f32(dz*dz)+f32(dy*dy))+f32(dx*dx));radius=f32(profiles[owner]['params']['radius']*100)
     priority=max(f32(.01),min(1.,f32(1-f32(squared/f32(radius*radius)))))
     assert struct.pack('<f',priority)==struct.pack('<f',voice['priority']),'Saved priority does not match original admission inputs'
     priority_checks+=1
@@ -112,7 +112,8 @@ try:
    profile=profiles[owner];voice=next(v for v in voices if v['owner']==owner);pb=voice['playback'];params=profile['params']
    assert source['sound']==profile['sound']==voice['sound'] and source['activation']==voice['started']
    gain=voice.get('fade',{}).get('value',1.)
-   assert struct.pack('<3f',source['volume'],source['pitch'],source['radius'])==struct.pack('<3f',pb['volume']*gain,pb['pitch'],pb['radius'])
+   radius=struct.unpack('<f',struct.pack('<I',voice['geometry']['radii']['radius_bits'][1]))[0] if voice.get('geometry') else pb['radius']
+   assert struct.pack('<3f',source['volume'],source['pitch'],source['radius'])==struct.pack('<3f',pb['volume']*gain,pb['pitch'],max(0,min(1e6,radius)))
    assert params['min_volume']<=pb['volume']<=min(1,params['max_volume']) and params['min_pitch']<=pb['pitch']<=params['max_pitch']
    if owner!=736:
     anchor=next(b for b in meta['world_effects'] if b['original']==owner)['location'];assert struct.pack('<3f',*source['location'])==struct.pack('<3f',*anchor)
@@ -125,6 +126,7 @@ try:
   mutations=['missing_module','owner','duplicate','future','pitch','muted']
   if name!='fade':mutations.append('missing_active')
   if lifecycle:mutations.append('priority')
+  if meta.get('ambient_geometry'):mutations+=['geometry_missing','geometry_region','geometry_future','geometry_nan','geometry_listener']
   if name=='fade':mutations+=['fade_value','fade_future']
   for mutation in mutations:
    obj=body(saved);a=obj['state']['opening']['ambient_audio'];v=a['voices'][0]
@@ -136,6 +138,11 @@ try:
    elif mutation=='pitch':v['playback']['pitch']=1.9
    elif mutation=='muted':v['playback']=None
    elif mutation=='priority':v['priority']=2
+   elif mutation=='geometry_missing':v.pop('geometry',None)
+   elif mutation=='geometry_region':v['geometry']['source']['region']['zone']=63
+   elif mutation=='geometry_future':v['geometry']['radii']['changed_at_bits']=list(struct.unpack('<II',struct.pack('<d',1e6)))
+   elif mutation=='geometry_nan':v['geometry']['radii']['radius_bits'][1]=0x7fc00000
+   elif mutation=='geometry_listener':a['listener_region']=None
    elif mutation=='fade_value':next(v for v in a['voices'] if v.get('fade'))['fade']['value']=.123
    elif mutation=='fade_future':next(v for v in a['voices'] if v.get('fade'))['fade']['started']=obj['state']['statistics']['ticks']+1
    raw=save(obj);assert api.rc_game_restore_checkpoint(h,c.create_string_buffer(raw),len(raw),error,len(error))!=0,mutation

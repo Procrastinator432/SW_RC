@@ -1,5 +1,13 @@
 # Welt-Audio: originaler Rechenkern
 
+**Weitere Quellfortsetzung 24.10.2026:** [Pause-/Stopbefehle und persistente Warteschlange](AUDIO_COMMANDS.md), fünf intern umgesetzte Punkte mit 1.088 Originalbefehlsaufrufen. Dort ist auch die korrigierte Zuordnung `IsPaused +1c` / `IsQueued +20` dokumentiert. Allgemeiner App-/Treiberanschluss bleibt offen.
+
+**Nachfolgende Quellfortsetzung 24.10.2026:** [Audioquellenverwaltung](AUDIO_SOURCE_RUNTIME.md) ergänzt fünf intern umgesetzte Punkte, neun Testgruppen und 768 originale Zusammenschritte. Allgemeiner App-/Treiberanschluss und Missions-/Hörabnahme bleiben offen.
+
+**24.10.2026:** [Fünf allgemeine Audio-Controller](AUDIO_CONTROLLERS.md) ergänzen sieben interne Testgruppen: Kurven, Fade/Lautstärke, Ducking, laufende Priorität und Quellenpool. 7.048 Originalfälle/-schritte, keine neue App-/Missions-/Hörabnahme.
+
+**Quellfortsetzung 24.10.2026:** [Geometrie und Radiusfortlauf im ausgewählten Host](AUDIO_GEOMETRY_RUNTIME.md); vollständige Missions-/Androidabnahme offen. Die folgenden Abschnitte dokumentieren den früheren Rechenkernstand.
+
 **Nachfolgender Quellbaustein:** [Audio-Geometrie nach 0.60.0](AUDIO_GEOMETRY.md) ergänzt originale BSP-Abfragen, Punktregionen und Radiusfaktoren sowie einen bitgenauen Speichervertrag für den Radiusfortlauf. Die Laufzeitanbindung dieses neuen Bausteins bleibt offen.
 
 Stand dieser Rechenkern-Stufe: 23.10.2026 · nach 0.58.0, damals ohne neue Androidlieferung.
@@ -11,7 +19,7 @@ Der Welt-Audiokern in `rc-package::world_audio` bildet ausgewählte originale PC
 ## Fünf abgeschlossene Punkte
 
 1. **Radiusregeln:** `FAbstractSource::UpdateRadii` untersucht und die Rechnung nach der Geometrieabfrage umgesetzt. Der Prioritätsradius wird bei Verdeckung mit dem gelieferten Geometriefaktor skaliert; der Wiedergabe-Zielradius erhält zusätzlich Faktor 0,35. Ohne Verdeckung bleibt der ursprüngliche Radius erhalten. Die Geometrieabfrage selbst ist kein Teil dieses Bausteins.
-2. **Lautstärke und Stoppen:** `FAbstractSource::UpdateVolume` umgesetzt: Basislautstärke mit Duck-Faktor multiplizieren, Fade-Ergebnis abhängig vom vorherigen Modus übernehmen, anschließend Fade anwenden oder die Quelle stoppen. Pausierte Quellen, Fade-in und Flag `0x4000` verhindern den ausgewählten automatischen Stopp. Die vollständigen Duck-/Fade-Controller bleiben eigene Arbeit.
+2. **Lautstärke und Stoppen:** `FAbstractSource::UpdateVolume` umgesetzt: Basislautstärke mit Duck-Faktor multiplizieren, Fade-Ergebnis abhängig vom vorherigen Modus übernehmen, anschließend Fade anwenden oder die Quelle stoppen. Wartende Quellen (`IsQueued`), Fade-in und Flag `0x4000` verhindern den ausgewählten automatischen Stopp. Die vollständigen Duck-/Fade-Controller bleiben eigene Arbeit.
 3. **Aufnahmepriorität:** `UAudioSubsystem::SoundPriority` einschließlich quadratischem Entfernungsgewicht, Lautstärkeanteil, Slot- und Quellenflags portiert. Das Gewicht hat die Untergrenze 0,01. Es dient der Quellenaufnahme und darf nicht als hörbarer Gain an SoundPool übergeben werden.
 4. **Rust-Schnittstelle und Zustandsgrenzen:** Validierte Eingaben, getrennte Typen für Priorität, Radiuszustand und Lautstärkeupdate. Radiuszeit und vorheriges Ziel bleiben serialisierbar; ein Roundtrip erhält den Fortlauf. Ungültige Eingaben verändern den Ausgangszustand nicht. Das ist noch keine Integration in Spiel-Checkpoints.
 5. **Originalvergleich und Prüfpfad:** 3.000 tatsächlich ausgeführte x86-Fälle mit bitgenauem Vergleich der jeweiligen f32-Ausgaben und Radiuszeit; sieben neue Bibliothekstests einschließlich Grenzfällen. Die eingefrorenen Ergebnisdaten laufen ohne Originalinstallation im zentralen Debug-/Release-Testpfad mit. Frische Originalausführung kann zusätzlich gegen diese Daten geprüft werden.
@@ -23,7 +31,7 @@ Untersucht wurde `GameData/System/engine.dll`, SHA-256 `f8b3fc9d62414828a1c31d8b
 | Originalfunktion | Adresse | Verifizierter Umfang |
 |---|---|---|
 | `FAbstractSource::UpdateRadii` | `103d2520` | Rechenregionen nach der Geometrieabfrage; Profiling übersprungen. |
-| `FAbstractSource::UpdateVolume` | `103d0c60` | Vollständige Funktion mit ausdrücklich vorgegebenen Duck-/Fade-/Pause-/Stopp-Callbacks. |
+| `FAbstractSource::UpdateVolume` | `103d0c60` | Vollständige Funktion mit ausdrücklich vorgegebenen Duck-/Fade-/Queue-/Stopp-Callbacks. |
 | `UAudioSubsystem::SoundPriority` | `103d64e0` | Vollständige Funktion mit vorgegebenem globalem Radiusmultiplikator. |
 | `FAbstractSource::UpdatePriority` | `103d50e0` | Untersucht, noch nicht portiert; unterscheidet sich von der Aufnahmepriorität. |
 | `FAbstractSource::UpdateBase` | `103d5340` | Aufrufreihenfolge untersucht, noch kein allgemeiner Quellenhost. |
